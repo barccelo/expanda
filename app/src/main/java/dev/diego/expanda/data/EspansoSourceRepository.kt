@@ -140,11 +140,62 @@ class EspansoSourceRepository(
                 add(examples)
                 if (updatedBase.content != base.content) add(updatedBase)
             }
+            // Keep every existing file (including base.yml) and only overwrite the
+            // ones we actually changed. Previous implementation dropped BASE_FILE
+            // when the import was already present, wiping user snippets (#7).
             val candidate = current
-                .filterNot { it.relativePath == BASE_FILE || it.relativePath == ExampleSnippets.EXAMPLES_FILE }
-                .plus(changed)
+                .filterNot { it.relativePath == ExampleSnippets.EXAMPLES_FILE }
+                .map { file -> changed.firstOrNull { it.relativePath == file.relativePath } ?: file }
+                .plus(examples)
             commit(current, candidate, changed, emptyList())
         }
+    }
+
+    /**
+     * Removes the bundled example snippets without touching any user-authored file.
+     *
+     * We identify example snippets by their dedicated source file
+     * ([ExampleSnippets.EXAMPLES_FILE]) rather than by trigger/content matching:
+     * that file is created only by [installExampleSnippets], is never edited by
+     * the visual UI, and living inside it is a stronger guarantee than any
+     * trigger-based heuristic. Any snippet a user has copied into their own
+     * file (base.yml or elsewhere) is therefore treated as user-owned and kept.
+     */
+    suspend fun removeExampleSnippets(): EspansoSourceImportResult = withContext(io) {
+        mutation.withLock {
+            val current = readAuthoritative()
+            val examplesFile = current.firstOrNull { it.relativePath == ExampleSnippets.EXAMPLES_FILE }
+            val baseFile = current.firstOrNull { it.relativePath == BASE_FILE }
+            val strippedBase = baseFile?.let { stripExamplesImport(it) }
+            val changed = listOfNotNull(strippedBase)
+            val deleted = listOfNotNull(examplesFile)
+            if (changed.isEmpty() && deleted.isEmpty()) {
+                return@withLock result(decodeSourceSet(current))
+            }
+            val candidate = current
+                .filterNot { it.relativePath == ExampleSnippets.EXAMPLES_FILE }
+                .map { file -> changed.firstOrNull { it.relativePath == file.relativePath } ?: file }
+            commit(current, candidate, changed, deleted)
+        }
+    }
+
+    private fun stripExamplesImport(base: EspansoSourceFile): EspansoSourceFile? {
+        val paths = runCatching { EspansoYamlCodec.importPaths(base.content) }.getOrDefault(emptyList())
+        if (paths.none { it.removePrefix("./") == ExampleSnippets.EXAMPLES_FILE }) return null
+        // Only rewrite the imports block when it's free of comments / advanced YAML,
+        // otherwise we would destroy the user's formatting. In the SOURCE_ONLY case
+        // we drop the file and leave the (now dangling) import for the user to clean
+        // up manually — that only surfaces as a decode warning, never data loss.
+        if (EspansoSourceText.rootSectionVisualEditMode(base.content, "imports") != SourceEditMode.VISUAL) {
+            return null
+        }
+        val remaining = paths.filterNot { it.removePrefix("./") == ExampleSnippets.EXAMPLES_FILE }
+        val replacement = if (remaining.isEmpty()) null else buildString {
+            appendLine("imports:")
+            remaining.forEach { appendLine("  - $it") }
+        }.trimEnd('\r', '\n')
+        val updated = EspansoSourceText.replaceRootSection(base.content, "imports", replacement)
+        return if (updated == base.content) null else base.copy(content = updated)
     }
 
     fun inspectFiles(incoming: List<EspansoSourceFile>): EspansoImportResult {

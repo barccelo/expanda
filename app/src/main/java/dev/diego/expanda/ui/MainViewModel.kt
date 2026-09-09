@@ -184,6 +184,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         onResult(result)
     }
 
+    fun removeExampleSnippets(onResult: (Result<Int>) -> Unit = {}) = viewModelScope.launch {
+        val result = runCatching { sourceRepository.removeExampleSnippets().matches }
+        onResult(result)
+    }
+
     fun delete(id: Long) = viewModelScope.launch {
         repository.matches.value.firstOrNull { it.id == id }?.let { sourceRepository.deleteMatch(it) }
     }
