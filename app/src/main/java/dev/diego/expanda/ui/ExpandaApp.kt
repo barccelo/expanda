@@ -157,6 +157,7 @@ import androidx.compose.ui.res.painterResource
 import kotlin.math.atan2
 import kotlin.math.min
 import kotlin.math.roundToInt
+import dev.diego.expanda.data.ExampleSnippets
 import dev.diego.expanda.data.MatchOptions
 import dev.diego.expanda.data.MatchTrigger
 import dev.diego.expanda.data.OnboardingStatus
@@ -549,16 +550,35 @@ private fun SnippetList(
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
     val scope = rememberCoroutineScope()
-    var installingExamples by remember { mutableStateOf(false) }
+    val sourceFiles by viewModel.sourceFiles.collectAsState()
+    // Presence is decided by the dedicated `_examples.yml` source file, which is
+    // created only by installExampleSnippets and never touched by the visual UI.
+    val exampleSnippetsPresent = sourceFiles.any { it.relativePath == ExampleSnippets.EXAMPLES_FILE }
+    var examplesInFlight by remember { mutableStateOf(false) }
     val installExamples: () -> Unit = {
-        if (!installingExamples) {
-            installingExamples = true
+        if (!examplesInFlight) {
+            examplesInFlight = true
             viewModel.installExampleSnippets { result ->
-                installingExamples = false
+                examplesInFlight = false
                 result.onFailure { error ->
                     scope.launch {
                         snackbarHostState.showSnackbar(
                             error.message ?: "Could not add example snippets",
+                        )
+                    }
+                }
+            }
+        }
+    }
+    val removeExamples: () -> Unit = {
+        if (!examplesInFlight) {
+            examplesInFlight = true
+            viewModel.removeExampleSnippets { result ->
+                examplesInFlight = false
+                result.onFailure { error ->
+                    scope.launch {
+                        snackbarHostState.showSnackbar(
+                            error.message ?: "Could not remove example snippets",
                         )
                     }
                 }
@@ -640,8 +660,10 @@ private fun SnippetList(
         } else if (state.visibleMatches.isEmpty()) {
             EmptyState(
                 hasSnippets = state.matches.isNotEmpty(),
-                installingExamples = installingExamples,
+                inFlight = examplesInFlight,
+                examplesPresent = exampleSnippetsPresent,
                 onAddExamples = installExamples,
+                onRemoveExamples = removeExamples,
             )
         } else LazyColumn(contentPadding = PaddingValues(bottom = 88.dp)) {
             items(state.visibleMatches, key = TextMatch::id) { match ->
@@ -665,10 +687,12 @@ private fun SnippetList(
                 HorizontalDivider()
             }
             item {
-                AddExampleSnippetsButton(
+                ExampleSnippetsToggleButton(
                     compact = true,
-                    installing = installingExamples,
-                    onClick = installExamples,
+                    inFlight = examplesInFlight,
+                    examplesPresent = exampleSnippetsPresent,
+                    onAdd = installExamples,
+                    onRemove = removeExamples,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 12.dp),
@@ -764,8 +788,10 @@ private fun SnippetRow(
 @Composable
 private fun EmptyState(
     hasSnippets: Boolean,
-    installingExamples: Boolean,
+    inFlight: Boolean,
+    examplesPresent: Boolean,
     onAddExamples: () -> Unit,
+    onRemoveExamples: () -> Unit,
 ) =
     Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -777,51 +803,56 @@ private fun EmptyState(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         if (!hasSnippets) {
-            AddExampleSnippetsButton(
+            ExampleSnippetsToggleButton(
                 compact = false,
-                installing = installingExamples,
-                onClick = onAddExamples,
+                inFlight = inFlight,
+                examplesPresent = examplesPresent,
+                onAdd = onAddExamples,
+                onRemove = onRemoveExamples,
             )
         }
     }
 }
 
 @Composable
-private fun AddExampleSnippetsButton(
+private fun ExampleSnippetsToggleButton(
     compact: Boolean,
-    installing: Boolean,
-    onClick: () -> Unit,
+    inFlight: Boolean,
+    examplesPresent: Boolean,
+    onAdd: () -> Unit,
+    onRemove: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val onClick = if (examplesPresent) onRemove else onAdd
     if (compact) {
         OutlinedButton(
             onClick = onClick,
-            enabled = !installing,
+            enabled = !inFlight,
             modifier = modifier,
         ) {
-            AddExampleSnippetsContent(installing, compact = true)
+            ExampleSnippetsToggleContent(inFlight, examplesPresent, compact = true)
         }
     } else {
         Button(
             onClick = onClick,
-            enabled = !installing,
+            enabled = !inFlight,
             modifier = modifier,
         ) {
-            AddExampleSnippetsContent(installing, compact = false)
+            ExampleSnippetsToggleContent(inFlight, examplesPresent, compact = false)
         }
     }
 }
 
 @Composable
-private fun AddExampleSnippetsContent(installing: Boolean, compact: Boolean) {
-    if (installing) {
+private fun ExampleSnippetsToggleContent(inFlight: Boolean, examplesPresent: Boolean, compact: Boolean) {
+    if (inFlight) {
         CircularProgressIndicator(
             modifier = Modifier.size(18.dp),
             strokeWidth = 2.dp,
             color = if (compact) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onPrimary,
         )
     } else {
-        Text("Add example snippets")
+        Text(if (examplesPresent) "Remove example snippets" else "Add example snippets")
     }
 }
 
