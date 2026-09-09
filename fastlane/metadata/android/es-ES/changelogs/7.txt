@@ -1,0 +1,2 @@
+- Se corrigió el cierre del teclado después de escribir en Samsung One UI 8.5 / Android 16 (problema #6).
+- El botón "Agregar fragmentos de ejemplo" ahora alterna a "Eliminar fragmentos de ejemplo" y solo elimina los ejemplos incluidos, nunca tus propios fragmentos (problema #7).

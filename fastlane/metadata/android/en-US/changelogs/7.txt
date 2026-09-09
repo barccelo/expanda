@@ -1,0 +1,2 @@
+- Fixed the keyboard closing after typing on Samsung One UI 8.5 / Android 16 (issue #6).
+- The "Add example snippets" button now toggles to "Remove example snippets" and only removes the bundled examples, never your own snippets (issue #7).

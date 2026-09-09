@@ -4,6 +4,11 @@ Expanda follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-09-09
+### Fixed
+- **Keyboard closing while typing** on Samsung One UI 8.5 / Android 16: the accessibility service no longer reads the system clipboard on every keystroke, which was triggering an OS clipboard-access event that dismissed the IME (#6, needs on-device confirmation).
+- **"Add example snippets" wiping user snippets**: the button now toggles to "Remove example snippets" when the bundled examples are installed and only removes those, never touching user-authored files (#7).
+
 ## [0.3.1] - 2026-08-29
 
 Compatibility and reliability release. Expansion now works in more WebView-based
