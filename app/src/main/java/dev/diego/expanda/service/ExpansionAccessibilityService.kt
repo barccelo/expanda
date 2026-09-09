@@ -231,7 +231,16 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     cursor = cursor,
                     selectionStart = selectionStart.coerceAtMost(cursor),
                     selectionEnd = cursor,
-                    clipboard = readClipboardText(),
+                    // Per-keystroke: read from the cached snapshot only. Calling
+                    // ClipboardManager.getPrimaryClip() from an unfocused
+                    // accessibility service on Samsung One UI 8.5 / Android 16
+                    // triggers a system-level clipboard-access event that
+                    // dismisses the IME ~1.7 s after every character (issue #6).
+                    // The OnPrimaryClipChangedListener keeps this cache warm for
+                    // paste actions; the live read still happens when the user
+                    // actually taps an action suggestion or an expansion needs
+                    // {{clipboard}}, via readClipboardText()/readClipboardTextOrNull().
+                    clipboard = readClipboardTextCached(),
                 ),
                 enabledActionIds = actionSettingsStore.enabledIds.value,
                 shortcutOverrides = actionSettingsStore.shortcutOverrides.value,
@@ -335,6 +344,21 @@ class ExpansionAccessibilityService : AccessibilityService() {
         clipboardMonitor.resolve(getSystemService(CLIPBOARD_SERVICE) as ClipboardManager)
 
     private fun readClipboardText(): String = readClipboardTextOrNull().orEmpty()
+
+    /**
+     * Returns the last cached clipboard text without querying ClipboardManager.
+     *
+     * Use this for hot paths (e.g. per-keystroke action detection). On Samsung
+     * One UI 8.5 / Android 16, calling [ClipboardManager.getPrimaryClip] from
+     * an unfocused accessibility service triggers a system clipboard-access
+     * event that dismisses the soft keyboard roughly 1.7 s later (issue #6).
+     * The clipboard listener registered by [ClipboardMonitor.start] keeps this
+     * cache fresh whenever the user copies text; on OEMs that suppress the
+     * listener for background apps the value may be stale, but that only
+     * affects paste-style actions, which fall back to the clipboard-capture
+     * overlay through [readClipboardTextOrNull].
+     */
+    private fun readClipboardTextCached(): String = clipboardMonitor.cachedText.orEmpty()
 
     private fun renderMatch(
         expansion: ExpansionMatch,
