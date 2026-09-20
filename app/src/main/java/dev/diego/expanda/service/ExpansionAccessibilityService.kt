@@ -120,11 +120,13 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private var activeFieldDialog: Dialog? = null
 
     private var selectionToolbar: View? = null
+    private var selectionToolbarWindowParams: WindowManager.LayoutParams? = null
     private var selectionToolbarState: SelectionToolbarState? = null
     private var selectionToolbarValidation: Runnable? = null
     private var pendingSelectionToolbar: PendingSelectionToolbar? = null
     private var selectionToolbarShowTask: Runnable? = null
     private var suppressSelectionToolbarUntil = 0L
+    private var programmaticSelectionUntil = 0L
 
     private data class SelectionToolbarState(
         val anchor: SuggestionAnchor,
@@ -176,15 +178,23 @@ class ExpansionAccessibilityService : AccessibilityService() {
             when (event?.eventType) {
                 AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED -> {
                     // Gboard's swipe-to-delete gesture briefly exposes the text it
-                    // is about to erase as a selection. If a deletion follows that
-                    // transient selection, suppress our toolbar long enough for the
-                    // gesture to finish instead of flashing over the keyboard flow.
-                    if (event.removedCount > event.addedCount) {
+                    // is about to erase as a selection. Only classify a deletion as
+                    // that gesture when a selection toolbar is already pending/visible.
+                    // Expanda's own select actions also remove their typed shortcut,
+                    // so they get a short grace period and must not be suppressed.
+                    val now = SystemClock.elapsedRealtime()
+                    val programmaticSelection = now < programmaticSelectionUntil
+                    if (!programmaticSelection &&
+                        event.removedCount > event.addedCount &&
+                        (pendingSelectionToolbar != null || selectionToolbar != null)
+                    ) {
                         suppressSelectionToolbarUntil =
-                            SystemClock.elapsedRealtime() + SELECTION_TOOLBAR_DELETE_SUPPRESSION_MS
+                            now + SELECTION_TOOLBAR_DELETE_SUPPRESSION_MS
                     }
-                    cancelPendingSelectionToolbar()
-                    hideSelectionToolbar()
+                    if (!programmaticSelection) {
+                        cancelPendingSelectionToolbar()
+                        hideSelectionToolbar()
+                    }
                     cancelSuggestionValidation()
                     handleTextChanged(event)
                 }
@@ -320,10 +330,25 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     )
                     return
                 }
+                val selectionAction = action.definition.category == ActionCategory.SELECTION &&
+                    action.selectionStart != action.selectionEnd
+                if (selectionAction) {
+                    programmaticSelectionUntil =
+                        SystemClock.elapsedRealtime() + PROGRAMMATIC_SELECTION_GRACE_MS
+                    hideSelectionToolbar()
+                }
                 if (applyAction(node, text, action, settings)) {
                     lastAppliedText = action.text
                     lastAppliedAt = SystemClock.elapsedRealtime()
                     handleActionRequest(action.request, action.text)
+                    if (selectionAction) {
+                        scheduleSelectionToolbarFromOutcome(
+                            anchor = activeAnchor,
+                            packageName = packageName,
+                            outcome = action,
+                            settings = settings,
+                        )
+                    }
                 }
                 return
             }
@@ -440,6 +465,47 @@ class ExpansionAccessibilityService : AccessibilityService() {
             @Suppress("DEPRECATION")
             node.recycle()
         }
+    }
+
+    private fun scheduleSelectionToolbarFromOutcome(
+        anchor: SuggestionAnchor,
+        packageName: String,
+        outcome: ActionOutcome,
+        settings: AppSettings,
+    ) {
+        if (!settings.expansionEnabled ||
+            !settings.selectionToolbarEnabled ||
+            settings.isPaused ||
+            packageName in settings.globallyExcludedPackages
+        ) {
+            return
+        }
+        val start = minOf(outcome.selectionStart, outcome.selectionEnd)
+        val end = maxOf(outcome.selectionStart, outcome.selectionEnd)
+        if (start !in 0..outcome.text.length || end !in 0..outcome.text.length || start == end) return
+        val selectedText = outcome.text.substring(start, end)
+        val hasUsefulTransform = SELECTION_TOOLBAR_ACTIONS.any { action ->
+            actionEngine.processSelectedText(action.id, selectedText)?.let { it != selectedText } == true
+        }
+        if (!hasUsefulTransform) return
+
+        cancelPendingSelectionToolbar()
+        val pending = PendingSelectionToolbar(
+            anchor = anchor,
+            packageName = packageName,
+            start = start,
+            end = end,
+            selectedText = selectedText,
+        )
+        pendingSelectionToolbar = pending
+        val task = Runnable {
+            selectionToolbarShowTask = null
+            if (pendingSelectionToolbar !== pending) return@Runnable
+            pendingSelectionToolbar = null
+            showPendingSelectionToolbar(pending)
+        }
+        selectionToolbarShowTask = task
+        mainHandler.postDelayed(task, SELECTION_TOOLBAR_STABILITY_DELAY_MS)
     }
 
     private fun scheduleSelectionToolbar(
@@ -569,7 +635,30 @@ class ExpansionAccessibilityService : AccessibilityService() {
             elevation = dp(8).toFloat()
         }
 
-        SELECTION_TOOLBAR_ACTIONS.forEachIndexed { index, action ->
+        val dragHandle = object : TextView(this) {
+            override fun performClick(): Boolean {
+                super.performClick()
+                return true
+            }
+        }.apply {
+            text = "⠿"
+            gravity = Gravity.CENTER
+            setTextColor(ui.theme.onSurfaceVariant)
+            textSize = ui.scaled(17f)
+            includeFontPadding = false
+            minWidth = dp(36)
+            minHeight = dp(40)
+            background = ui.surface(10)
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Move selection toolbar"
+        }
+        container.addView(
+            dragHandle,
+            LinearLayout.LayoutParams(dp(36), dp(40)),
+        )
+
+        SELECTION_TOOLBAR_ACTIONS.forEach { action ->
             val button = ui.body(action.label, sizeSp = 14f).apply {
                 gravity = Gravity.CENTER
                 minWidth = dp(46)
@@ -587,7 +676,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     LinearLayout.LayoutParams.WRAP_CONTENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT,
                 ).apply {
-                    if (index > 0) marginStart = dp(4)
+                    marginStart = dp(4)
                 },
             )
         }
@@ -609,7 +698,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         val centeredX = nodeBounds.centerX() - toolbarWidth / 2
         val aboveY = nodeBounds.top - toolbarHeight - dp(8)
         val belowY = nodeBounds.bottom + dp(8)
-        val y = if (aboveY >= top) aboveY else belowY
+        val automaticY = if (aboveY >= top) aboveY else belowY
 
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -620,23 +709,43 @@ class ExpansionAccessibilityService : AccessibilityService() {
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = centeredX.coerceIn(
+            x = (if (settings.selectionToolbarPositionX >= 0) {
+                settings.selectionToolbarPositionX
+            } else {
+                centeredX
+            }).coerceIn(
                 horizontalMargin,
                 (screen.width() - toolbarWidth - horizontalMargin).coerceAtLeast(horizontalMargin),
             )
-            this.y = y.coerceIn(
+            this.y = (if (settings.selectionToolbarPositionY >= 0) {
+                settings.selectionToolbarPositionY
+            } else {
+                automaticY
+            }).coerceIn(
                 top,
                 (bottom - toolbarHeight).coerceAtLeast(top),
             )
         }
+        dragHandle.setOnTouchListener(
+            createSelectionToolbarDragListener(
+                container = container,
+                handle = dragHandle,
+                windowManager = windowManager,
+                bounds = screen,
+                toolbarWidth = toolbarWidth,
+                toolbarHeight = toolbarHeight,
+            ),
+        )
 
         runCatching {
             windowManager.addView(container, params)
             selectionToolbar = container
+            selectionToolbarWindowParams = params
             selectionToolbarState = SelectionToolbarState(anchor, start, end, selectedText)
         }.onFailure {
             Log.w(TAG, "Could not show selection toolbar", it)
             selectionToolbar = null
+            selectionToolbarWindowParams = null
             selectionToolbarState = null
         }
     }
@@ -781,6 +890,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         cancelSelectionToolbarValidation()
         val overlay = selectionToolbar
         selectionToolbar = null
+        selectionToolbarWindowParams = null
         selectionToolbarState = null
         if (overlay != null) {
             runCatching {
@@ -2531,10 +2641,25 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 enabledActionIds = setOf(definition.id),
                 shortcutOverrides = mapOf(definition.id to definition.shortcut),
             ) ?: return
+            val selectionAction = definition.category == ActionCategory.SELECTION &&
+                outcome.selectionStart != outcome.selectionEnd
+            if (selectionAction) {
+                programmaticSelectionUntil =
+                    SystemClock.elapsedRealtime() + PROGRAMMATIC_SELECTION_GRACE_MS
+                hideSelectionToolbar()
+            }
             if (applyAction(node, originalText, outcome, currentSettings)) {
                 lastAppliedText = outcome.text
                 lastAppliedAt = SystemClock.elapsedRealtime()
                 handleActionRequest(outcome.request, outcome.text)
+                if (selectionAction) {
+                    scheduleSelectionToolbarFromOutcome(
+                        anchor = anchor,
+                        packageName = node.packageName?.toString().orEmpty(),
+                        outcome = outcome,
+                        settings = currentSettings,
+                    )
+                }
             }
         } finally {
             node.recycle()
@@ -2736,6 +2861,87 @@ class ExpansionAccessibilityService : AccessibilityService() {
         val maxY = (safeBottom(bounds) - height).coerceAtLeast(dp(12))
         params.x = params.x.coerceIn(margin, maxX)
         params.y = params.y.coerceIn(dp(12), maxY)
+    }
+
+    private fun createSelectionToolbarDragListener(
+        container: View,
+        handle: View,
+        windowManager: WindowManager,
+        bounds: Rect,
+        toolbarWidth: Int,
+        toolbarHeight: Int,
+    ): View.OnTouchListener {
+        val touchSlop = ViewConfiguration.get(this).scaledTouchSlop
+        var downX = 0f
+        var downY = 0f
+        var startX = 0
+        var startY = 0
+        var dragging = false
+
+        fun constrain(params: WindowManager.LayoutParams) {
+            val margin = dp(8)
+            val top = safeTop()
+            val bottom = safeBottom(bounds)
+            params.x = params.x.coerceIn(
+                margin,
+                (bounds.width() - toolbarWidth - margin).coerceAtLeast(margin),
+            )
+            params.y = params.y.coerceIn(
+                top,
+                (bottom - toolbarHeight).coerceAtLeast(top),
+            )
+        }
+
+        return View.OnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    val params = selectionToolbarWindowParams ?: return@OnTouchListener false
+                    downX = event.rawX
+                    downY = event.rawY
+                    startX = params.x
+                    startY = params.y
+                    dragging = false
+                    true
+                }
+
+                MotionEvent.ACTION_MOVE -> {
+                    val params = selectionToolbarWindowParams ?: return@OnTouchListener false
+                    val deltaX = event.rawX - downX
+                    val deltaY = event.rawY - downY
+                    if (!dragging &&
+                        (kotlin.math.abs(deltaX) > touchSlop || kotlin.math.abs(deltaY) > touchSlop)
+                    ) {
+                        dragging = true
+                        container.alpha = DRAG_ALPHA
+                    }
+                    if (dragging) {
+                        params.x = startX + deltaX.toInt()
+                        params.y = startY + deltaY.toInt()
+                        constrain(params)
+                        runCatching { windowManager.updateViewLayout(container, params) }
+                    }
+                    true
+                }
+
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    val params = selectionToolbarWindowParams ?: return@OnTouchListener false
+                    if (dragging) {
+                        container.alpha = 1f
+                        constrain(params)
+                        runCatching { windowManager.updateViewLayout(container, params) }
+                        scope.launch {
+                            settingsRepository.setSelectionToolbarPosition(params.x, params.y)
+                        }
+                    } else {
+                        handle.performClick()
+                    }
+                    dragging = false
+                    true
+                }
+
+                else -> false
+            }
+        }
     }
 
     private fun createDragListener(
@@ -2941,6 +3147,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         private const val SELECTION_TOOLBAR_VALIDATION_DELAY_MS = 180L
         private const val SELECTION_TOOLBAR_STABILITY_DELAY_MS = 280L
         private const val SELECTION_TOOLBAR_DELETE_SUPPRESSION_MS = 420L
+        private const val PROGRAMMATIC_SELECTION_GRACE_MS = 900L
         private const val CLIPBOARD_RESTORE_DELAY_MS = 250L
         /** Two frames at 60 Hz — enough for Blink to finish applying ACTION_SET_TEXT. */
         private const val WEBVIEW_SELECTION_RETRY_DELAY_MS = 32L
