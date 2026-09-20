@@ -39,6 +39,8 @@ data class AppSettings(
     val hapticFeedback: Boolean = false,
     val pasteFallbackEnabled: Boolean = false,
     val suggestionEnabled: Boolean = true,
+    /** Show Expanda's compact toolbar when editable text is selected in another app. */
+    val selectionToolbarEnabled: Boolean = true,
     val suggestionShowActions: Boolean = true,
     val matchFromBeginning: Boolean = true,
     /** Keep the suggestion list visually dense when enabled. */
@@ -93,6 +95,7 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
             hapticFeedback = values[Keys.HAPTIC] ?: false,
             pasteFallbackEnabled = values[Keys.PASTE_FALLBACK] ?: false,
             suggestionEnabled = values[Keys.SUGGESTIONS] ?: true,
+            selectionToolbarEnabled = values[Keys.SELECTION_TOOLBAR] ?: true,
             suggestionShowActions = values[Keys.SUGGESTION_SHOW_ACTIONS] ?: true,
             matchFromBeginning = values[Keys.MATCH_BEGINNING] ?: true,
             suggestionCompactList = values[Keys.SUGGESTION_COMPACT] ?: true,
@@ -144,6 +147,7 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
     suspend fun setHapticFeedback(enabled: Boolean) = store.edit { it[Keys.HAPTIC] = enabled }
     suspend fun setPasteFallbackEnabled(enabled: Boolean) = store.edit { it[Keys.PASTE_FALLBACK] = enabled }
     suspend fun setSuggestionEnabled(enabled: Boolean) = store.edit { it[Keys.SUGGESTIONS] = enabled }
+    suspend fun setSelectionToolbarEnabled(enabled: Boolean) = store.edit { it[Keys.SELECTION_TOOLBAR] = enabled }
     suspend fun setSuggestionShowActions(enabled: Boolean) = store.edit { it[Keys.SUGGESTION_SHOW_ACTIONS] = enabled }
     suspend fun setMatchFromBeginning(enabled: Boolean) = store.edit { it[Keys.MATCH_BEGINNING] = enabled }
     suspend fun setSuggestionCompactList(enabled: Boolean) = store.edit {
@@ -209,6 +213,7 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         val HAPTIC = booleanPreferencesKey("haptic_feedback")
         val PASTE_FALLBACK = booleanPreferencesKey("paste_fallback")
         val SUGGESTIONS = booleanPreferencesKey("suggestions")
+        val SELECTION_TOOLBAR = booleanPreferencesKey("selection_toolbar")
         val SUGGESTION_SHOW_ACTIONS = booleanPreferencesKey("suggestion_show_actions")
         val MATCH_BEGINNING = booleanPreferencesKey("match_beginning")
         val SUGGESTION_COMPACT = booleanPreferencesKey("suggestion_compact_list")
@@ -237,6 +242,7 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         values[Keys.HAPTIC] = snapshot.hapticFeedback
         values[Keys.PASTE_FALLBACK] = snapshot.pasteFallbackEnabled
         values[Keys.SUGGESTIONS] = snapshot.suggestionEnabled
+        values[Keys.SELECTION_TOOLBAR] = snapshot.selectionToolbarEnabled
         values[Keys.SUGGESTION_SHOW_ACTIONS] = snapshot.suggestionShowActions
         values[Keys.MATCH_BEGINNING] = snapshot.matchFromBeginning
         values[Keys.SUGGESTION_COMPACT] = snapshot.suggestionCompactList
