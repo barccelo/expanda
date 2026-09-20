@@ -49,6 +49,7 @@ import dev.diego.expanda.engine.ActionDefinition
 import dev.diego.expanda.engine.ActionEngine
 import dev.diego.expanda.engine.ActionOutcome
 import dev.diego.expanda.engine.ActionRequest
+import dev.diego.expanda.engine.SelectedTextOutcome
 import dev.diego.expanda.engine.AppliedExpansion
 import dev.diego.expanda.engine.ExpansionEngine
 import dev.diego.expanda.engine.ExpansionMatch
@@ -381,7 +382,11 @@ class ExpansionAccessibilityService : AccessibilityService() {
             }
 
             val settings = settingsRepository.settings.value
-            if (!settings.expansionEnabled || settings.isPaused || packageName in settings.globallyExcludedPackages) {
+            if (!settings.expansionEnabled ||
+                !settings.selectionToolbarEnabled ||
+                settings.isPaused ||
+                packageName in settings.globallyExcludedPackages
+            ) {
                 hideSelectionToolbar()
                 return
             }
@@ -552,30 +557,54 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 hideSelectionToolbar()
                 return
             }
-            val selected = text.substring(start, end)
-            val replacement = actionEngine.processSelectedText(actionId, selected) ?: return
-            if (replacement == selected) return
-
-            val newText = text.replaceRange(start, end, replacement)
-            val newEnd = start + replacement.length
+            val outcome = actionEngine.processSelectedRange(actionId, text, start, end) ?: return
             val settings = settingsRepository.settings.value
             hideSelectionToolbar()
-            if (setFieldText(
-                    node = node,
-                    originalText = text,
-                    newText = newText,
-                    selectionStart = start,
-                    selectionEnd = newEnd,
-                    settings = settings,
-                )
-            ) {
-                lastAppliedText = newText
+            if (applySelectedTextOutcome(node, text, outcome, settings)) {
+                lastAppliedText = outcome.text
                 lastAppliedAt = SystemClock.elapsedRealtime()
+                if (settings.hapticFeedback) vibrate()
             }
         } finally {
             @Suppress("DEPRECATION")
             node.recycle()
         }
+    }
+
+    private fun applySelectedTextOutcome(
+        node: AccessibilityNodeInfo,
+        originalText: String,
+        outcome: SelectedTextOutcome,
+        settings: AppSettings,
+    ): Boolean {
+        val nativeEditor = isNativeEditText(node)
+        if (nativeEditor && writeViaSetText(
+                node,
+                outcome.text,
+                outcome.selectionStart,
+                outcome.selectionEnd,
+            )
+        ) {
+            return true
+        }
+
+        val pasted = pasteReplacement(
+            node = node,
+            start = outcome.selectionStart,
+            end = outcome.selectionStart + (
+                originalText.length - outcome.text.length + outcome.replacement.length
+            ),
+            replacement = outcome.replacement,
+            cursor = outcome.selectionEnd,
+        ) && setSelection(node, outcome.selectionStart, outcome.selectionEnd)
+        if (pasted) return true
+
+        return !nativeEditor && writeViaSetText(
+            node,
+            outcome.text,
+            outcome.selectionStart,
+            outcome.selectionEnd,
+        )
     }
 
     private fun hideSelectionToolbar() {
