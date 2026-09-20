@@ -243,6 +243,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setSelectionToolbarEnabled(enabled: Boolean) = viewModelScope.launch {
         settingsRepository.setSelectionToolbarEnabled(enabled)
     }
+    fun setSelectionToolbarWidthFraction(fraction: Float) = viewModelScope.launch {
+        settingsRepository.setSelectionToolbarWidthFraction(fraction)
+    }
+    fun setSelectionToolbarHeightDp(heightDp: Int) = viewModelScope.launch {
+        settingsRepository.setSelectionToolbarHeightDp(heightDp)
+    }
+    fun resetSelectionToolbarLayout() = viewModelScope.launch {
+        settingsRepository.resetSelectionToolbarLayout()
+    }
     fun setSuggestionShowActions(enabled: Boolean) = viewModelScope.launch { settingsRepository.setSuggestionShowActions(enabled) }
     fun setMatchFromBeginning(enabled: Boolean) = viewModelScope.launch { settingsRepository.setMatchFromBeginning(enabled) }
     fun setSuggestionCompactList(enabled: Boolean) = viewModelScope.launch { settingsRepository.setSuggestionCompactList(enabled) }
