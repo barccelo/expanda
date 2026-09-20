@@ -121,6 +121,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
 
     private var selectionToolbar: View? = null
     private var selectionToolbarState: SelectionToolbarState? = null
+    private var selectionToolbarValidation: Runnable? = null
 
     private data class SelectionToolbarState(
         val anchor: SuggestionAnchor,
@@ -171,13 +172,17 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     handleSelectionChanged(event)
                 }
                 AccessibilityEvent.TYPE_VIEW_FOCUSED -> {
-                    hideSelectionToolbar()
+                    scheduleSelectionToolbarValidation()
                     scheduleSuggestionValidation()
                 }
                 AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
                 AccessibilityEvent.TYPE_WINDOWS_CHANGED,
                 -> {
-                    hideSelectionToolbar()
+                    // Adding/removing our TYPE_ACCESSIBILITY_OVERLAY also emits a
+                    // windows-changed event. Do not immediately tear down the
+                    // selection toolbar we just created; validate its anchored
+                    // editor and selection after Android's window state settles.
+                    scheduleSelectionToolbarValidation()
                     scheduleSuggestionValidation()
                 }
             }
@@ -523,7 +528,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private fun applySelectionToolbarAction(actionId: String) {
         val state = selectionToolbarState ?: return
         clearAccessibilityCache()
-        val node = findAnchoredEditor(state.anchor) ?: run {
+        val node = findAnchoredEditor(state.anchor, requireActiveWindow = false) ?: run {
             hideSelectionToolbar()
             return
         }
@@ -607,7 +612,56 @@ class ExpansionAccessibilityService : AccessibilityService() {
         )
     }
 
+    private fun scheduleSelectionToolbarValidation() {
+        if (selectionToolbar == null || selectionToolbarState == null) return
+        cancelSelectionToolbarValidation()
+        val validation = Runnable { validateSelectionToolbar() }
+        selectionToolbarValidation = validation
+        mainHandler.postDelayed(validation, SELECTION_TOOLBAR_VALIDATION_DELAY_MS)
+    }
+
+    private fun cancelSelectionToolbarValidation() {
+        selectionToolbarValidation?.let(mainHandler::removeCallbacks)
+        selectionToolbarValidation = null
+    }
+
+    private fun validateSelectionToolbar() {
+        selectionToolbarValidation = null
+        val state = selectionToolbarState ?: return
+        val node = findAnchoredEditor(state.anchor, requireActiveWindow = false) ?: run {
+            hideSelectionToolbar()
+            return
+        }
+        try {
+            runCatching { node.refresh() }
+            if (!node.isEditable || node.isPassword || isPasswordInput(node.inputType)) {
+                hideSelectionToolbar()
+                return
+            }
+            val text = editableText(node)
+            val start = node.textSelectionStart
+            val end = node.textSelectionEnd
+            val currentSelectionMatches = start in 0..text.length &&
+                end in 0..text.length &&
+                start != end &&
+                minOf(start, end) == state.start &&
+                maxOf(start, end) == state.end &&
+                text.substring(state.start, state.end) == state.selectedText
+            val storedSelectionStillExists = state.start in 0..text.length &&
+                state.end in state.start..text.length &&
+                text.substring(state.start, state.end) == state.selectedText
+
+            if (!currentSelectionMatches && !storedSelectionStillExists) {
+                hideSelectionToolbar()
+            }
+        } finally {
+            @Suppress("DEPRECATION")
+            node.recycle()
+        }
+    }
+
     private fun hideSelectionToolbar() {
+        cancelSelectionToolbarValidation()
         val overlay = selectionToolbar
         selectionToolbar = null
         selectionToolbarState = null
@@ -2414,12 +2468,15 @@ class ExpansionAccessibilityService : AccessibilityService() {
         )
     }
 
-    private fun findAnchoredEditor(anchor: SuggestionAnchor): AccessibilityNodeInfo? {
+    private fun findAnchoredEditor(
+        anchor: SuggestionAnchor,
+        requireActiveWindow: Boolean = true,
+    ): AccessibilityNodeInfo? {
         val availableWindows = runCatching { windows }.getOrDefault(emptyList())
         val roots = mutableListOf<AccessibilityNodeInfo>()
         if (availableWindows.isNotEmpty()) {
             val anchorWindow = availableWindows.firstOrNull { it.id == anchor.windowId } ?: return null
-            if (!anchorWindow.isActive && !anchorWindow.isFocused) return null
+            if (requireActiveWindow && !anchorWindow.isActive && !anchorWindow.isFocused) return null
             anchorWindow.root?.let(roots::add)
         } else {
             rootInActiveWindow?.let(roots::add)
@@ -2764,6 +2821,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         private const val CLIPBOARD_OVERLAY_TIMEOUT_MS = 800L
         private const val CLIPBOARD_OVERLAY_SETTLE_MS = 100L
         private const val SUGGESTION_VALIDATION_DELAY_MS = 140L
+        private const val SELECTION_TOOLBAR_VALIDATION_DELAY_MS = 180L
         private const val CLIPBOARD_RESTORE_DELAY_MS = 250L
         /** Two frames at 60 Hz — enough for Blink to finish applying ACTION_SET_TEXT. */
         private const val WEBVIEW_SELECTION_RETRY_DELAY_MS = 32L
