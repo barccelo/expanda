@@ -251,10 +251,13 @@ class ActionEngine {
             var capitalize = true
             return buildString(value.length) {
                 value.forEach { char ->
-                    val next = if (capitalize && char.isLetter()) char.titlecaseChar() else char
-                    append(next)
-                    if (char.isLetter()) capitalize = false
-                    if (char in ".!?\n") capitalize = true
+                    if (char.isLetter()) {
+                        append(if (capitalize) char.titlecaseChar() else char.lowercaseChar())
+                        capitalize = false
+                    } else {
+                        append(char)
+                        if (char in ".!?\n") capitalize = true
+                    }
                 }
             }
         }
