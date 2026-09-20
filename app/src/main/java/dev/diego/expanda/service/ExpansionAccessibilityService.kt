@@ -423,7 +423,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
         val anchor = createSuggestionAnchor(node, packageName)
         val current = selectionToolbarState
         if (selectionToolbar != null &&
-            current?.start == start &&
+            current != null &&
+            current.start == start &&
             current.end == end &&
             current.selectedText == selectedText &&
             SuggestionAnchorPolicy.shouldKeep(current.anchor, anchor)
