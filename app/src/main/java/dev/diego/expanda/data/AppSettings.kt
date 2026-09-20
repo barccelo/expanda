@@ -44,6 +44,9 @@ data class AppSettings(
     /** Last dragged selection-toolbar position in physical pixels. -1 means automatic placement. */
     val selectionToolbarPositionX: Int = -1,
     val selectionToolbarPositionY: Int = -1,
+    /** Selection toolbar size. Width is a display fraction; height is density-independent pixels. */
+    val selectionToolbarWidthFraction: Float = SettingsRepository.DEFAULT_SELECTION_TOOLBAR_WIDTH,
+    val selectionToolbarHeightDp: Int = SettingsRepository.DEFAULT_SELECTION_TOOLBAR_HEIGHT_DP,
     val suggestionShowActions: Boolean = true,
     val matchFromBeginning: Boolean = true,
     /** Keep the suggestion list visually dense when enabled. */
@@ -101,6 +104,12 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
             selectionToolbarEnabled = values[Keys.SELECTION_TOOLBAR] ?: true,
             selectionToolbarPositionX = values[Keys.SELECTION_TOOLBAR_POSITION_X] ?: -1,
             selectionToolbarPositionY = values[Keys.SELECTION_TOOLBAR_POSITION_Y] ?: -1,
+            selectionToolbarWidthFraction = (
+                values[Keys.SELECTION_TOOLBAR_WIDTH] ?: DEFAULT_SELECTION_TOOLBAR_WIDTH
+            ).coerceIn(MIN_SELECTION_TOOLBAR_WIDTH, MAX_SELECTION_TOOLBAR_WIDTH),
+            selectionToolbarHeightDp = (
+                values[Keys.SELECTION_TOOLBAR_HEIGHT_DP] ?: DEFAULT_SELECTION_TOOLBAR_HEIGHT_DP
+            ).coerceIn(MIN_SELECTION_TOOLBAR_HEIGHT_DP, MAX_SELECTION_TOOLBAR_HEIGHT_DP),
             suggestionShowActions = values[Keys.SUGGESTION_SHOW_ACTIONS] ?: true,
             matchFromBeginning = values[Keys.MATCH_BEGINNING] ?: true,
             suggestionCompactList = values[Keys.SUGGESTION_COMPACT] ?: true,
@@ -156,6 +165,26 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
     suspend fun setSelectionToolbarPosition(x: Int, y: Int) = store.edit {
         it[Keys.SELECTION_TOOLBAR_POSITION_X] = x.coerceAtLeast(0)
         it[Keys.SELECTION_TOOLBAR_POSITION_Y] = y.coerceAtLeast(0)
+    }
+    suspend fun setSelectionToolbarSize(widthFraction: Float, heightDp: Int) = store.edit {
+        it[Keys.SELECTION_TOOLBAR_WIDTH] =
+            widthFraction.coerceIn(MIN_SELECTION_TOOLBAR_WIDTH, MAX_SELECTION_TOOLBAR_WIDTH)
+        it[Keys.SELECTION_TOOLBAR_HEIGHT_DP] =
+            heightDp.coerceIn(MIN_SELECTION_TOOLBAR_HEIGHT_DP, MAX_SELECTION_TOOLBAR_HEIGHT_DP)
+    }
+    suspend fun setSelectionToolbarWidthFraction(widthFraction: Float) = store.edit {
+        it[Keys.SELECTION_TOOLBAR_WIDTH] =
+            widthFraction.coerceIn(MIN_SELECTION_TOOLBAR_WIDTH, MAX_SELECTION_TOOLBAR_WIDTH)
+    }
+    suspend fun setSelectionToolbarHeightDp(heightDp: Int) = store.edit {
+        it[Keys.SELECTION_TOOLBAR_HEIGHT_DP] =
+            heightDp.coerceIn(MIN_SELECTION_TOOLBAR_HEIGHT_DP, MAX_SELECTION_TOOLBAR_HEIGHT_DP)
+    }
+    suspend fun resetSelectionToolbarLayout() = store.edit {
+        it.remove(Keys.SELECTION_TOOLBAR_POSITION_X)
+        it.remove(Keys.SELECTION_TOOLBAR_POSITION_Y)
+        it.remove(Keys.SELECTION_TOOLBAR_WIDTH)
+        it.remove(Keys.SELECTION_TOOLBAR_HEIGHT_DP)
     }
     suspend fun setSuggestionShowActions(enabled: Boolean) = store.edit { it[Keys.SUGGESTION_SHOW_ACTIONS] = enabled }
     suspend fun setMatchFromBeginning(enabled: Boolean) = store.edit { it[Keys.MATCH_BEGINNING] = enabled }
@@ -225,6 +254,8 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         val SELECTION_TOOLBAR = booleanPreferencesKey("selection_toolbar")
         val SELECTION_TOOLBAR_POSITION_X = intPreferencesKey("selection_toolbar_position_x")
         val SELECTION_TOOLBAR_POSITION_Y = intPreferencesKey("selection_toolbar_position_y")
+        val SELECTION_TOOLBAR_WIDTH = floatPreferencesKey("selection_toolbar_width_fraction")
+        val SELECTION_TOOLBAR_HEIGHT_DP = intPreferencesKey("selection_toolbar_height_dp")
         val SUGGESTION_SHOW_ACTIONS = booleanPreferencesKey("suggestion_show_actions")
         val MATCH_BEGINNING = booleanPreferencesKey("match_beginning")
         val SUGGESTION_COMPACT = booleanPreferencesKey("suggestion_compact_list")
@@ -254,6 +285,10 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         values[Keys.PASTE_FALLBACK] = snapshot.pasteFallbackEnabled
         values[Keys.SUGGESTIONS] = snapshot.suggestionEnabled
         values[Keys.SELECTION_TOOLBAR] = snapshot.selectionToolbarEnabled
+        values[Keys.SELECTION_TOOLBAR_WIDTH] = snapshot.selectionToolbarWidthFraction
+            .coerceIn(MIN_SELECTION_TOOLBAR_WIDTH, MAX_SELECTION_TOOLBAR_WIDTH)
+        values[Keys.SELECTION_TOOLBAR_HEIGHT_DP] = snapshot.selectionToolbarHeightDp
+            .coerceIn(MIN_SELECTION_TOOLBAR_HEIGHT_DP, MAX_SELECTION_TOOLBAR_HEIGHT_DP)
         values[Keys.SUGGESTION_SHOW_ACTIONS] = snapshot.suggestionShowActions
         values[Keys.MATCH_BEGINNING] = snapshot.matchFromBeginning
         values[Keys.SUGGESTION_COMPACT] = snapshot.suggestionCompactList
@@ -275,6 +310,12 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         const val MIN_TEXT_SCALE = 0.75f
         const val MAX_TEXT_SCALE = 1.50f
         const val DEFAULT_TEXT_SCALE = 1f
+        const val MIN_SELECTION_TOOLBAR_WIDTH = 0.42f
+        const val MAX_SELECTION_TOOLBAR_WIDTH = 0.98f
+        const val DEFAULT_SELECTION_TOOLBAR_WIDTH = 0.60f
+        const val MIN_SELECTION_TOOLBAR_HEIGHT_DP = 44
+        const val MAX_SELECTION_TOOLBAR_HEIGHT_DP = 88
+        const val DEFAULT_SELECTION_TOOLBAR_HEIGHT_DP = 56
         const val MIN_SUGGESTION_WIDTH = 0.50f
         const val MAX_SUGGESTION_WIDTH = 0.98f
         const val DEFAULT_SUGGESTION_WIDTH = 0.92f
