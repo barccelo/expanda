@@ -240,6 +240,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setHapticFeedback(enabled: Boolean) = viewModelScope.launch { settingsRepository.setHapticFeedback(enabled) }
     fun setPasteFallbackEnabled(enabled: Boolean) = viewModelScope.launch { settingsRepository.setPasteFallbackEnabled(enabled) }
     fun setSuggestionEnabled(enabled: Boolean) = viewModelScope.launch { settingsRepository.setSuggestionEnabled(enabled) }
+    fun setSelectionToolbarEnabled(enabled: Boolean) = viewModelScope.launch {
+        settingsRepository.setSelectionToolbarEnabled(enabled)
+    }
     fun setSuggestionShowActions(enabled: Boolean) = viewModelScope.launch { settingsRepository.setSuggestionShowActions(enabled) }
     fun setMatchFromBeginning(enabled: Boolean) = viewModelScope.launch { settingsRepository.setMatchFromBeginning(enabled) }
     fun setSuggestionCompactList(enabled: Boolean) = viewModelScope.launch { settingsRepository.setSuggestionCompactList(enabled) }
