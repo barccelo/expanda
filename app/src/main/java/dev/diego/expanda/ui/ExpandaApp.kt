@@ -998,6 +998,17 @@ private fun SettingsScreen(
                 },
             )
         }
+        if (state.settings.selectionToolbarEnabled) {
+            item {
+                SelectionToolbarSizeSetting(
+                    widthFraction = state.settings.selectionToolbarWidthFraction,
+                    heightDp = state.settings.selectionToolbarHeightDp,
+                    onWidthChanged = viewModel::setSelectionToolbarWidthFraction,
+                    onHeightChanged = viewModel::setSelectionToolbarHeightDp,
+                    onReset = viewModel::resetSelectionToolbarLayout,
+                )
+            }
+        }
         item {
             SuggestionSettingsPanel(
                 settings = state.settings,
@@ -1343,6 +1354,75 @@ private fun <T> CompactChoiceSetting(
                     label = { Text(label(option)) },
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun SelectionToolbarSizeSetting(
+    widthFraction: Float,
+    heightDp: Int,
+    onWidthChanged: (Float) -> Unit,
+    onHeightChanged: (Int) -> Unit,
+    onReset: () -> Unit,
+) {
+    var widthDraft by remember(widthFraction) { mutableFloatStateOf(widthFraction) }
+    var heightDraft by remember(heightDp) { mutableFloatStateOf(heightDp.toFloat()) }
+
+    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Selection toolbar size", style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        "Drag ⠿ to move. Long-press ⠿ and drag to resize directly.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                TextButton(
+                    onClick = {
+                        widthDraft = SettingsRepository.DEFAULT_SELECTION_TOOLBAR_WIDTH
+                        heightDraft = SettingsRepository.DEFAULT_SELECTION_TOOLBAR_HEIGHT_DP.toFloat()
+                        onReset()
+                    },
+                ) {
+                    Text("Reset layout")
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Width", modifier = Modifier.weight(1f))
+                Text("${(widthDraft * 100).roundToInt()}%", color = MaterialTheme.colorScheme.primary)
+            }
+            Slider(
+                value = widthDraft,
+                onValueChange = { widthDraft = it },
+                onValueChangeFinished = { onWidthChanged(widthDraft) },
+                valueRange = SettingsRepository.MIN_SELECTION_TOOLBAR_WIDTH..
+                    SettingsRepository.MAX_SELECTION_TOOLBAR_WIDTH,
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Height", modifier = Modifier.weight(1f))
+                Text("${heightDraft.roundToInt()} dp", color = MaterialTheme.colorScheme.primary)
+            }
+            Slider(
+                value = heightDraft,
+                onValueChange = { heightDraft = it },
+                onValueChangeFinished = { onHeightChanged(heightDraft.roundToInt()) },
+                valueRange = SettingsRepository.MIN_SELECTION_TOOLBAR_HEIGHT_DP.toFloat()..
+                    SettingsRepository.MAX_SELECTION_TOOLBAR_HEIGHT_DP.toFloat(),
+            )
         }
     }
 }
