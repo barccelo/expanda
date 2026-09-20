@@ -90,6 +90,8 @@ object BackupCodec {
         put("pasteFallbackEnabled", settings.pasteFallbackEnabled)
         put("suggestionEnabled", settings.suggestionEnabled)
         put("selectionToolbarEnabled", settings.selectionToolbarEnabled)
+        put("selectionToolbarWidthFraction", settings.selectionToolbarWidthFraction.toDouble())
+        put("selectionToolbarHeightDp", settings.selectionToolbarHeightDp)
         put("suggestionShowActions", settings.suggestionShowActions)
         put("matchFromBeginning", settings.matchFromBeginning)
         put("suggestionCompactList", settings.suggestionCompactList)
@@ -114,6 +116,20 @@ object BackupCodec {
         pasteFallbackEnabled = json.optBoolean("pasteFallbackEnabled"),
         suggestionEnabled = json.optBoolean("suggestionEnabled"),
         selectionToolbarEnabled = json.optBoolean("selectionToolbarEnabled", true),
+        selectionToolbarWidthFraction = json.optDouble(
+            "selectionToolbarWidthFraction",
+            SettingsRepository.DEFAULT_SELECTION_TOOLBAR_WIDTH.toDouble(),
+        ).toFloat().coerceIn(
+            SettingsRepository.MIN_SELECTION_TOOLBAR_WIDTH,
+            SettingsRepository.MAX_SELECTION_TOOLBAR_WIDTH,
+        ),
+        selectionToolbarHeightDp = json.optInt(
+            "selectionToolbarHeightDp",
+            SettingsRepository.DEFAULT_SELECTION_TOOLBAR_HEIGHT_DP,
+        ).coerceIn(
+            SettingsRepository.MIN_SELECTION_TOOLBAR_HEIGHT_DP,
+            SettingsRepository.MAX_SELECTION_TOOLBAR_HEIGHT_DP,
+        ),
         suggestionShowActions = json.optBoolean("suggestionShowActions", true),
         matchFromBeginning = json.optBoolean("matchFromBeginning", true),
         suggestionCompactList = json.optBoolean("suggestionCompactList", true),
