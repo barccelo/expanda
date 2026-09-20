@@ -986,6 +986,19 @@ private fun SettingsScreen(
             )
         }
         item {
+            ListItem(
+                headlineContent = { Text("Selection toolbar") },
+                leadingContent = { Icon(Icons.Default.TextFields, null) },
+                supportingContent = { Text("Show quick text transformations when you select editable text") },
+                trailingContent = {
+                    Switch(
+                        state.settings.selectionToolbarEnabled,
+                        viewModel::setSelectionToolbarEnabled,
+                    )
+                },
+            )
+        }
+        item {
             SuggestionSettingsPanel(
                 settings = state.settings,
                 onEnabledChanged = viewModel::setSuggestionEnabled,
