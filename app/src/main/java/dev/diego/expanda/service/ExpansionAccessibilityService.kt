@@ -123,11 +123,24 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private var clipboardOverlay: View? = null
     private var clipboardOverlayTimeout: Runnable? = null
 
-    private data class PendingClipboardRetry(
-        val anchor: SuggestionAnchor,
-        val packageName: String,
-        val settings: AppSettings,
-    )
+    private sealed interface PendingClipboardRetry {
+        val anchor: SuggestionAnchor
+
+        data class Expansion(
+            override val anchor: SuggestionAnchor,
+            val packageName: String,
+            val settings: AppSettings,
+        ) : PendingClipboardRetry
+
+        data class Action(
+            override val anchor: SuggestionAnchor,
+            val settings: AppSettings,
+            val actionId: String,
+            val shortcut: String,
+            val replaceStart: Int,
+            val replaceEnd: Int,
+        ) : PendingClipboardRetry
+    }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -248,6 +261,18 @@ class ExpansionAccessibilityService : AccessibilityService() {
             if (action != null) {
                 suppressedExpansion = null
                 hideSuggestions()
+                if (isClipboardInsertAction(action.definition.id)) {
+                    val replaceStart = (cursor - action.definition.shortcut.length).coerceAtLeast(0)
+                    launchClipboardActionCapture(
+                        node = node,
+                        packageName = packageName,
+                        settings = settings,
+                        definition = action.definition,
+                        replaceStart = replaceStart,
+                        replaceEnd = cursor,
+                    )
+                    return
+                }
                 if (applyAction(node, text, action, settings)) {
                     lastAppliedText = action.text
                     lastAppliedAt = SystemClock.elapsedRealtime()
@@ -359,6 +384,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
      * overlay through [readClipboardTextOrNull].
      */
     private fun readClipboardTextCached(): String = clipboardMonitor.cachedText.orEmpty()
+
+    private fun isClipboardInsertAction(actionId: String): Boolean =
+        actionId == "paste" || actionId == "paste_numbers" || actionId == "clipboard_history"
 
     private fun renderMatch(
         expansion: ExpansionMatch,
@@ -494,7 +522,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         settings: AppSettings,
     ) {
         if (pendingClipboardRetry != null) return
-        pendingClipboardRetry = PendingClipboardRetry(
+        pendingClipboardRetry = PendingClipboardRetry.Expansion(
             anchor = createSuggestionAnchor(node, packageName),
             packageName = packageName,
             settings = settings,
@@ -502,6 +530,30 @@ class ExpansionAccessibilityService : AccessibilityService() {
         Log.d(TAG, "Clipboard capture: starting overlay")
         if (!startClipboardOverlay()) {
             Log.w(TAG, "Clipboard capture: overlay failed, trying activity fallback")
+            launchClipboardCaptureActivity()
+        }
+    }
+
+    private fun launchClipboardActionCapture(
+        node: AccessibilityNodeInfo,
+        packageName: String,
+        settings: AppSettings,
+        definition: ActionDefinition,
+        replaceStart: Int,
+        replaceEnd: Int,
+    ) {
+        if (pendingClipboardRetry != null) return
+        pendingClipboardRetry = PendingClipboardRetry.Action(
+            anchor = createSuggestionAnchor(node, packageName),
+            settings = settings,
+            actionId = definition.id,
+            shortcut = definition.shortcut,
+            replaceStart = replaceStart,
+            replaceEnd = replaceEnd,
+        )
+        Log.d(TAG, "Clipboard action capture: starting overlay for ${definition.id}")
+        if (!startClipboardOverlay()) {
+            Log.w(TAG, "Clipboard action capture overlay failed, trying activity fallback")
             launchClipboardCaptureActivity()
         }
     }
@@ -581,14 +633,17 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private fun onClipboardCaptureComplete() {
         val retry = pendingClipboardRetry ?: return
         pendingClipboardRetry = null
-        retryClipboardExpansion(retry, attempt = 0)
+        when (retry) {
+            is PendingClipboardRetry.Expansion -> retryClipboardExpansion(retry, attempt = 0)
+            is PendingClipboardRetry.Action -> retryClipboardAction(retry, attempt = 0)
+        }
     }
 
     private fun onClipboardCaptureCancel() {
         pendingClipboardRetry = null
     }
 
-    private fun retryClipboardExpansion(retry: PendingClipboardRetry, attempt: Int) {
+    private fun retryClipboardExpansion(retry: PendingClipboardRetry.Expansion, attempt: Int) {
         Log.d(TAG, "retryClipboardExpansion: attempt=$attempt")
         val node = findAnchoredEditor(retry.anchor)
         if (node == null) {
@@ -616,6 +671,47 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 retry.packageName, retry.settings,
                 clipboardCaptureAttempted = true,
             )
+        } finally {
+            @Suppress("DEPRECATION")
+            node.recycle()
+        }
+    }
+
+    private fun retryClipboardAction(retry: PendingClipboardRetry.Action, attempt: Int) {
+        Log.d(TAG, "retryClipboardAction: action=${retry.actionId} attempt=$attempt")
+        val node = findAnchoredEditor(retry.anchor)
+        if (node == null) {
+            if (attempt < CLIPBOARD_RETRY_ATTEMPTS) {
+                mainHandler.postDelayed({
+                    retryClipboardAction(retry, attempt + 1)
+                }, CLIPBOARD_RETRY_DELAY_MS)
+                return
+            }
+            Log.w(TAG, "Clipboard action retry: editor not found after $attempt attempts")
+            return
+        }
+        try {
+            val originalText = editableText(node)
+            val start = retry.replaceStart.coerceIn(0, originalText.length)
+            val end = retry.replaceEnd.coerceIn(start, originalText.length)
+            val commandText = originalText.replaceRange(start, end, retry.shortcut)
+            val commandCursor = start + retry.shortcut.length
+            val outcome = actionEngine.execute(
+                ActionContext(
+                    text = commandText,
+                    cursor = commandCursor,
+                    selectionStart = commandCursor,
+                    selectionEnd = commandCursor,
+                    clipboard = clipboardMonitor.cachedText.orEmpty(),
+                ),
+                enabledActionIds = setOf(retry.actionId),
+                shortcutOverrides = mapOf(retry.actionId to retry.shortcut),
+            ) ?: return
+            if (applyAction(node, originalText, outcome, retry.settings)) {
+                lastAppliedText = outcome.text
+                lastAppliedAt = SystemClock.elapsedRealtime()
+                handleActionRequest(outcome.request, outcome.text)
+            }
         } finally {
             @Suppress("DEPRECATION")
             node.recycle()
@@ -1956,13 +2052,24 @@ class ExpansionAccessibilityService : AccessibilityService() {
             val commandEnd = cursor
             val commandText = originalText.replaceRange(commandStart, commandEnd, definition.shortcut)
             val commandCursor = commandStart + definition.shortcut.length
+            if (isClipboardInsertAction(definition.id)) {
+                launchClipboardActionCapture(
+                    node = node,
+                    packageName = node.packageName?.toString().orEmpty(),
+                    settings = currentSettings,
+                    definition = definition,
+                    replaceStart = commandStart,
+                    replaceEnd = commandEnd,
+                )
+                return
+            }
             val outcome = actionEngine.execute(
                 ActionContext(
                     text = commandText,
                     cursor = commandCursor,
                     selectionStart = commandCursor,
                     selectionEnd = commandCursor,
-                    clipboard = readClipboardText(),
+                    clipboard = readClipboardTextCached(),
                 ),
                 enabledActionIds = setOf(definition.id),
                 shortcutOverrides = mapOf(definition.id to definition.shortcut),
