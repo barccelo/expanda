@@ -39,7 +39,7 @@ android {
 
     signingConfigs {
         if (signingPropertiesFile.isFile) {
-            create("release") {
+            create("personal") {
                 storeFile = rootProject.file(signingProperties.getProperty("storeFile"))
                 storePassword = signingProperties.getProperty("storePassword")
                 keyAlias = signingProperties.getProperty("keyAlias")
@@ -49,8 +49,15 @@ android {
     }
 
     buildTypes {
+        debug {
+            if (signingPropertiesFile.isFile) {
+                signingConfig = signingConfigs.getByName("personal")
+            }
+        }
         release {
-            signingConfig = signingConfigs.findByName("release")
+            if (signingPropertiesFile.isFile) {
+                signingConfig = signingConfigs.getByName("personal")
+            }
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
