@@ -91,6 +91,31 @@ class ActionEngineTest {
         assertEquals("Hello world?", engine.processSelectedText("sentence_case", "HELLO WORLD?"))
     }
 
+    @Test fun `selected range transformation preserves surrounding text and selection`() {
+        val result = engine.processSelectedRange(
+            actionId = "lowercase",
+            text = "Prefix HELLO WORLD suffix",
+            selectionStart = 7,
+            selectionEnd = 18,
+        )
+        assertEquals("Prefix hello world suffix", result?.text)
+        assertEquals(7, result?.selectionStart)
+        assertEquals(18, result?.selectionEnd)
+        assertEquals("hello world", result?.replacement)
+    }
+
+    @Test fun `selected range accepts reversed selection bounds`() {
+        val result = engine.processSelectedRange(
+            actionId = "uppercase",
+            text = "hello world",
+            selectionStart = 5,
+            selectionEnd = 0,
+        )
+        assertEquals("HELLO world", result?.text)
+        assertEquals(0, result?.selectionStart)
+        assertEquals(5, result?.selectionEnd)
+    }
+
     @Test fun `only context free actions are exposed to Android selected text`() {
         val exposed = ActionEngine.definitions.filter { it.supportsSelectedText }.map { it.id }.toSet()
         assertEquals(true, "uppercase" in exposed)
