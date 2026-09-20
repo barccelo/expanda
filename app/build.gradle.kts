@@ -15,11 +15,11 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "dev.diego.expanda"
+        applicationId = "dev.barccelo.expanda"
         minSdk = 26
         targetSdk = 36
         versionCode = 7
-        versionName = "0.3.2"
+        versionName = "0.3.2-personal.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
