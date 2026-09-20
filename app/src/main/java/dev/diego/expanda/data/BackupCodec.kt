@@ -89,6 +89,7 @@ object BackupCodec {
         put("hapticFeedback", settings.hapticFeedback)
         put("pasteFallbackEnabled", settings.pasteFallbackEnabled)
         put("suggestionEnabled", settings.suggestionEnabled)
+        put("selectionToolbarEnabled", settings.selectionToolbarEnabled)
         put("suggestionShowActions", settings.suggestionShowActions)
         put("matchFromBeginning", settings.matchFromBeginning)
         put("suggestionCompactList", settings.suggestionCompactList)
@@ -112,6 +113,7 @@ object BackupCodec {
         hapticFeedback = json.optBoolean("hapticFeedback"),
         pasteFallbackEnabled = json.optBoolean("pasteFallbackEnabled"),
         suggestionEnabled = json.optBoolean("suggestionEnabled"),
+        selectionToolbarEnabled = json.optBoolean("selectionToolbarEnabled", true),
         suggestionShowActions = json.optBoolean("suggestionShowActions", true),
         matchFromBeginning = json.optBoolean("matchFromBeginning", true),
         suggestionCompactList = json.optBoolean("suggestionCompactList", true),
