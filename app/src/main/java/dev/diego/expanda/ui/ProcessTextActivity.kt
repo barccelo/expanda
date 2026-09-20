@@ -19,8 +19,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.diego.expanda.ExpandaApplication
+import dev.diego.expanda.R
 import dev.diego.expanda.engine.ActionDefinition
 import dev.diego.expanda.engine.ActionEngine
 import dev.diego.expanda.ui.theme.ExpandaTheme
@@ -63,7 +65,7 @@ private fun ActionChooser(text: String, select: (String) -> Unit, dismiss: () ->
     }
     AlertDialog(
         onDismissRequest = dismiss,
-        title = { Text("Expanda actions") },
+        title = { Text(stringResource(R.string.process_text_title)) },
         text = {
             Column(
                 Modifier.fillMaxWidth().heightIn(max = 520.dp)
