@@ -41,6 +41,9 @@ data class AppSettings(
     val suggestionEnabled: Boolean = true,
     /** Show Expanda's compact toolbar when editable text is selected in another app. */
     val selectionToolbarEnabled: Boolean = true,
+    /** Last dragged selection-toolbar position in physical pixels. -1 means automatic placement. */
+    val selectionToolbarPositionX: Int = -1,
+    val selectionToolbarPositionY: Int = -1,
     val suggestionShowActions: Boolean = true,
     val matchFromBeginning: Boolean = true,
     /** Keep the suggestion list visually dense when enabled. */
@@ -96,6 +99,8 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
             pasteFallbackEnabled = values[Keys.PASTE_FALLBACK] ?: false,
             suggestionEnabled = values[Keys.SUGGESTIONS] ?: true,
             selectionToolbarEnabled = values[Keys.SELECTION_TOOLBAR] ?: true,
+            selectionToolbarPositionX = values[Keys.SELECTION_TOOLBAR_POSITION_X] ?: -1,
+            selectionToolbarPositionY = values[Keys.SELECTION_TOOLBAR_POSITION_Y] ?: -1,
             suggestionShowActions = values[Keys.SUGGESTION_SHOW_ACTIONS] ?: true,
             matchFromBeginning = values[Keys.MATCH_BEGINNING] ?: true,
             suggestionCompactList = values[Keys.SUGGESTION_COMPACT] ?: true,
@@ -148,6 +153,10 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
     suspend fun setPasteFallbackEnabled(enabled: Boolean) = store.edit { it[Keys.PASTE_FALLBACK] = enabled }
     suspend fun setSuggestionEnabled(enabled: Boolean) = store.edit { it[Keys.SUGGESTIONS] = enabled }
     suspend fun setSelectionToolbarEnabled(enabled: Boolean) = store.edit { it[Keys.SELECTION_TOOLBAR] = enabled }
+    suspend fun setSelectionToolbarPosition(x: Int, y: Int) = store.edit {
+        it[Keys.SELECTION_TOOLBAR_POSITION_X] = x.coerceAtLeast(0)
+        it[Keys.SELECTION_TOOLBAR_POSITION_Y] = y.coerceAtLeast(0)
+    }
     suspend fun setSuggestionShowActions(enabled: Boolean) = store.edit { it[Keys.SUGGESTION_SHOW_ACTIONS] = enabled }
     suspend fun setMatchFromBeginning(enabled: Boolean) = store.edit { it[Keys.MATCH_BEGINNING] = enabled }
     suspend fun setSuggestionCompactList(enabled: Boolean) = store.edit {
@@ -214,6 +223,8 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         val PASTE_FALLBACK = booleanPreferencesKey("paste_fallback")
         val SUGGESTIONS = booleanPreferencesKey("suggestions")
         val SELECTION_TOOLBAR = booleanPreferencesKey("selection_toolbar")
+        val SELECTION_TOOLBAR_POSITION_X = intPreferencesKey("selection_toolbar_position_x")
+        val SELECTION_TOOLBAR_POSITION_Y = intPreferencesKey("selection_toolbar_position_y")
         val SUGGESTION_SHOW_ACTIONS = booleanPreferencesKey("suggestion_show_actions")
         val MATCH_BEGINNING = booleanPreferencesKey("match_beginning")
         val SUGGESTION_COMPACT = booleanPreferencesKey("suggestion_compact_list")
