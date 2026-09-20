@@ -122,9 +122,20 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private var selectionToolbar: View? = null
     private var selectionToolbarState: SelectionToolbarState? = null
     private var selectionToolbarValidation: Runnable? = null
+    private var pendingSelectionToolbar: PendingSelectionToolbar? = null
+    private var selectionToolbarShowTask: Runnable? = null
+    private var suppressSelectionToolbarUntil = 0L
 
     private data class SelectionToolbarState(
         val anchor: SuggestionAnchor,
+        val start: Int,
+        val end: Int,
+        val selectedText: String,
+    )
+
+    private data class PendingSelectionToolbar(
+        val anchor: SuggestionAnchor,
+        val packageName: String,
         val start: Int,
         val end: Int,
         val selectedText: String,
@@ -164,6 +175,15 @@ class ExpansionAccessibilityService : AccessibilityService() {
         try {
             when (event?.eventType) {
                 AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED -> {
+                    // Gboard's swipe-to-delete gesture briefly exposes the text it
+                    // is about to erase as a selection. If a deletion follows that
+                    // transient selection, suppress our toolbar long enough for the
+                    // gesture to finish instead of flashing over the keyboard flow.
+                    if (event.removedCount > event.addedCount) {
+                        suppressSelectionToolbarUntil =
+                            SystemClock.elapsedRealtime() + SELECTION_TOOLBAR_DELETE_SUPPRESSION_MS
+                    }
+                    cancelPendingSelectionToolbar()
                     hideSelectionToolbar()
                     cancelSuggestionValidation()
                     handleTextChanged(event)
@@ -415,11 +435,107 @@ class ExpansionAccessibilityService : AccessibilityService() {
             }
 
             hideSuggestions()
-            showSelectionToolbar(node, packageName, start, end, selectedText, settings)
+            scheduleSelectionToolbar(node, packageName, start, end, selectedText)
         } finally {
             @Suppress("DEPRECATION")
             node.recycle()
         }
+    }
+
+    private fun scheduleSelectionToolbar(
+        node: AccessibilityNodeInfo,
+        packageName: String,
+        start: Int,
+        end: Int,
+        selectedText: String,
+    ) {
+        if (SystemClock.elapsedRealtime() < suppressSelectionToolbarUntil) {
+            cancelPendingSelectionToolbar()
+            return
+        }
+
+        val anchor = createSuggestionAnchor(node, packageName)
+        val current = selectionToolbarState
+        if (selectionToolbar != null &&
+            current != null &&
+            current.start == start &&
+            current.end == end &&
+            current.selectedText == selectedText &&
+            SuggestionAnchorPolicy.shouldKeep(current.anchor, anchor)
+        ) {
+            cancelPendingSelectionToolbar()
+            return
+        }
+
+        if (selectionToolbar != null) hideSelectionToolbar()
+        else cancelPendingSelectionToolbar()
+
+        val pending = PendingSelectionToolbar(
+            anchor = anchor,
+            packageName = packageName,
+            start = start,
+            end = end,
+            selectedText = selectedText,
+        )
+        pendingSelectionToolbar = pending
+        val task = Runnable {
+            selectionToolbarShowTask = null
+            if (pendingSelectionToolbar !== pending) return@Runnable
+            pendingSelectionToolbar = null
+            showPendingSelectionToolbar(pending)
+        }
+        selectionToolbarShowTask = task
+        mainHandler.postDelayed(task, SELECTION_TOOLBAR_STABILITY_DELAY_MS)
+    }
+
+    private fun showPendingSelectionToolbar(pending: PendingSelectionToolbar) {
+        if (SystemClock.elapsedRealtime() < suppressSelectionToolbarUntil) return
+        val settings = settingsRepository.settings.value
+        if (!settings.expansionEnabled ||
+            !settings.selectionToolbarEnabled ||
+            settings.isPaused ||
+            pending.packageName in settings.globallyExcludedPackages
+        ) {
+            return
+        }
+
+        val node = findAnchoredEditor(pending.anchor, requireActiveWindow = false) ?: return
+        try {
+            runCatching { node.refresh() }
+            if (!node.isEditable || node.isPassword || isPasswordInput(node.inputType)) return
+
+            val text = editableText(node)
+            val rawStart = node.textSelectionStart
+            val rawEnd = node.textSelectionEnd
+            if (rawStart !in 0..text.length || rawEnd !in 0..text.length || rawStart == rawEnd) return
+
+            val start = minOf(rawStart, rawEnd)
+            val end = maxOf(rawStart, rawEnd)
+            if (start != pending.start ||
+                end != pending.end ||
+                text.substring(start, end) != pending.selectedText
+            ) {
+                return
+            }
+
+            showSelectionToolbar(
+                node = node,
+                packageName = pending.packageName,
+                start = start,
+                end = end,
+                selectedText = pending.selectedText,
+                settings = settings,
+            )
+        } finally {
+            @Suppress("DEPRECATION")
+            node.recycle()
+        }
+    }
+
+    private fun cancelPendingSelectionToolbar() {
+        selectionToolbarShowTask?.let(mainHandler::removeCallbacks)
+        selectionToolbarShowTask = null
+        pendingSelectionToolbar = null
     }
 
     private fun showSelectionToolbar(
@@ -661,6 +777,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
     }
 
     private fun hideSelectionToolbar() {
+        cancelPendingSelectionToolbar()
         cancelSelectionToolbarValidation()
         val overlay = selectionToolbar
         selectionToolbar = null
@@ -2822,6 +2939,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
         private const val CLIPBOARD_OVERLAY_SETTLE_MS = 100L
         private const val SUGGESTION_VALIDATION_DELAY_MS = 140L
         private const val SELECTION_TOOLBAR_VALIDATION_DELAY_MS = 180L
+        private const val SELECTION_TOOLBAR_STABILITY_DELAY_MS = 280L
+        private const val SELECTION_TOOLBAR_DELETE_SUPPRESSION_MS = 420L
         private const val CLIPBOARD_RESTORE_DELAY_MS = 250L
         /** Two frames at 60 Hz — enough for Blink to finish applying ACTION_SET_TEXT. */
         private const val WEBVIEW_SELECTION_RETRY_DELAY_MS = 32L
