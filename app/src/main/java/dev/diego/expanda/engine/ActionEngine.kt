@@ -42,6 +42,13 @@ data class ActionOutcome(
     val request: ActionRequest? = null,
 )
 
+data class SelectedTextOutcome(
+    val text: String,
+    val selectionStart: Int,
+    val selectionEnd: Int,
+    val replacement: String,
+)
+
 /** Executes opt-in typing actions without depending on Android UI classes. */
 class ActionEngine {
     /** Runs the same pure transformation used by typing actions on an Android text selection. */
@@ -64,6 +71,25 @@ class ActionEngine {
         "trim_spaces" -> text.trim()
         "delete_blank_lines" -> text.lineSequence().filterNot(String::isBlank).joinToString("\n")
         else -> null
+    }
+
+    fun processSelectedRange(
+        actionId: String,
+        text: String,
+        selectionStart: Int,
+        selectionEnd: Int,
+    ): SelectedTextOutcome? {
+        val start = minOf(selectionStart, selectionEnd)
+        val end = maxOf(selectionStart, selectionEnd)
+        if (start !in 0..text.length || end !in 0..text.length || start >= end) return null
+        val replacement = processSelectedText(actionId, text.substring(start, end)) ?: return null
+        if (replacement == text.substring(start, end)) return null
+        return SelectedTextOutcome(
+            text = text.replaceRange(start, end, replacement),
+            selectionStart = start,
+            selectionEnd = start + replacement.length,
+            replacement = replacement,
+        )
     }
 
     fun execute(
