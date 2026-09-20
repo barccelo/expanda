@@ -451,10 +451,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
             val start = minOf(rawStart, rawEnd)
             val end = maxOf(rawStart, rawEnd)
             val selectedText = text.substring(start, end)
-            val hasUsefulTransform = SELECTION_TOOLBAR_ACTIONS.any { action ->
-                actionEngine.processSelectedText(action.id, selectedText)?.let { it != selectedText } == true
-            }
-            if (!hasUsefulTransform) {
+            if (!selectionHasUsefulAction(selectedText)) {
                 hideSelectionToolbar()
                 return
             }
@@ -484,10 +481,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         val end = maxOf(outcome.selectionStart, outcome.selectionEnd)
         if (start !in 0..outcome.text.length || end !in 0..outcome.text.length || start == end) return
         val selectedText = outcome.text.substring(start, end)
-        val hasUsefulTransform = SELECTION_TOOLBAR_ACTIONS.any { action ->
-            actionEngine.processSelectedText(action.id, selectedText)?.let { it != selectedText } == true
-        }
-        if (!hasUsefulTransform) return
+        if (!selectionHasUsefulAction(selectedText)) return
 
         cancelPendingSelectionToolbar()
         val pending = PendingSelectionToolbar(
@@ -692,7 +686,19 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 isFocusable = true
                 maxLines = 1
                 contentDescription = action.description
-                setOnClickListener { applySelectionToolbarAction(action.id) }
+                setOnClickListener {
+                    when (action.id) {
+                        SELECTION_TRANSFORMS_MENU_ID -> showSelectionActionMenu(
+                            title = "Transform selection",
+                            actionIds = SELECTION_TRANSFORM_ACTION_IDS,
+                        )
+                        SELECTION_MORE_MENU_ID -> showSelectionActionMenu(
+                            title = "More selection actions",
+                            actionIds = SELECTION_MORE_ACTION_IDS,
+                        )
+                        else -> applySelectionToolbarAction(action.id)
+                    }
+                }
             }
             container.addView(
                 button,
@@ -761,6 +767,87 @@ class ExpansionAccessibilityService : AccessibilityService() {
             selectionToolbar = null
             selectionToolbarWindowParams = null
             selectionToolbarState = null
+        }
+    }
+
+    private fun selectionHasUsefulAction(selectedText: String): Boolean =
+        SELECTION_ALL_ACTION_IDS.any { actionId ->
+            actionEngine.processSelectedText(actionId, selectedText)?.let { it != selectedText } == true
+        }
+
+    private fun showSelectionActionMenu(
+        title: String,
+        actionIds: List<String>,
+    ) {
+        val state = selectionToolbarState ?: return
+        val available = actionIds.mapNotNull { actionId ->
+            val definition = ActionEngine.definitions.firstOrNull { it.id == actionId } ?: return@mapNotNull null
+            val transformed = actionEngine.processSelectedText(actionId, state.selectedText)
+            definition.takeIf { transformed != null && transformed != state.selectedText }
+        }
+        if (available.isEmpty()) return
+
+        hideFormOverlay()
+        val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        val settings = settingsRepository.settings.value
+        val ui = OverlayViews(this, resolveNativeTheme(this, settings))
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(12), dp(14), dp(8))
+            addView(ui.title(title).apply {
+                setPadding(dp(6), dp(2), dp(6), dp(8))
+            })
+            addView(ui.body(state.selectedText.replace('\n', ' ').take(120), secondary = true).apply {
+                setPadding(dp(6), 0, dp(6), dp(10))
+                maxLines = 2
+            })
+        }
+
+        available.forEach { definition ->
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(12), dp(10), dp(12), dp(10))
+                background = ui.surface()
+                isClickable = true
+                isFocusable = true
+                contentDescription = definition.description
+                addView(ui.body(definition.title))
+                addView(ui.body(definition.description, secondary = true).apply {
+                    setPadding(0, dp(2), 0, 0)
+                    maxLines = 2
+                })
+                setOnClickListener {
+                    hideFormOverlay()
+                    applySelectionToolbarAction(definition.id)
+                }
+            }
+            content.addView(
+                row,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply { bottomMargin = dp(6) },
+            )
+        }
+
+        val footer = overlayCancelFooter(ui) { hideFormOverlay() }
+        val bounds = displayBounds(windowManager)
+        val maxContentHeight = (bounds.height() * 0.55f).toInt().coerceAtLeast(dp(180))
+        val root = buildPickerOverlayRoot(
+            content = content,
+            footer = footer,
+            itemCount = available.size,
+            maxContentHeightPx = maxContentHeight,
+            background = ui.panel(22),
+            ui = ui,
+        )
+        val params = overlayDialogParams(windowManager, softInput = false)
+        runCatching {
+            windowManager.addView(root, params)
+            formOverlay = root
+        }.onFailure {
+            Log.w(TAG, "Could not show selection action menu", it)
+            formOverlay = null
         }
     }
 
@@ -3227,12 +3314,41 @@ class ExpansionAccessibilityService : AccessibilityService() {
             val description: String,
         )
 
+        private const val SELECTION_TRANSFORMS_MENU_ID = "__selection_transforms__"
+        private const val SELECTION_MORE_MENU_ID = "__selection_more__"
+
         private val SELECTION_TOOLBAR_ACTIONS = listOf(
             SelectionToolbarAction("uppercase", "ABC", "Uppercase selection"),
             SelectionToolbarAction("lowercase", "abc", "Lowercase selection"),
             SelectionToolbarAction("sentence_case", "Abc.", "Sentence case"),
             SelectionToolbarAction("title_case", "Aa", "Capitalize words"),
+            SelectionToolbarAction(SELECTION_TRANSFORMS_MENU_ID, "↔", "More text transformations"),
+            SelectionToolbarAction(SELECTION_MORE_MENU_ID, "⋯", "More selection actions"),
         )
+
+        private val SELECTION_TRANSFORM_ACTION_IDS = listOf(
+            "remove_diacritics",
+            "space_underscore",
+            "space_dash",
+            "underscore_space",
+            "dash_space",
+            "trim_spaces",
+            "delete_blank_lines",
+        )
+
+        private val SELECTION_MORE_ACTION_IDS = listOf(
+            "math_replace",
+            "math_append",
+            "number_space",
+            "number_period",
+            "number_comma",
+            "uuid",
+        )
+
+        private val SELECTION_ALL_ACTION_IDS =
+            SELECTION_TOOLBAR_ACTIONS.mapNotNull { action ->
+                action.id.takeUnless { it == SELECTION_TRANSFORMS_MENU_ID || it == SELECTION_MORE_MENU_ID }
+            } + SELECTION_TRANSFORM_ACTION_IDS + SELECTION_MORE_ACTION_IDS
 
         private const val MAX_SUGGESTION_LENGTH = 32
         private const val PREVIEW_LENGTH = 220
