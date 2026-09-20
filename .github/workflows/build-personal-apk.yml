@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   build:
-    name: Test and build debug APK
+    name: Test and build signed debug APK
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -32,14 +32,49 @@ jobs:
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
 
+      - name: Validate signing secrets
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          ALIAS: ${{ secrets.ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          test -n "$SIGNING_KEY" || { echo "::error::Missing SIGNING_KEY repository secret"; exit 1; }
+          test -n "$KEY_STORE_PASSWORD" || { echo "::error::Missing KEY_STORE_PASSWORD repository secret"; exit 1; }
+          test -n "$ALIAS" || { echo "::error::Missing ALIAS repository secret"; exit 1; }
+          test -n "$KEY_PASSWORD" || { echo "::error::Missing KEY_PASSWORD repository secret"; exit 1; }
+
+      - name: Restore permanent signing key
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          ALIAS: ${{ secrets.ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          KEYSTORE="$RUNNER_TEMP/expanda-personal-signing.jks"
+          printf '%s' "$SIGNING_KEY" | base64 --decode > "$KEYSTORE"
+          chmod 600 "$KEYSTORE"
+          cat > signing.properties <<EOF
+          storeFile=$KEYSTORE
+          storePassword=$KEY_STORE_PASSWORD
+          keyAlias=$ALIAS
+          keyPassword=$KEY_PASSWORD
+          EOF
+          chmod 600 signing.properties
+
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
 
       - name: Run unit tests
         run: ./gradlew :app:testDebugUnitTest --stacktrace
 
-      - name: Build debug APK
+      - name: Build signed debug APK
         run: ./gradlew :app:assembleDebug --stacktrace
+
+      - name: Verify APK signature
+        run: |
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$APK"
 
       - name: Rename APK
         run: cp app/build/outputs/apk/debug/app-debug.apk Expanda-Personal-debug.apk
