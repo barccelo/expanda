@@ -627,10 +627,34 @@ class ExpansionAccessibilityService : AccessibilityService() {
         hideSelectionToolbar()
         val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         val ui = OverlayViews(this, resolveNativeTheme(this, settings))
+        val screen = displayBounds(windowManager)
+        val horizontalMargin = dp(8)
+        val toolbarWidth = (screen.width() * settings.selectionToolbarWidthFraction)
+            .roundToInt()
+            .coerceIn(
+                (screen.width() * SettingsRepository.MIN_SELECTION_TOOLBAR_WIDTH).roundToInt(),
+                (screen.width() * SettingsRepository.MAX_SELECTION_TOOLBAR_WIDTH).roundToInt(),
+            )
+            .coerceAtMost((screen.width() - horizontalMargin * 2).coerceAtLeast(dp(120)))
+        val toolbarHeight = dp(
+            settings.selectionToolbarHeightDp.coerceIn(
+                SettingsRepository.MIN_SELECTION_TOOLBAR_HEIGHT_DP,
+                SettingsRepository.MAX_SELECTION_TOOLBAR_HEIGHT_DP,
+            ),
+        )
+        val heightDp = settings.selectionToolbarHeightDp
+        val actionTextSize = when {
+            settings.selectionToolbarWidthFraction < 0.50f -> 11f
+            settings.selectionToolbarWidthFraction < 0.66f -> 13f
+            else -> 15f
+        }.coerceAtMost((heightDp * 0.30f).coerceIn(11f, 18f))
+        val handleWidth = minOf(dp(40), (toolbarHeight - dp(8)).coerceAtLeast(dp(30)))
+        val containerPadding = dp(if (heightDp <= 50) 3 else 4)
+
         val container = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(5), dp(5), dp(5), dp(5))
+            setPadding(containerPadding, containerPadding, containerPadding, containerPadding)
             background = ui.panel(16)
             elevation = dp(8).toFloat()
         }
@@ -644,55 +668,47 @@ class ExpansionAccessibilityService : AccessibilityService() {
             text = "⠿"
             gravity = Gravity.CENTER
             setTextColor(ui.theme.onSurfaceVariant)
-            textSize = ui.scaled(17f)
+            textSize = ui.scaled(actionTextSize + 2f)
             includeFontPadding = false
-            minWidth = dp(36)
-            minHeight = dp(40)
             background = ui.surface(10)
             isClickable = true
             isFocusable = true
-            contentDescription = "Move selection toolbar"
+            contentDescription = "Move selection toolbar. Long press and drag to resize."
         }
         container.addView(
             dragHandle,
-            LinearLayout.LayoutParams(dp(36), dp(40)),
+            LinearLayout.LayoutParams(
+                handleWidth,
+                LinearLayout.LayoutParams.MATCH_PARENT,
+            ),
         )
 
         SELECTION_TOOLBAR_ACTIONS.forEach { action ->
-            val button = ui.body(action.label, sizeSp = 14f).apply {
+            val button = ui.body(action.label, sizeSp = actionTextSize).apply {
                 gravity = Gravity.CENTER
-                minWidth = dp(46)
-                minHeight = dp(40)
-                setPadding(dp(10), dp(8), dp(10), dp(8))
+                setPadding(dp(2), 0, dp(2), 0)
                 background = ui.surface(10)
                 isClickable = true
                 isFocusable = true
+                maxLines = 1
                 contentDescription = action.description
                 setOnClickListener { applySelectionToolbarAction(action.id) }
             }
             container.addView(
                 button,
                 LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    0,
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    1f,
                 ).apply {
-                    marginStart = dp(4)
+                    marginStart = dp(3)
                 },
             )
         }
 
-        val screen = displayBounds(windowManager)
-        val maxWidth = (screen.width() - dp(16)).coerceAtLeast(dp(180))
-        container.measure(
-            View.MeasureSpec.makeMeasureSpec(maxWidth, View.MeasureSpec.AT_MOST),
-            View.MeasureSpec.makeMeasureSpec(screen.height(), View.MeasureSpec.AT_MOST),
-        )
-        val toolbarWidth = container.measuredWidth.coerceAtLeast(dp(180))
-        val toolbarHeight = container.measuredHeight.coerceAtLeast(dp(48))
         val nodeBounds = Rect()
         node.getBoundsInScreen(nodeBounds)
 
-        val horizontalMargin = dp(8)
         val top = safeTop()
         val bottom = safeBottom(screen)
         val centeredX = nodeBounds.centerX() - toolbarWidth / 2
@@ -701,8 +717,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
         val automaticY = if (aboveY >= top) aboveY else belowY
 
         val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
+            toolbarWidth,
+            toolbarHeight,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
@@ -732,8 +748,6 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 handle = dragHandle,
                 windowManager = windowManager,
                 bounds = screen,
-                toolbarWidth = toolbarWidth,
-                toolbarHeight = toolbarHeight,
             ),
         )
 
@@ -2868,27 +2882,37 @@ class ExpansionAccessibilityService : AccessibilityService() {
         handle: View,
         windowManager: WindowManager,
         bounds: Rect,
-        toolbarWidth: Int,
-        toolbarHeight: Int,
     ): View.OnTouchListener {
         val touchSlop = ViewConfiguration.get(this).scaledTouchSlop
+        val longPressTimeout = ViewConfiguration.getLongPressTimeout().toLong()
         var downX = 0f
         var downY = 0f
         var startX = 0
         var startY = 0
+        var startWidth = 0
+        var startHeight = 0
         var dragging = false
+        var resizing = false
+        var longPressTask: Runnable? = null
+
+        fun cancelLongPress() {
+            longPressTask?.let(mainHandler::removeCallbacks)
+            longPressTask = null
+        }
 
         fun constrain(params: WindowManager.LayoutParams) {
             val margin = dp(8)
             val top = safeTop()
             val bottom = safeBottom(bounds)
+            val width = params.width.coerceAtLeast(1)
+            val height = params.height.coerceAtLeast(1)
             params.x = params.x.coerceIn(
                 margin,
-                (bounds.width() - toolbarWidth - margin).coerceAtLeast(margin),
+                (bounds.width() - width - margin).coerceAtLeast(margin),
             )
             params.y = params.y.coerceIn(
                 top,
-                (bottom - toolbarHeight).coerceAtLeast(top),
+                (bottom - height).coerceAtLeast(top),
             )
         }
 
@@ -2900,7 +2924,20 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     downY = event.rawY
                     startX = params.x
                     startY = params.y
+                    startWidth = params.width
+                    startHeight = params.height
                     dragging = false
+                    resizing = false
+                    cancelLongPress()
+                    val task = Runnable {
+                        if (!dragging) {
+                            resizing = true
+                            container.alpha = DRAG_ALPHA
+                            (handle as? TextView)?.text = "↘"
+                        }
+                    }
+                    longPressTask = task
+                    mainHandler.postDelayed(task, longPressTimeout)
                     true
                 }
 
@@ -2908,9 +2945,24 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     val params = selectionToolbarWindowParams ?: return@OnTouchListener false
                     val deltaX = event.rawX - downX
                     val deltaY = event.rawY - downY
-                    if (!dragging &&
+                    if (resizing) {
+                        val minWidth = (
+                            bounds.width() * SettingsRepository.MIN_SELECTION_TOOLBAR_WIDTH
+                        ).roundToInt()
+                        val maxWidth = (
+                            bounds.width() * SettingsRepository.MAX_SELECTION_TOOLBAR_WIDTH
+                        ).roundToInt()
+                        params.width = (startWidth + deltaX.toInt()).coerceIn(minWidth, maxWidth)
+                        params.height = (startHeight + deltaY.toInt()).coerceIn(
+                            dp(SettingsRepository.MIN_SELECTION_TOOLBAR_HEIGHT_DP),
+                            dp(SettingsRepository.MAX_SELECTION_TOOLBAR_HEIGHT_DP),
+                        )
+                        constrain(params)
+                        runCatching { windowManager.updateViewLayout(container, params) }
+                    } else if (!dragging &&
                         (kotlin.math.abs(deltaX) > touchSlop || kotlin.math.abs(deltaY) > touchSlop)
                     ) {
+                        cancelLongPress()
                         dragging = true
                         container.alpha = DRAG_ALPHA
                     }
@@ -2924,18 +2976,34 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 }
 
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    cancelLongPress()
                     val params = selectionToolbarWindowParams ?: return@OnTouchListener false
-                    if (dragging) {
-                        container.alpha = 1f
-                        constrain(params)
-                        runCatching { windowManager.updateViewLayout(container, params) }
-                        scope.launch {
-                            settingsRepository.setSelectionToolbarPosition(params.x, params.y)
+                    container.alpha = 1f
+                    (handle as? TextView)?.text = "⠿"
+                    when {
+                        resizing -> {
+                            constrain(params)
+                            runCatching { windowManager.updateViewLayout(container, params) }
+                            val widthFraction = params.width.toFloat() / bounds.width().coerceAtLeast(1)
+                            val heightDp = (
+                                params.height / resources.displayMetrics.density
+                            ).roundToInt()
+                            scope.launch {
+                                settingsRepository.setSelectionToolbarSize(widthFraction, heightDp)
+                                settingsRepository.setSelectionToolbarPosition(params.x, params.y)
+                            }
                         }
-                    } else {
-                        handle.performClick()
+                        dragging -> {
+                            constrain(params)
+                            runCatching { windowManager.updateViewLayout(container, params) }
+                            scope.launch {
+                                settingsRepository.setSelectionToolbarPosition(params.x, params.y)
+                            }
+                        }
+                        else -> handle.performClick()
                     }
                     dragging = false
+                    resizing = false
                     true
                 }
 
