@@ -75,6 +75,22 @@ class ActionEngineTest {
         assertNull(engine.processSelectedText("cursor_start", "hello"))
     }
 
+    @Test fun `sentence case lowercases non initial letters and capitalizes sentence starts`() {
+        assertEquals(
+            "Hello hello. This is a test! Another one? Yes\nNew line",
+            engine.processSelectedText(
+                "sentence_case",
+                "HELLO Hello. THIS IS A TEST! ANOTHER ONE? YES\nNEW LINE",
+            ),
+        )
+    }
+
+    @Test fun `sentence case works when selected text ends with punctuation`() {
+        assertEquals("Hello world.", engine.processSelectedText("sentence_case", "HELLO WORLD."))
+        assertEquals("Hello world!", engine.processSelectedText("sentence_case", "hELLO WORLD!"))
+        assertEquals("Hello world?", engine.processSelectedText("sentence_case", "HELLO WORLD?"))
+    }
+
     @Test fun `only context free actions are exposed to Android selected text`() {
         val exposed = ActionEngine.definitions.filter { it.supportsSelectedText }.map { it.id }.toSet()
         assertEquals(true, "uppercase" in exposed)
