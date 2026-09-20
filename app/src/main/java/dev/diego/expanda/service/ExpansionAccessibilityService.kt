@@ -118,6 +118,16 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private var pendingFormApply: Runnable? = null
     private var activeFieldDialog: Dialog? = null
 
+    private var selectionToolbar: View? = null
+    private var selectionToolbarState: SelectionToolbarState? = null
+
+    private data class SelectionToolbarState(
+        val anchor: SuggestionAnchor,
+        val start: Int,
+        val end: Int,
+        val selectedText: String,
+    )
+
     /** Context saved while clipboard overlay / capture reads the clipboard. */
     private var pendingClipboardRetry: PendingClipboardRetry? = null
     private var clipboardOverlay: View? = null
@@ -152,13 +162,23 @@ class ExpansionAccessibilityService : AccessibilityService() {
         try {
             when (event?.eventType) {
                 AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED -> {
+                    hideSelectionToolbar()
                     cancelSuggestionValidation()
                     handleTextChanged(event)
                 }
-                AccessibilityEvent.TYPE_VIEW_FOCUSED,
+                AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED -> {
+                    handleSelectionChanged(event)
+                }
+                AccessibilityEvent.TYPE_VIEW_FOCUSED -> {
+                    hideSelectionToolbar()
+                    scheduleSuggestionValidation()
+                }
                 AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
                 AccessibilityEvent.TYPE_WINDOWS_CHANGED,
-                -> scheduleSuggestionValidation()
+                -> {
+                    hideSelectionToolbar()
+                    scheduleSuggestionValidation()
+                }
             }
         } catch (failure: RuntimeException) {
             recoverFromEventFailure(failure)
@@ -172,6 +192,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         clearExpansionUndo()
         hideSuggestions()
         hideFormOverlay()
+        hideSelectionToolbar()
     }
 
     private fun handleTextChanged(event: AccessibilityEvent) {
@@ -320,16 +341,251 @@ class ExpansionAccessibilityService : AccessibilityService() {
         clearExpansionUndo()
         hideSuggestions()
         hideFormOverlay()
+        hideSelectionToolbar()
     }
 
     override fun onDestroy() {
         clearExpansionUndo()
         hideSuggestions()
         hideFormOverlay()
+        hideSelectionToolbar()
         removeClipboardOverlay()
         if (activeService?.get() === this) activeService = null
         scope.cancel()
         super.onDestroy()
+    }
+
+    private fun handleSelectionChanged(event: AccessibilityEvent) {
+        val node = event.source
+            ?: rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+            ?: run {
+                hideSelectionToolbar()
+                return
+            }
+        try {
+            if (!node.isEditable || node.isPassword || isPasswordInput(node.inputType)) {
+                hideSelectionToolbar()
+                return
+            }
+            val packageName = event.packageName?.toString()?.takeIf { it.isNotEmpty() }
+                ?: node.packageName?.toString().orEmpty()
+            if (packageName.isEmpty()) {
+                hideSelectionToolbar()
+                return
+            }
+            if (packageName == applicationContext.packageName &&
+                node.viewIdResourceName != "${applicationContext.packageName}:id/${resources.getResourceEntryName(R.id.expanda_test_input)}"
+            ) {
+                hideSelectionToolbar()
+                return
+            }
+
+            val settings = settingsRepository.settings.value
+            if (!settings.expansionEnabled || settings.isPaused || packageName in settings.globallyExcludedPackages) {
+                hideSelectionToolbar()
+                return
+            }
+
+            val text = editableText(node)
+            val rawStart = node.textSelectionStart
+            val rawEnd = node.textSelectionEnd
+            if (rawStart !in 0..text.length || rawEnd !in 0..text.length || rawStart == rawEnd) {
+                hideSelectionToolbar()
+                return
+            }
+            val start = minOf(rawStart, rawEnd)
+            val end = maxOf(rawStart, rawEnd)
+            val selectedText = text.substring(start, end)
+            val hasUsefulTransform = SELECTION_TOOLBAR_ACTIONS.any { action ->
+                actionEngine.processSelectedText(action.id, selectedText)?.let { it != selectedText } == true
+            }
+            if (!hasUsefulTransform) {
+                hideSelectionToolbar()
+                return
+            }
+
+            hideSuggestions()
+            showSelectionToolbar(node, packageName, start, end, selectedText, settings)
+        } finally {
+            @Suppress("DEPRECATION")
+            node.recycle()
+        }
+    }
+
+    private fun showSelectionToolbar(
+        node: AccessibilityNodeInfo,
+        packageName: String,
+        start: Int,
+        end: Int,
+        selectedText: String,
+        settings: AppSettings,
+    ) {
+        val anchor = createSuggestionAnchor(node, packageName)
+        val current = selectionToolbarState
+        if (selectionToolbar != null &&
+            current?.start == start &&
+            current.end == end &&
+            current.selectedText == selectedText &&
+            SuggestionAnchorPolicy.shouldKeep(current.anchor, anchor)
+        ) {
+            return
+        }
+
+        hideSelectionToolbar()
+        val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        val ui = OverlayViews(this, resolveNativeTheme(this, settings))
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(5), dp(5), dp(5), dp(5))
+            background = ui.panel(16)
+            elevation = dp(8).toFloat()
+        }
+
+        SELECTION_TOOLBAR_ACTIONS.forEachIndexed { index, action ->
+            val button = ui.body(action.label, sizeSp = 14f).apply {
+                gravity = Gravity.CENTER
+                minWidth = dp(46)
+                minHeight = dp(40)
+                setPadding(dp(10), dp(8), dp(10), dp(8))
+                background = ui.surface(10)
+                isClickable = true
+                isFocusable = true
+                contentDescription = action.description
+                setOnClickListener { applySelectionToolbarAction(action.id) }
+            }
+            container.addView(
+                button,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply {
+                    if (index > 0) marginStart = dp(4)
+                },
+            )
+        }
+
+        val screen = displayBounds(windowManager)
+        val maxWidth = (screen.width() - dp(16)).coerceAtLeast(dp(180))
+        container.measure(
+            View.MeasureSpec.makeMeasureSpec(maxWidth, View.MeasureSpec.AT_MOST),
+            View.MeasureSpec.makeMeasureSpec(screen.height(), View.MeasureSpec.AT_MOST),
+        )
+        val toolbarWidth = container.measuredWidth.coerceAtLeast(dp(180))
+        val toolbarHeight = container.measuredHeight.coerceAtLeast(dp(48))
+        val nodeBounds = Rect()
+        node.getBoundsInScreen(nodeBounds)
+
+        val horizontalMargin = dp(8)
+        val top = safeTop()
+        val bottom = safeBottom(screen)
+        val centeredX = nodeBounds.centerX() - toolbarWidth / 2
+        val aboveY = nodeBounds.top - toolbarHeight - dp(8)
+        val belowY = nodeBounds.bottom + dp(8)
+        val y = if (aboveY >= top) aboveY else belowY
+
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+            PixelFormat.TRANSLUCENT,
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            x = centeredX.coerceIn(
+                horizontalMargin,
+                (screen.width() - toolbarWidth - horizontalMargin).coerceAtLeast(horizontalMargin),
+            )
+            this.y = y.coerceIn(
+                top,
+                (bottom - toolbarHeight).coerceAtLeast(top),
+            )
+        }
+
+        runCatching {
+            windowManager.addView(container, params)
+            selectionToolbar = container
+            selectionToolbarState = SelectionToolbarState(anchor, start, end, selectedText)
+        }.onFailure {
+            Log.w(TAG, "Could not show selection toolbar", it)
+            selectionToolbar = null
+            selectionToolbarState = null
+        }
+    }
+
+    private fun applySelectionToolbarAction(actionId: String) {
+        val state = selectionToolbarState ?: return
+        clearAccessibilityCache()
+        val node = findAnchoredEditor(state.anchor) ?: run {
+            hideSelectionToolbar()
+            return
+        }
+        try {
+            if (!node.isEditable || node.isPassword || isPasswordInput(node.inputType)) {
+                hideSelectionToolbar()
+                return
+            }
+            runCatching { node.refresh() }
+            val text = editableText(node)
+
+            val currentStart = node.textSelectionStart
+            val currentEnd = node.textSelectionEnd
+            val currentRange = if (
+                currentStart in 0..text.length &&
+                currentEnd in 0..text.length &&
+                currentStart != currentEnd
+            ) {
+                minOf(currentStart, currentEnd) to maxOf(currentStart, currentEnd)
+            } else null
+
+            val storedRange = if (
+                state.start in 0..text.length &&
+                state.end in state.start..text.length &&
+                text.substring(state.start, state.end) == state.selectedText
+            ) {
+                state.start to state.end
+            } else null
+
+            val (start, end) = currentRange ?: storedRange ?: run {
+                hideSelectionToolbar()
+                return
+            }
+            val selected = text.substring(start, end)
+            val replacement = actionEngine.processSelectedText(actionId, selected) ?: return
+            if (replacement == selected) return
+
+            val newText = text.replaceRange(start, end, replacement)
+            val newEnd = start + replacement.length
+            val settings = settingsRepository.settings.value
+            hideSelectionToolbar()
+            if (setFieldText(
+                    node = node,
+                    originalText = text,
+                    newText = newText,
+                    selectionStart = start,
+                    selectionEnd = newEnd,
+                    settings = settings,
+                )
+            ) {
+                lastAppliedText = newText
+                lastAppliedAt = SystemClock.elapsedRealtime()
+            }
+        } finally {
+            @Suppress("DEPRECATION")
+            node.recycle()
+        }
+    }
+
+    private fun hideSelectionToolbar() {
+        val overlay = selectionToolbar
+        selectionToolbar = null
+        selectionToolbarState = null
+        if (overlay != null) {
+            runCatching {
+                (getSystemService(WINDOW_SERVICE) as WindowManager).removeView(overlay)
+            }
+        }
     }
 
     private fun showAllSuggestionsForFocusedInput() {
@@ -2483,6 +2739,19 @@ class ExpansionAccessibilityService : AccessibilityService() {
         private const val WEBVIEW_SELECTION_RETRY_DELAY_MS = 32L
         private const val MAX_SUGGESTIONS = 24
         private const val MAX_BROWSE_SUGGESTIONS = 200
+        private data class SelectionToolbarAction(
+            val id: String,
+            val label: String,
+            val description: String,
+        )
+
+        private val SELECTION_TOOLBAR_ACTIONS = listOf(
+            SelectionToolbarAction("uppercase", "ABC", "Uppercase selection"),
+            SelectionToolbarAction("lowercase", "abc", "Lowercase selection"),
+            SelectionToolbarAction("sentence_case", "Abc.", "Sentence case"),
+            SelectionToolbarAction("title_case", "Aa", "Capitalize words"),
+        )
+
         private const val MAX_SUGGESTION_LENGTH = 32
         private const val PREVIEW_LENGTH = 220
         private const val DRAG_ALPHA = 0.55f
