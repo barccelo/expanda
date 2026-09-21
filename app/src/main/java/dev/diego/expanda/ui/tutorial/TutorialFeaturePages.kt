@@ -136,7 +136,11 @@ internal fun UndoExpansionAnimation() {
                 Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    if (stage == UndoStage.RESTORED) "Trigger restored" else "Next space is ignored",
+                    if (stage == UndoStage.RESTORED) {
+                        tr("Trigger restored", "Disparador restaurado")
+                    } else {
+                        tr("Next space is ignored", "El siguiente espacio se ignora")
+                    },
                     color = MaterialTheme.colorScheme.primary,
                 )
             }
@@ -159,11 +163,15 @@ internal fun DynamicValuesAnimation() {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        FeatureHeading(Icons.Default.CalendarMonth, "Dynamic text", "Generate fresh values every time.")
+        FeatureHeading(
+            Icons.Default.CalendarMonth,
+            tr("Dynamic text", "Texto dinámico"),
+            tr("Generate fresh values every time.", "Genera valores nuevos en cada expansión."),
+        )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            VariableBadge(Icons.Default.CalendarMonth, "Date")
-            VariableBadge(Icons.Default.Schedule, "Time")
-            VariableBadge(Icons.Default.Casino, "Random")
+            VariableBadge(Icons.Default.CalendarMonth, tr("Date", "Fecha"))
+            VariableBadge(Icons.Default.Schedule, tr("Time", "Hora"))
+            VariableBadge(Icons.Default.Casino, tr("Random", "Aleatorio"))
         }
         TutorialTextField(minHeight = 112) {
             if (!expanded) {
@@ -212,7 +220,11 @@ internal fun FormChoiceAnimation() {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        FeatureHeading(Icons.Default.DynamicForm, "Ask only when needed", "Complete a form before inserting text.")
+        FeatureHeading(
+            Icons.Default.DynamicForm,
+            tr("Ask only when needed", "Pregunta sólo cuando sea necesario"),
+            tr("Complete a form before inserting text.", "Completa un formulario antes de insertar el texto."),
+        )
         AnimatedContent(
             targetState = stage,
             transitionSpec = {
@@ -279,7 +291,11 @@ internal fun RegexAnimation() {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        FeatureHeading(Icons.Default.Code, "Reuse changing details", "Use regular expressions.")
+        FeatureHeading(
+            Icons.Default.Code,
+            tr("Reuse changing details", "Reutiliza datos variables"),
+            tr("Use regular expressions.", "Usa expresiones regulares."),
+        )
         Surface(
             shape = RoundedCornerShape(14.dp),
             color = MaterialTheme.colorScheme.surfaceContainer,
@@ -295,7 +311,10 @@ internal fun RegexAnimation() {
                 }
                 Spacer(Modifier.height(7.dp))
                 Text(
-                    "Hi {{name}} — I’m about {{minutes}} minutes away. I’ll message you when I arrive.",
+                    tr(
+                        "Hi {{name}} — I’m about {{minutes}} minutes away. I’ll message you when I arrive.",
+                        "Hola {{name}} — estoy a unos {{minutes}} minutos. Te escribiré cuando llegue.",
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     fontFamily = FontFamily.Monospace,
                 )
@@ -310,7 +329,10 @@ internal fun RegexAnimation() {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         if (showResult) {
-                            "Hi Sam — I’m about 15 minutes away. I’ll message you when I arrive."
+                            tr(
+                                "Hi Sam — I’m about 15 minutes away. I’ll message you when I arrive.",
+                                "Hola Sam — estoy a unos 15 minutos. Te escribiré cuando llegue.",
+                            )
                         } else input.take(typedCount),
                         modifier = Modifier.weight(1f, fill = false),
                         fontFamily = if (showResult) FontFamily.Default else FontFamily.Monospace,
