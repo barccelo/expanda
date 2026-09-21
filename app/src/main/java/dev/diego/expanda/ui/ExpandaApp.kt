@@ -2466,7 +2466,7 @@ private fun TagEditor(
                         onClick = { onTagsChanged(selectedTags.filterNot { it.equals(tag, ignoreCase = true) }.toSet()) },
                         modifier = Modifier
                             .heightIn(min = 32.dp)
-                            .semantics { contentDescription = "Remove tag $tag" },
+                            .semantics { contentDescription = uiText("Remove tag $tag", "Quitar etiqueta $tag") },
                         label = { Text(tag, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                         trailingIcon = { Icon(Icons.Default.Close, null) },
                     )
@@ -2475,7 +2475,7 @@ private fun TagEditor(
             if (!inputVisible) {
                 IconButton(
                     onClick = { inputVisible = true },
-                    modifier = Modifier.semantics { contentDescription = "Add tag" },
+                    modifier = Modifier.semantics { contentDescription = uiText("Add tag", "Agregar etiqueta") },
                 ) {
                     Icon(Icons.Default.Add, null)
                 }
@@ -2504,13 +2504,13 @@ private fun TagEditor(
                 IconButton(
                     onClick = { addTag(input) },
                     enabled = input.trim().removePrefix("#").isNotBlank(),
-                    modifier = Modifier.semantics { contentDescription = "Save tag" },
+                    modifier = Modifier.semantics { contentDescription = uiText("Save tag", "Guardar etiqueta") },
                 ) {
                     Icon(Icons.Default.Check, null)
                 }
                 IconButton(
                     onClick = ::closeInput,
-                    modifier = Modifier.semantics { contentDescription = "Cancel adding tag" },
+                    modifier = Modifier.semantics { contentDescription = uiText("Cancel adding tag", "Cancelar agregar etiqueta") },
                 ) {
                     Icon(Icons.Default.Close, null)
                 }
