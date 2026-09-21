@@ -71,7 +71,7 @@ internal fun AboutExpandaSheet(onDismiss: () -> Unit) {
             Spacer(Modifier.height(14.dp))
             Text("Expanda", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
             Text(
-                "Type less, say more.",
+                tr("Type less, say more.", "Escribe menos, di más."),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary,
             )
@@ -84,7 +84,7 @@ internal fun AboutExpandaSheet(onDismiss: () -> Unit) {
 
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(tr("Local and open", "Local y abierto"),, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text(tr("Local and open", "Local y abierto"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     Text(
                         tr(
                             "Expanda runs on your device and has no Internet permission, accounts, ads or analytics. Its source is public, and GPLv3 keeps distributed changes open.",
