@@ -56,6 +56,8 @@ fun TestScreen(serviceEnabled: Boolean, active: Boolean) {
     val horizontalPadding = with(density) { 18.dp.roundToPx() }
     val verticalPadding = with(density) { 16.dp.roundToPx() }
     val textSizePx = with(density) { 16.sp.toPx() }
+    val playgroundHint = tr("Try a snippet…", "Prueba un fragmento…")
+    val playgroundDescription = tr("Expanda writing playground")
     var editor by remember { mutableStateOf<EditText?>(null) }
 
     LaunchedEffect(active, editor) {
@@ -128,14 +130,14 @@ fun TestScreen(serviceEnabled: Boolean, active: Boolean) {
                         editor = this
                         id = R.id.expanda_test_input
                         gravity = Gravity.TOP or Gravity.START
-                        hint = if (dev.diego.expanda.ui.usesSpanish(dev.diego.expanda.ui.LocalDisplayLanguage.current)) "Prueba un fragmento…" else "Try a snippet…"
+                        hint = playgroundHint
                         setBackgroundColor(AndroidColor.TRANSPARENT)
                         inputType = InputType.TYPE_CLASS_TEXT or
                             InputType.TYPE_TEXT_FLAG_MULTI_LINE or
                             InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
                         isSingleLine = false
                         importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
-                        contentDescription = tr("Expanda writing playground")
+                        contentDescription = playgroundDescription
                     }
                 },
                 update = { currentEditor ->
