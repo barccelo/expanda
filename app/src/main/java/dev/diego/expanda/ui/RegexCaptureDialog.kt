@@ -143,11 +143,11 @@ internal fun RegexCaptureEditorDialog(
                     TextButton(
                         onClick = onDelete,
                         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                    ) { Text("Delete") }
+                    ) { Text(tr("Delete")) }
                 }
                 TextButton(
                     onClick = onDismiss,
-                ) { Text("Cancel") }
+                ) { Text(tr("Cancel")) }
             }
         },
         confirmButton = {
@@ -222,7 +222,7 @@ private fun captureSources(pattern: String): List<CaptureSource> {
 
 @Composable
 private fun highlightedRegexPattern(pattern: String, range: IntRange?): AnnotatedString {
-    val builder = AnnotatedString.Builder(pattern.ifEmpty { "Type a regex trigger first" })
+    val builder = AnnotatedString.Builder(pattern.ifEmpty { tr("Type a regex trigger first", "Escribe primero un disparador regex") })
     if (pattern.isNotEmpty() && range != null && range.first >= 0 && range.last < pattern.length) {
         builder.addStyle(
             SpanStyle(
