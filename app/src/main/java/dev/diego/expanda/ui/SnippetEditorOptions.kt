@@ -120,7 +120,7 @@ internal fun SnippetMatchingOptionsCard(
                         value = delimiters,
                         onValueChange = onDelimitersChanged,
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Activation delimiters") },
+                        label = { Text(tr("Activation delimiters")) },
                         minLines = 1,
                         maxLines = 2,
                     )
@@ -146,7 +146,7 @@ internal fun SnippetMatchingOptionsCard(
                         null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Text("Match letter case exactly", Modifier.weight(1f))
+                    Text(tr("Match letter case exactly"), Modifier.weight(1f))
                     Switch(
                         checked = caseSensitive,
                         onCheckedChange = null,
@@ -252,14 +252,14 @@ internal fun SnippetMatchingOptionsCard(
                         value = alternativeTriggers,
                         onValueChange = onAlternativeTriggersChanged,
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Alternative triggers") },
-                        supportingText = { Text("One per line; use regex: before a regular expression") },
+                        label = { Text(tr("Alternative triggers")) },
+                        supportingText = { Text(tr("One per line; use regex: before a regular expression")) },
                         minLines = 2,
                     )
                     TextButton(
                         onClick = { editingAlternativeTriggers = false },
                         modifier = Modifier.align(Alignment.End),
-                    ) { Text("Done") }
+                    ) { Text(tr("Done")) }
                 } else {
                     TextButton(onClick = { editingAlternativeTriggers = true }) {
                         Icon(
@@ -278,13 +278,13 @@ internal fun SnippetMatchingOptionsCard(
                 value = searchTerms,
                 onValueChange = onSearchTermsChanged,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                label = { Text("Search terms") },
-                supportingText = { Text("Separate terms with commas") },
+                label = { Text(tr("Search terms")) },
+                supportingText = { Text(tr("Separate terms with commas")) },
                 singleLine = true,
             )
 
             ListItem(
-                headlineContent = { Text("Excluded apps") },
+                headlineContent = { Text(tr("Excluded apps")) },
                 supportingContent = {
                     Text(
                         if (excludedAppCount == 0) "Available in every app"
