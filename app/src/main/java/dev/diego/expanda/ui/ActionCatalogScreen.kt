@@ -66,8 +66,8 @@ fun ActionCatalogScreen(
         item {
             Column(Modifier.padding(horizontal = 4.dp, vertical = 4.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AssistChip(onClick = { onSetAllEnabled(true) }, label = { Text("Enable all") })
-                    AssistChip(onClick = { onSetAllEnabled(false) }, label = { Text("Disable all") })
+                    AssistChip(onClick = { onSetAllEnabled(true) }, label = { Text(tr("Enable all")) })
+                    AssistChip(onClick = { onSetAllEnabled(false) }, label = { Text(tr("Disable all")) })
                 }
             }
         }
@@ -79,7 +79,7 @@ fun ActionCatalogScreen(
                         ListItem(
                             headlineContent = { Text(category.displayName()) },
                             supportingContent = {
-                                Text("${definitions.count { it.id in enabledIds }} of ${definitions.size} enabled")
+                                Text(tr("${definitions.count { it.id in enabledIds }} of ${definitions.size} enabled", "${definitions.count { it.id in enabledIds }} de ${definitions.size} activadas"))
                             },
                             leadingContent = { Icon(category.icon(), null) },
                             trailingContent = {
@@ -151,7 +151,7 @@ private fun ActionRow(
         },
         trailingContent = {
             Row {
-                IconButton(onClick = onEdit) { Icon(Icons.Default.Edit, "Edit shortcut") }
+                IconButton(onClick = onEdit) { Icon(Icons.Default.Edit, tr("Edit shortcut")) }
                 Switch(checked = enabled, onCheckedChange = onSetEnabled)
             }
         },
@@ -177,29 +177,29 @@ private fun ShortcutEditorDialog(
     }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Edit action shortcut") },
+        title = { Text(tr("Edit action shortcut")) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(definition.title)
                 OutlinedTextField(
                     value = value,
                     onValueChange = { value = it },
-                    label = { Text("Shortcut") },
-                    supportingText = { Text(error ?: "Default: ${definition.shortcut}") },
+                    label = { Text(tr("Shortcut")) },
+                    supportingText = { Text(error ?: tr("Default: ${definition.shortcut}", "Predeterminado: ${definition.shortcut}")) },
                     isError = error != null,
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 TextButton(onClick = onReset, enabled = currentShortcut != definition.shortcut) {
                     Icon(Icons.Default.RestartAlt, null)
-                    Text("Restore default")
+                    Text(tr("Restore default"))
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSave(normalized) }, enabled = error == null) { Text("Save") }
+            TextButton(onClick = { onSave(normalized) }, enabled = error == null) { Text(tr("Save")) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(tr("Cancel")) } },
     )
 }
 
