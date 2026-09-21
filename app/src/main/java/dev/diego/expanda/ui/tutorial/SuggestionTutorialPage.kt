@@ -60,6 +60,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.diego.expanda.data.AppSettings
 import dev.diego.expanda.ui.settings.SuggestionSettingsPanel
+import dev.diego.expanda.ui.tr
 import dev.diego.expanda.ui.suggestion.SuggestionOverlaySpec
 
 private const val POPUP_LOOP = 9_600
@@ -101,9 +102,9 @@ internal fun SuggestionTutorialContent(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("Suggestions you can see", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text(tr("Suggestions you can see", "Sugerencias que puedes ver"), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text(
-            "Don’t memorize every trigger.",
+            tr("Don’t memorize every trigger.", "No memorices cada disparador."),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -127,7 +128,7 @@ internal fun SuggestionTutorialContent(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(Icons.Default.Lightbulb, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                    Text("Enable the overlay below to try the live preview.")
+                    Text(tr("Enable the overlay below to try the live preview.", "Activa el panel de abajo para probar la vista previa en vivo."))
                 }
             }
         }
