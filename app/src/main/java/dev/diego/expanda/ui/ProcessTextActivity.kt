@@ -71,19 +71,19 @@ private fun ActionChooser(text: String, select: (String) -> Unit, dismiss: () ->
                 Modifier.fillMaxWidth().heightIn(max = 520.dp)
                     .verticalScroll(rememberScrollState()),
             ) {
-                if (results.isEmpty()) Text("No transformation changes this selection.")
+                if (results.isEmpty()) Text(tr("No transformation changes this selection."))
                 results.forEach { (action, result) ->
                     ListItem(
                         headlineContent = { Text(action.title) },
                         supportingContent = { Text(action.description) },
                         modifier = Modifier.fillMaxWidth(),
                         trailingContent = {
-                            TextButton(onClick = { select(result) }) { Text("Use") }
+                            TextButton(onClick = { select(result) }) { Text(tr("Use")) }
                         },
                     )
                 }
             }
         },
-        confirmButton = { TextButton(onClick = dismiss) { Text("Cancel") } },
+        confirmButton = { TextButton(onClick = dismiss) { Text(tr("Cancel")) } },
     )
 }
