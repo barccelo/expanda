@@ -113,17 +113,17 @@ internal fun AppExclusionPicker(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 leadingIcon = { Icon(Icons.Default.Search, null) },
-                label = { Text("Search apps") },
+                label = { Text(tr("Search apps")) },
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                FilterChip(selected = selectedOnly, onClick = { selectedOnly = !selectedOnly }, label = { Text("Selected") })
-                TextButton(onClick = { selected = emptySet() }, enabled = selected.isNotEmpty()) { Text("Clear") }
+                FilterChip(selected = selectedOnly, onClick = { selectedOnly = !selectedOnly }, label = { Text(tr("Selected")) })
+                TextButton(onClick = { selected = emptySet() }, enabled = selected.isNotEmpty()) { Text(tr("Clear")) }
                 Spacer(Modifier.weight(1f))
-                TextButton(onClick = { showManual = !showManual }) { Text("Add package") }
+                TextButton(onClick = { showManual = !showManual }) { Text(tr("Add package")) }
             }
             if (showManual) {
                 OutlinedTextField(
@@ -131,8 +131,8 @@ internal fun AppExclusionPicker(
                     onValueChange = { manualPackage = it.trim() },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    label = { Text("Package name") },
-                    supportingText = { Text("Advanced fallback, for example com.example.app") },
+                    label = { Text(tr("Package name")) },
+                    supportingText = { Text(tr("Advanced fallback, for example com.example.app")) },
                     trailingIcon = {
                         TextButton(
                             onClick = {
@@ -141,7 +141,7 @@ internal fun AppExclusionPicker(
                                 showManual = false
                             },
                             enabled = manualPackage.isNotBlank(),
-                        ) { Text("Add") }
+                        ) { Text(tr("Add")) }
                     },
                 )
             }
@@ -173,8 +173,8 @@ internal fun AppExclusionPicker(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
             ) {
-                TextButton(onClick = onDismiss) { Text("Cancel") }
-                Button(onClick = { onSave(selected) }) { Text("Done") }
+                TextButton(onClick = onDismiss) { Text(tr("Cancel")) }
+                Button(onClick = { onSave(selected) }) { Text(tr("Done")) }
             }
         }
     }
