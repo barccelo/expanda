@@ -1287,7 +1287,7 @@ internal fun TemplateVariableEditorDialog(
                                 onOptionsChanged = {
                                     value = it.joinToString("\n")
                                 },
-                                emptyText = "Add one option per line.",
+                                emptyText = tr("Add one option per line.", "Agrega una opción por línea."),
                             )
                         } else {
                             OutlinedTextField(
@@ -1303,7 +1303,7 @@ internal fun TemplateVariableEditorDialog(
                             )
 
                             Text(
-                                "Characters",
+                                tr("Characters", "Caracteres"),
                                 style =
                                     MaterialTheme
                                         .typography
@@ -1576,11 +1576,11 @@ internal fun TemplateVariableEditorDialog(
                                                             nextDefault,
                                                         )
                                                     },
-                                                    emptyText = "One option per line.",
+                                                    emptyText = tr("One option per line.", "Una opción por línea."),
                                                 )
                                                 if (config.options.isNotEmpty()) {
                                                     Text(
-                                                        "Default choice",
+                                                        tr("Default choice", "Elección predeterminada"),
                                                         style = MaterialTheme.typography.labelLarge,
                                                     )
                                                     LazyRow(
@@ -2148,7 +2148,7 @@ private fun EditableOptionList(
                     Icon(
                         Icons.Default.Check,
                         contentDescription =
-                            "Add option",
+                            tr("Add option", "Agregar opción"),
                     )
                 }
             },
@@ -2170,7 +2170,7 @@ private fun EditableOptionList(
 
 @Composable
 private fun PreviewCard(
-    title: String = "Preview",
+    title: String = uiText("Preview", "Vista previa"),
     value: String,
 ) {
     if (value.isBlank()) return
