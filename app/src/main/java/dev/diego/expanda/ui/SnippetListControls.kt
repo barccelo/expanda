@@ -122,18 +122,18 @@ internal fun SnippetSelectionBar(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                IconButton(onClick = onClose) { Icon(Icons.Default.Close, "Cancel selection") }
-                Text("$selectedCount selected", style = MaterialTheme.typography.titleSmall)
+                IconButton(onClick = onClose) { Icon(Icons.Default.Close, tr("Cancel", "Cancelar")) }
+                Text(tr("$selectedCount selected", "$selectedCount seleccionados"), style = MaterialTheme.typography.titleSmall)
                 androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
-                TextButton(onClick = onSelectAll, enabled = selectedCount < visibleCount) { Text("All") }
-                TextButton(onClick = onDeselectAll, enabled = selectedCount > 0) { Text("None") }
+                TextButton(onClick = onSelectAll, enabled = selectedCount < visibleCount) { Text(tr("All")) }
+                TextButton(onClick = onDeselectAll, enabled = selectedCount > 0) { Text(tr("None")) }
             }
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 item {
                     AssistChip(
                         onClick = onDuplicate,
                         enabled = selectedCount > 0,
-                        label = { Text("Duplicate") },
+                        label = { Text(tr("Duplicate")) },
                         leadingIcon = { Icon(Icons.Default.ContentCopy, null) },
                     )
                 }
@@ -141,7 +141,7 @@ internal fun SnippetSelectionBar(
                     AssistChip(
                         onClick = onToggleEnabled,
                         enabled = selectedCount > 0,
-                        label = { Text(if (enableSelected) "Enable" else "Disable") },
+                        label = { Text(if (enableSelected) tr("Enable") else tr("Disable")) },
                         leadingIcon = { Icon(Icons.Default.PowerSettingsNew, null) },
                     )
                 }
@@ -149,7 +149,7 @@ internal fun SnippetSelectionBar(
                     AssistChip(
                         onClick = onEditTags,
                         enabled = selectedCount > 0,
-                        label = { Text("Edit tags") },
+                        label = { Text(tr("Edit tags")) },
                         leadingIcon = { Icon(Icons.AutoMirrored.Filled.Label, null) },
                     )
                 }
@@ -157,7 +157,7 @@ internal fun SnippetSelectionBar(
                     AssistChip(
                         onClick = onDeleteTags,
                         enabled = selectedCount > 0,
-                        label = { Text("Delete tags") },
+                        label = { Text(tr("Delete tags")) },
                         leadingIcon = { Icon(Icons.AutoMirrored.Filled.LabelOff, null) },
                     )
                 }
@@ -165,7 +165,7 @@ internal fun SnippetSelectionBar(
                     AssistChip(
                         onClick = onDelete,
                         enabled = selectedCount > 0,
-                        label = { Text("Delete") },
+                        label = { Text(tr("Delete")) },
                         leadingIcon = { Icon(Icons.Default.Delete, null) },
                     )
                 }
@@ -194,10 +194,10 @@ internal fun BulkTagEditorDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Edit tags for ${selected.size} snippets") },
+        title = { Text(tr("Edit tags for ${selected.size} snippets", "Editar etiquetas de ${selected.size} fragmentos")) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Add", style = MaterialTheme.typography.labelLarge)
+                Text(tr("Add"), style = MaterialTheme.typography.labelLarge)
                 if (allTags.isNotEmpty()) {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         items(allTags, key = { "add_$it" }) { tag ->
@@ -218,23 +218,23 @@ internal fun BulkTagEditorDialog(
                     value = newTag,
                     onValueChange = { newTag = it },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("New tag") },
+                    label = { Text(tr("New tag", "Nueva etiqueta")) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { addNewTag() }),
                     trailingIcon = {
                         IconButton(onClick = ::addNewTag, enabled = newTag.isNotBlank()) {
-                            Icon(Icons.Default.Add, "Add tag")
+                            Icon(Icons.Default.Add, tr("Add tag"))
                         }
                     },
                 )
                 if (add.isNotEmpty()) Text(
-                    "Will add: ${add.sortedWith(String.CASE_INSENSITIVE_ORDER).joinToString()}",
+                    tr("Will add: ${add.sortedWith(String.CASE_INSENSITIVE_ORDER).joinToString()}", "Se agregarán: ${add.sortedWith(String.CASE_INSENSITIVE_ORDER).joinToString()}"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary,
                 )
                 if (selectedTags.isNotEmpty()) {
-                    Text("Remove", style = MaterialTheme.typography.labelLarge)
+                    Text(tr("Remove", "Quitar"), style = MaterialTheme.typography.labelLarge)
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         items(selectedTags, key = { "remove_$it" }) { tag ->
                             FilterChip(
@@ -256,9 +256,9 @@ internal fun BulkTagEditorDialog(
             TextButton(
                 onClick = { onApply(add, remove) },
                 enabled = add.isNotEmpty() || remove.isNotEmpty(),
-            ) { Text("Apply") }
+            ) { Text(tr("Apply")) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(tr("Cancel")) } },
     )
 }
 
