@@ -865,16 +865,19 @@ class ExpansionAccessibilityService : AccessibilityService() {
         showAll: Boolean,
     ) {
         val state = selectionToolbarState ?: return
-        val available = actionIds.mapNotNull { actionId ->
-            val definition = ActionEngine.definitions.firstOrNull { it.id == actionId } ?: return@mapNotNull null
-            val transformed = actionEngine.processSelectedText(actionId, state.selectedText)
-            definition.takeIf { transformed != null && transformed != state.selectedText }
+        val settings = settingsRepository.settings.value
+        val availableIds = actionIds.filter { actionId ->
+            if (showAll || actionId in SELECTION_INTERACTIVE_ACTION_IDS) {
+                true
+            } else {
+                actionEngine.processSelectedText(actionId, state.selectedText)
+                    ?.let { it != state.selectedText } == true
+            }
         }
-        if (available.isEmpty()) return
+        if (availableIds.isEmpty()) return
 
         hideFormOverlay()
         val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-        val settings = settingsRepository.settings.value
         val ui = OverlayViews(this, resolveNativeTheme(this, settings))
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -888,22 +891,37 @@ class ExpansionAccessibilityService : AccessibilityService() {
             })
         }
 
-        available.forEach { definition ->
+        var previousGroup: String? = null
+        availableIds.forEach { actionId ->
+            if (showAll) {
+                val group = selectionToolGroup(actionId)
+                if (group != previousGroup) {
+                    content.addView(ui.body(selectionGroupTitle(group, settings), secondary = true).apply {
+                        setPadding(dp(6), dp(if (previousGroup == null) 2 else 10), dp(6), dp(6))
+                    })
+                    previousGroup = group
+                }
+            }
+            val definition = ActionEngine.definitions.firstOrNull { it.id == actionId }
+            val titleText = selectionActionTitle(actionId, settings, definition?.title.orEmpty())
+            val descriptionText = selectionActionDescription(actionId, settings, definition?.description.orEmpty())
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(12), dp(10), dp(12), dp(10))
                 background = ui.surface()
                 isClickable = true
                 isFocusable = true
-                contentDescription = definition.description
-                addView(ui.body(definition.title))
-                addView(ui.body(definition.description, secondary = true).apply {
-                    setPadding(0, dp(2), 0, 0)
-                    maxLines = 2
-                })
+                contentDescription = descriptionText
+                addView(ui.body(titleText))
+                if (descriptionText.isNotBlank()) {
+                    addView(ui.body(descriptionText, secondary = true).apply {
+                        setPadding(0, dp(2), 0, 0)
+                        maxLines = 2
+                    })
+                }
                 setOnClickListener {
                     hideFormOverlay()
-                    applySelectionToolbarAction(definition.id)
+                    runSelectionTool(actionId)
                 }
             }
             content.addView(
@@ -917,11 +935,11 @@ class ExpansionAccessibilityService : AccessibilityService() {
 
         val footer = overlayCancelFooter(ui) { hideFormOverlay() }
         val bounds = displayBounds(windowManager)
-        val maxContentHeight = (bounds.height() * 0.55f).toInt().coerceAtLeast(dp(180))
+        val maxContentHeight = (bounds.height() * 0.62f).toInt().coerceAtLeast(dp(220))
         val root = buildPickerOverlayRoot(
             content = content,
             footer = footer,
-            itemCount = available.size,
+            itemCount = availableIds.size + if (showAll) 4 else 0,
             maxContentHeightPx = maxContentHeight,
             background = ui.panel(22),
             ui = ui,
@@ -933,6 +951,118 @@ class ExpansionAccessibilityService : AccessibilityService() {
         }.onFailure {
             Log.w(TAG, "Could not show selection action menu", it)
             formOverlay = null
+        }
+    }
+
+    private fun runSelectionTool(actionId: String) {
+        when (actionId) {
+            SELECTION_FIND_REPLACE_ID -> showFindReplaceOverlay()
+            SELECTION_TEXT_COUNTER_ID -> showTextCounterOverlay()
+            SELECTION_REPEAT_TEXT_ID -> showRepeatTextOverlay()
+            SELECTION_PREFIX_SUFFIX_ID -> showPrefixSuffixOverlay()
+            else -> applySelectionToolbarAction(actionId)
+        }
+    }
+
+    private fun canUndoSelection(anchor: SuggestionAnchor, currentText: String): Boolean {
+        val undo = selectionUndoHistory.peekLast() ?: return false
+        return SuggestionAnchorPolicy.shouldKeep(undo.anchor, anchor) && undo.afterText == currentText
+    }
+
+    private fun pushSelectionUndo(
+        anchor: SuggestionAnchor,
+        beforeText: String,
+        beforeStart: Int,
+        beforeEnd: Int,
+        outcome: SelectedTextOutcome,
+    ) {
+        if (selectionUndoHistory.size >= MAX_SELECTION_UNDO_HISTORY) {
+            selectionUndoHistory.removeFirst()
+        }
+        selectionUndoHistory.addLast(
+            SelectionUndoEntry(
+                anchor = anchor,
+                beforeText = beforeText,
+                beforeStart = beforeStart,
+                beforeEnd = beforeEnd,
+                afterText = outcome.text,
+                afterStart = outcome.selectionStart,
+                afterEnd = outcome.selectionEnd,
+            ),
+        )
+    }
+
+    private fun undoSelectionToolbarAction() {
+        val undo = selectionUndoHistory.peekLast() ?: return
+        clearAccessibilityCache()
+        val node = findAnchoredEditor(undo.anchor, requireActiveWindow = false) ?: run {
+            selectionUndoHistory.clear()
+            hideSelectionToolbar()
+            return
+        }
+        try {
+            runCatching { node.refresh() }
+            val currentText = editableText(node)
+            if (currentText != undo.afterText) {
+                selectionUndoHistory.clear()
+                hideSelectionToolbar()
+                return
+            }
+            val replacement = undo.beforeText.substring(
+                undo.beforeStart.coerceIn(0, undo.beforeText.length),
+                undo.beforeEnd.coerceIn(0, undo.beforeText.length),
+            )
+            val outcome = SelectedTextOutcome(
+                text = undo.beforeText,
+                selectionStart = undo.beforeStart,
+                selectionEnd = undo.beforeEnd,
+                replacement = replacement,
+            )
+            val settings = settingsRepository.settings.value
+            hideSelectionToolbar()
+            if (applySelectedTextOutcome(node, currentText, outcome, settings)) {
+                selectionUndoHistory.removeLast()
+                lastAppliedText = undo.beforeText
+                lastAppliedAt = SystemClock.elapsedRealtime()
+                if (settings.hapticFeedback) vibrate()
+            }
+        } finally {
+            @Suppress("DEPRECATION")
+            node.recycle()
+        }
+    }
+
+    private fun applyCustomSelectionReplacement(
+        state: SelectionToolbarState,
+        replacement: String,
+    ) {
+        clearAccessibilityCache()
+        val node = findAnchoredEditor(state.anchor, requireActiveWindow = false) ?: return
+        try {
+            runCatching { node.refresh() }
+            val text = editableText(node)
+            val start = state.start
+            val end = state.end
+            if (start !in 0..text.length || end !in start..text.length) return
+            val currentSelected = text.substring(start, end)
+            if (currentSelected != state.selectedText || replacement == currentSelected) return
+            val outcome = SelectedTextOutcome(
+                text = text.replaceRange(start, end, replacement),
+                selectionStart = start,
+                selectionEnd = start + replacement.length,
+                replacement = replacement,
+            )
+            val settings = settingsRepository.settings.value
+            hideSelectionToolbar()
+            if (applySelectedTextOutcome(node, text, outcome, settings)) {
+                pushSelectionUndo(state.anchor, text, start, end, outcome)
+                lastAppliedText = outcome.text
+                lastAppliedAt = SystemClock.elapsedRealtime()
+                if (settings.hapticFeedback) vibrate()
+            }
+        } finally {
+            @Suppress("DEPRECATION")
+            node.recycle()
         }
     }
 
@@ -977,6 +1107,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
             val settings = settingsRepository.settings.value
             hideSelectionToolbar()
             if (applySelectedTextOutcome(node, text, outcome, settings)) {
+                pushSelectionUndo(state.anchor, text, start, end, outcome)
                 lastAppliedText = outcome.text
                 lastAppliedAt = SystemClock.elapsedRealtime()
                 if (settings.hapticFeedback) vibrate()
