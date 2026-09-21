@@ -57,7 +57,7 @@ internal fun regexCaptureCatalog(pattern: String): RegexCaptureCatalog {
             .map { source ->
                 RegexCaptureOption(
                     reference = source.name,
-                    label = "Named · ${source.name}",
+                    label = tr("Named · ${source.name}", "Con nombre · ${source.name}"),
                     sourceRange = source.range,
                     source = pattern.substring(source.range),
                 )
@@ -83,7 +83,7 @@ internal fun RegexCaptureEditorDialog(
     }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (initialReference == null) "Insert regex capture" else "Edit regex capture") },
+        title = { Text(if (initialReference == null) tr("Insert regex capture", "Insertar captura regex") else tr("Edit regex capture", "Editar captura regex")) },
         text = {
             Column(Modifier.fillMaxWidth().heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
                 Text(
@@ -97,7 +97,7 @@ internal fun RegexCaptureEditorDialog(
                     color = MaterialTheme.colorScheme.surfaceContainer,
                 ) {
                     Column(Modifier.padding(12.dp)) {
-                        Text("Trigger preview", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                        Text(tr("Trigger preview", "Vista previa del disparador"),, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(6.dp))
                         Text(
                             highlightedRegexPattern(
@@ -154,7 +154,7 @@ internal fun RegexCaptureEditorDialog(
             TextButton(
                 onClick = { selected?.let(onSave) },
                 enabled = selected != null,
-            ) { Text(if (initialReference == null) "Insert" else "Save") }
+            ) { Text(if (initialReference == null) tr("Insert", "Insertar") else tr("Save")) }
         },
     )
 }
