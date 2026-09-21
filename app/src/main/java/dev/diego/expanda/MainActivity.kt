@@ -152,8 +152,8 @@ class MainActivity : ComponentActivity() {
                     .onSuccess { data ->
                         viewModel.prepareImport(data, sourceName)
                             .onSuccess { pendingImport = it }
-                            .onFailure { scope.launch { snackbar.showSnackbar(uiText(uiText("Import failed: ${it.message}", "Error de importación: ${it.message}"), "Error de importación: ${it.message}")) } }
-                    }.onFailure { snackbar.showSnackbar(uiText(uiText("Import failed: ${it.message}", "Error de importación: ${it.message}"), "Error de importación: ${it.message}")) }
+                            .onFailure { scope.launch { snackbar.showSnackbar(uiText("Import failed: ${it.message}", "Error de importación: ${it.message}")) } }
+                    }.onFailure { snackbar.showSnackbar(uiText("Import failed: ${it.message}", "Error de importación: ${it.message}")) }
             }
         }
         val folderLauncher = rememberLauncherForActivityResult(
