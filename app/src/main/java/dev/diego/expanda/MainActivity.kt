@@ -41,6 +41,7 @@ import dev.diego.expanda.ui.AccessibilitySetupHelpDialog
 import dev.diego.expanda.ui.ImportKind
 import dev.diego.expanda.ui.LocalDisplayLanguage
 import dev.diego.expanda.ui.tr
+import dev.diego.expanda.ui.uiText
 import dev.diego.expanda.ui.MainViewModel
 import dev.diego.expanda.ui.PreparedImport
 import dev.diego.expanda.ui.theme.ExpandaTheme
@@ -129,7 +130,7 @@ class MainActivity : ComponentActivity() {
                         else "Exported with $exportIssues compatibility warnings",
                     )
                 }
-                    .onFailure { snackbar.showSnackbar("Export failed: ${it.message}") }
+                    .onFailure { snackbar.showSnackbar(tr("Export failed: ${it.message}", "Error de exportación: ${it.message}")) }
             }
         }
         val importLauncher = rememberLauncherForActivityResult(
@@ -151,8 +152,8 @@ class MainActivity : ComponentActivity() {
                     .onSuccess { data ->
                         viewModel.prepareImport(data, sourceName)
                             .onSuccess { pendingImport = it }
-                            .onFailure { scope.launch { snackbar.showSnackbar("Import failed: ${it.message}") } }
-                    }.onFailure { snackbar.showSnackbar("Import failed: ${it.message}") }
+                            .onFailure { scope.launch { snackbar.showSnackbar(tr("Import failed: ${it.message}", "Error de importación: ${it.message}")) } }
+                    }.onFailure { snackbar.showSnackbar(tr("Import failed: ${it.message}", "Error de importación: ${it.message}")) }
             }
         }
         val folderLauncher = rememberLauncherForActivityResult(
@@ -166,12 +167,12 @@ class MainActivity : ComponentActivity() {
                     )
                 }
                 if (permission.isFailure) {
-                    snackbar.showSnackbar("Expanda needs lasting read and write access to this folder.")
+                    snackbar.showSnackbar(tr("Expanda needs lasting read and write access to this folder.", "Expanda necesita acceso permanente de lectura y escritura a esta carpeta."))
                     return@launch
                 }
                 viewModel.prepareEspansoFolder(uri)
                     .onSuccess { pendingImport = it }
-                    .onFailure { snackbar.showSnackbar("Folder scan failed: ${it.message}") }
+                    .onFailure { snackbar.showSnackbar(tr("Folder scan failed: ${it.message}", "Error al revisar la carpeta: ${it.message}")) }
             }
         }
 
@@ -277,7 +278,7 @@ class MainActivity : ComponentActivity() {
                                 viewModel.applyImport(snippetsOnly) { result ->
                                     scope.launch {
                                         snackbar.showSnackbar(result.fold(
-                                            onSuccess = { "Imported ${it.imported} matches" },
+                                            onSuccess = { tr("Imported ${it.imported} matches", "Se importaron ${it.imported} coincidencias") },
                                             onFailure = { "Import failed: ${it.message}" },
                                         ))
                                     }
@@ -290,10 +291,10 @@ class MainActivity : ComponentActivity() {
                                 scope.launch {
                                     snackbar.showSnackbar(result.fold(
                                         onSuccess = {
-                                            val verb = if (prepared.replacesExistingData) "Restored" else "Imported"
-                                            "$verb ${it.imported} matches" +
+                                            val verb = if (prepared.replacesExistingData) tr("Restored", "Restauradas") else tr("Imported", "Importadas")
+                                            "$verb ${it.imported} " + tr("matches", "coincidencias") +
                                                 if (it.issues.isEmpty()) "" else
-                                                    " with ${it.issues.size} warnings: ${it.issues.first().message}"
+                                                    " " + tr("with ${it.issues.size} warnings: ${it.issues.first().message}", "con ${it.issues.size} advertencias: ${it.issues.first().message}")
                                         },
                                         onFailure = { "Import failed: ${it.message}" },
                                     ))
@@ -315,24 +316,34 @@ class MainActivity : ComponentActivity() {
     ) {
         AlertDialog(
             onDismissRequest = onDismiss,
-            title = { Text(prepared.kind.label) },
+            title = {
+                Text(
+                    when (prepared.kind) {
+                        ImportKind.FULL_BACKUP -> tr("Expanda full backup", "Copia de seguridad completa de Expanda")
+                        ImportKind.SNIPPET_BACKUP -> tr("Expanda snippet backup", "Copia de fragmentos de Expanda")
+                        ImportKind.ESPANSO -> "Espanso YAML"
+                        ImportKind.ESPANSO_FOLDER -> tr("Espanso match folder", "Carpeta de coincidencias de Espanso")
+                        ImportKind.CSV -> "CSV"
+                    },
+                )
+            },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("${prepared.matches.size} matches found")
+                    Text(tr("${prepared.matches.size} matches found", "${prepared.matches.size} coincidencias encontradas"))
                     if (prepared.globalVariables.isNotEmpty()) {
-                        Text("${prepared.globalVariables.size} global variables")
+                        Text(tr("${prepared.globalVariables.size} global variables", "${prepared.globalVariables.size} variables globales"))
                     }
                     if (prepared.kind == ImportKind.ESPANSO_FOLDER && prepared.sourceFiles.isEmpty()) {
                         Text(tr("No YAML files were found. This folder will become the source; existing Expanda YAML will be copied into it.", "No se encontraron archivos YAML. Esta carpeta se convertirá en la fuente; el YAML existente de Expanda se copiará allí."))
                     } else if (prepared.kind == ImportKind.ESPANSO_FOLDER) {
-                        Text("${prepared.sourceFiles.size} source files found. Expanda will read and edit them in this folder.")
+                        Text(tr("${prepared.sourceFiles.size} source files found. Expanda will read and edit them in this folder.", "${prepared.sourceFiles.size} archivos fuente encontrados. Expanda los leerá y editará en esta carpeta."))
                     } else if (prepared.replacesExistingData) {
                         Text(tr("This restores snippets, settings, exclusions and actions. Current restorable data will be replaced.", "Esto restaura fragmentos, ajustes, exclusiones y acciones. Los datos restaurables actuales serán reemplazados."))
                     } else {
                         Text(tr("Matches with the same primary trigger will be updated. Other matches stay unchanged.", "Las coincidencias con el mismo disparador principal se actualizarán. Las demás permanecerán sin cambios."))
                     }
                     if (prepared.issues.isNotEmpty()) {
-                        Text("${prepared.issues.size} compatibility warnings")
+                        Text(tr("${prepared.issues.size} compatibility warnings", "${prepared.issues.size} advertencias de compatibilidad"))
                     }
                 }
             },
@@ -340,9 +351,9 @@ class MainActivity : ComponentActivity() {
                 TextButton(onClick = onConfirm) {
                     Text(
                         when {
-                            prepared.replacesExistingData -> "Restore"
-                            prepared.kind == ImportKind.ESPANSO_FOLDER -> "Link folder"
-                            else -> "Import"
+                            prepared.replacesExistingData -> tr("Restore")
+                            prepared.kind == ImportKind.ESPANSO_FOLDER -> tr("Link folder")
+                            else -> tr("Import")
                         },
                     )
                 }
