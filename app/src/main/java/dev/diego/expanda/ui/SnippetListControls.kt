@@ -263,10 +263,10 @@ internal fun BulkTagEditorDialog(
 }
 
 internal fun SnippetSortMode.label(): String = when (this) {
-    SnippetSortMode.RECENTLY_EDITED -> "Recently edited"
-    SnippetSortMode.OLDEST_EDITED -> "Oldest edited"
-    SnippetSortMode.NAME_ASCENDING -> "Name A–Z"
-    SnippetSortMode.NAME_DESCENDING -> "Name Z–A"
-    SnippetSortMode.NEWEST_CREATED -> "Newest created"
-    SnippetSortMode.MOST_USED -> "Most used"
+    SnippetSortMode.RECENTLY_EDITED -> uiText("Recently edited", "Editados recientemente")
+    SnippetSortMode.OLDEST_EDITED -> uiText("Oldest edited", "Editados hace más tiempo")
+    SnippetSortMode.NAME_ASCENDING -> uiText("Name A–Z", "Nombre A–Z")
+    SnippetSortMode.NAME_DESCENDING -> uiText("Name Z–A", "Nombre Z–A")
+    SnippetSortMode.NEWEST_CREATED -> uiText("Newest created", "Creados más recientemente")
+    SnippetSortMode.MOST_USED -> uiText("Most used", "Más usados")
 }
