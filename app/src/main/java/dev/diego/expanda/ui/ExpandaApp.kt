@@ -211,6 +211,7 @@ fun ExpandaApp(
     onImport: () -> Unit,
     onChooseEspansoFolder: () -> Unit,
 ) {
+    setUiDisplayLanguage(state.settings.displayLanguage)
     val pagerState = rememberPagerState(pageCount = { Destination.entries.size })
     val destination = Destination.entries[pagerState.currentPage]
     var editing by remember { mutableStateOf<TextMatch?>(null) }
@@ -334,7 +335,7 @@ fun ExpandaApp(
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { ExpandaAppTitle(destination.label) { showAbout = true } }) },
+        topBar = { TopAppBar(title = { ExpandaAppTitle(tr(destination.label)) { showAbout = true } }) },
         bottomBar = {
             Column {
                 if (destination == Destination.TEXT && selectedSnippetIds != null) {
@@ -462,9 +463,9 @@ fun ExpandaApp(
                 viewModel.delete(selectedVisibleIds)
                 confirmDelete = false
                 exitSelection()
-            }) { Text("Delete") }
+            }) { Text(tr("Delete")) }
         },
-        dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text(tr("Cancel")) } },
     )
     if (confirmDeleteTags) AlertDialog(
         onDismissRequest = { confirmDeleteTags = false },
@@ -477,7 +478,7 @@ fun ExpandaApp(
                 exitSelection()
             }) { Text("Delete tags") }
         },
-        dismissButton = { TextButton(onClick = { confirmDeleteTags = false }) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = { confirmDeleteTags = false }) { Text(tr("Cancel")) } },
     )
     if (showTagEditor) BulkTagEditorDialog(
         selected = selectedSnippets,
@@ -613,7 +614,7 @@ private fun SnippetList(
                     )
                 }
                 Button(onClick = openSettings) {
-                    Text("Enable")
+                    Text(tr("Enable"))
                 }
             }
         }
@@ -645,7 +646,7 @@ private fun SnippetList(
                 FilterChip(
                     selected = state.selectedTag == null,
                     onClick = { viewModel.selectTag(null) },
-                    label = { Text("All") },
+                    label = { Text(tr("All")) },
                 )
             }
             items(state.tags) { tag ->
@@ -902,32 +903,32 @@ private fun SettingsScreen(
         item { SettingsSectionHeader(Icons.Default.Settings, "General") }
         item {
             ListItem(
-                headlineContent = { Text("About Expanda") },
-                supportingContent = { Text("Project, source code and contact links") },
+                headlineContent = { Text(tr("About Expanda")) },
+                supportingContent = { Text(tr("Project, source code and contact links")) },
                 leadingContent = { Icon(Icons.Default.Info, null) },
                 modifier = Modifier.selectable(false, onClick = onOpenAbout),
             )
         }
         item {
             ListItem(
-                headlineContent = { Text("Learn Expanda") },
+                headlineContent = { Text(tr("Learn Expanda")) },
                 leadingContent = { Icon(Icons.Default.AutoAwesome, null) },
-                supportingContent = { Text("Reopen the animated introduction") },
+                supportingContent = { Text(tr("Reopen the animated introduction")) },
                 modifier = Modifier.selectable(false, onClick = viewModel::showTutorial),
             )
         }
         item {
             ListItem(
-                headlineContent = { Text("Text expansion") },
+                headlineContent = { Text(tr("Text expansion")) },
                 leadingContent = { Icon(Icons.Default.Lightbulb, null) },
                 supportingContent = { Text(if (serviceEnabled) "Accessibility service enabled" else "Service disabled") },
                 trailingContent = { Switch(state.settings.expansionEnabled, viewModel::setExpansionEnabled) },
             )
         }
-        item { ListItem(leadingContent = { Icon(Icons.Default.Accessibility, null) }, headlineContent = { Text("Accessibility service") }, modifier = Modifier.selectable(false, onClick = openAccessibility)) }
+        item { ListItem(leadingContent = { Icon(Icons.Default.Accessibility, null) }, headlineContent = { Text(tr("Accessibility service")) }, modifier = Modifier.selectable(false, onClick = openAccessibility)) }
         item {
             ListItem(
-                headlineContent = { Text("Run reliably in background") },
+                headlineContent = { Text(tr("Run reliably in background")) },
                 leadingContent = { Icon(Icons.Default.BatteryStd, null) },
                 supportingContent = {
                     Text(
@@ -950,7 +951,7 @@ private fun SettingsScreen(
         }
         item {
             ListItem(
-                headlineContent = { Text("Excluded apps") },
+                headlineContent = { Text(tr("Excluded apps")) },
                 leadingContent = { Icon(Icons.Default.Apps, null) },
                 supportingContent = {
                     Text(
@@ -965,32 +966,32 @@ private fun SettingsScreen(
         item { SettingsSectionHeader(Icons.Default.Tune, "Interaction") }
         item {
             ListItem(
-                headlineContent = { Text("Clipboard history") },
+                headlineContent = { Text(tr("Clipboard history")) },
                 leadingContent = { Icon(Icons.Default.ContentPaste, null) },
-                supportingContent = { Text("Save copied text for clipboard snippets in other apps") },
+                supportingContent = { Text(tr("Save copied text for clipboard snippets in other apps")) },
                 trailingContent = { Switch(state.settings.clipboardHistoryEnabled, viewModel::setClipboardHistoryEnabled) },
             )
         }
         item {
             ListItem(
-                headlineContent = { Text("Haptic feedback") },
+                headlineContent = { Text(tr("Haptic feedback")) },
                 leadingContent = { Icon(Icons.Default.Vibration, null) },
                 trailingContent = { Switch(state.settings.hapticFeedback, viewModel::setHapticFeedback) },
             )
         }
         item {
             ListItem(
-                headlineContent = { Text("Compatibility paste fallback") },
+                headlineContent = { Text(tr("Compatibility paste fallback")) },
                 leadingContent = { Icon(Icons.Default.Build, null) },
-                supportingContent = { Text("For editors that reject direct replacement. Temporarily uses and restores the clipboard.") },
+                supportingContent = { Text(tr("For editors that reject direct replacement. Temporarily uses and restores the clipboard.")) },
                 trailingContent = { Switch(state.settings.pasteFallbackEnabled, viewModel::setPasteFallbackEnabled) },
             )
         }
         item {
             ListItem(
-                headlineContent = { Text("Selection toolbar") },
+                headlineContent = { Text(tr("Selection toolbar")) },
                 leadingContent = { Icon(Icons.Default.TextFields, null) },
-                supportingContent = { Text("Show quick text transformations when you select editable text") },
+                supportingContent = { Text(tr("Show quick text transformations when you select editable text")) },
                 trailingContent = {
                     Switch(
                         state.settings.selectionToolbarEnabled,
@@ -1031,7 +1032,7 @@ private fun SettingsScreen(
                 onMatchFromBeginningChanged = viewModel::setMatchFromBeginning,
             )
         }
-        item { SettingsSectionHeader(Icons.Default.QueryStats, "Statistics") }
+        item { SettingsSectionHeader(Icons.Default.QueryStats, tr("Statistics")) }
         item {
             val stats = viewModel.stats()
             ListItem(
@@ -1042,13 +1043,13 @@ private fun SettingsScreen(
             )
         }
         item { HorizontalDivider() }
-        item { SettingsSectionHeader(Icons.Default.Palette, "Appearance") }
+        item { SettingsSectionHeader(Icons.Default.Palette, tr("Appearance")) }
         item {
             Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                 Column(Modifier.padding(vertical = 8.dp)) {
                     CompactChoiceSetting(
                         icon = Icons.Default.TextFields,
-                        title = "Display language",
+                        title = tr("Display language"),
                         options = DisplayLanguage.entries,
                         selected = state.settings.displayLanguage,
                         label = DisplayLanguage::label,
@@ -1057,7 +1058,7 @@ private fun SettingsScreen(
                     HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                     CompactChoiceSetting(
                         icon = Icons.Default.Palette,
-                        title = "Color scheme",
+                        title = tr("Color scheme"),
                         options = ColorSchemeMode.entries,
                         selected = state.settings.colorSchemeMode,
                         label = ColorSchemeMode::label,
@@ -1081,7 +1082,7 @@ private fun SettingsScreen(
                     HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                     CompactChoiceSetting(
                         icon = Icons.Default.DarkMode,
-                        title = "Theme mode",
+                        title = tr("Theme mode"),
                         options = ThemeMode.entries,
                         selected = state.settings.themeMode,
                         label = ThemeMode::label,
@@ -1091,7 +1092,7 @@ private fun SettingsScreen(
             }
         }
         item { HorizontalDivider() }
-        item { SettingsSectionHeader(Icons.Default.ImportExport, "Import & export") }
+        item { SettingsSectionHeader(Icons.Default.ImportExport, tr("Import & export")) }
         item {
             Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1110,11 +1111,11 @@ private fun SettingsScreen(
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = onImport, modifier = Modifier.weight(1f)) {
                             Icon(Icons.Default.Upload, null)
-                            Text("  Import")
+                            Text("  " + tr("Import"))
                         }
                         OutlinedButton(onClick = onExportEspanso, modifier = Modifier.weight(1f)) {
                             Icon(Icons.Default.Download, null)
-                            Text("  Export")
+                            Text("  " + tr("Export"))
                         }
                     }
                     OutlinedButton(
@@ -1142,7 +1143,7 @@ private fun SettingsScreen(
                                 modifier = Modifier.weight(1f),
                             ) {
                                 Icon(Icons.Default.Sync, null)
-                                Text("  Sync now")
+                                Text("  " + tr("Sync now"))
                             }
                             TextButton(
                                 onClick = {
@@ -1152,7 +1153,7 @@ private fun SettingsScreen(
                                 modifier = Modifier.weight(1f),
                             ) {
                                 Icon(Icons.Default.LinkOff, null)
-                                Text("  Unlink")
+                                Text("  " + tr("Unlink"))
                             }
                         }
                     }
@@ -1164,7 +1165,7 @@ private fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Icon(Icons.Default.Code, null)
-                        Text("  Open Espanso source files")
+                        Text("  " + tr("Open Espanso source files"))
                     }
                 }
             }
@@ -1189,11 +1190,11 @@ private fun SettingsScreen(
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = onImport, modifier = Modifier.weight(1f)) {
                             Icon(Icons.Default.Upload, null)
-                            Text("  Restore")
+                            Text("  " + tr("Restore"))
                         }
                         Button(onClick = onExportJson, modifier = Modifier.weight(1f)) {
                             Icon(Icons.Default.Download, null)
-                            Text("  Back up")
+                            Text("  " + tr("Back up"))
                         }
                     }
                 }
@@ -1207,21 +1208,21 @@ private fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        item { ListItem(leadingContent = { Icon(Icons.Default.Upload, null) }, headlineContent = { Text("Import snippets from CSV") }, modifier = Modifier.selectable(false, onClick = onImport)) }
-        item { ListItem(leadingContent = { Icon(Icons.Default.Download, null) }, headlineContent = { Text("Export snippets as CSV") }, modifier = Modifier.selectable(false, onClick = onExportCsv)) }
+        item { ListItem(leadingContent = { Icon(Icons.Default.Upload, null) }, headlineContent = { Text(tr("Import snippets from CSV")) }, modifier = Modifier.selectable(false, onClick = onImport)) }
+        item { ListItem(leadingContent = { Icon(Icons.Default.Download, null) }, headlineContent = { Text(tr("Export snippets as CSV")) }, modifier = Modifier.selectable(false, onClick = onExportCsv)) }
         item { HorizontalDivider() }
-        item { SettingsSectionHeader(Icons.Default.Security, "Privacy & data") }
+        item { SettingsSectionHeader(Icons.Default.Security, tr("Privacy & data", "Privacidad y datos")) }
         item {
             ListItem(
                 leadingContent = { Icon(Icons.Default.Security, null) },
-                headlineContent = { Text("Privacy") },
-                supportingContent = { Text("All snippets stay on this device. Password fields are ignored. No analytics or network access.") },
+                headlineContent = { Text(tr("Privacy")) },
+                supportingContent = { Text(tr("All snippets stay on this device. Password fields are ignored. No analytics or network access.")) },
             )
         }
         item {
             ListItem(
                 leadingContent = { Icon(Icons.Default.ContentPaste, null) },
-                headlineContent = { Text("Clear clipboard history") },
+                headlineContent = { Text(tr("Clear clipboard history")) },
                 supportingContent = { Text("${state.clipboardEntries.size} saved entries") },
                 modifier = Modifier.clickable(enabled = state.clipboardEntries.isNotEmpty()) {
                     confirmClearClipboard = true
@@ -1232,7 +1233,7 @@ private fun SettingsScreen(
             val stats = viewModel.stats()
             ListItem(
                 leadingContent = { Icon(Icons.Default.QueryStats, null) },
-                headlineContent = { Text("Reset usage statistics") },
+                headlineContent = { Text(tr("Reset usage statistics")) },
                 supportingContent = { Text("Clears ${stats.totalExpansions} expansion counts and local usage records") },
                 modifier = Modifier.clickable(enabled = stats.totalExpansions > 0) {
                     confirmResetStatistics = true
@@ -1243,7 +1244,7 @@ private fun SettingsScreen(
             ListItem(
                 leadingContent = { Icon(Icons.Default.Info, null) },
                 headlineContent = { Text(if (diagnosticsCopied) "Diagnostics copied" else "Copy diagnostics") },
-                supportingContent = { Text("Version and device state only; no text, clipboard or app names") },
+                supportingContent = { Text(tr("Version and device state only; no text, clipboard or app names")) },
                 modifier = Modifier.clickable {
                     val clipboard = context.getSystemService(ClipboardManager::class.java)
                     clipboard.setPrimaryClip(
@@ -1256,15 +1257,15 @@ private fun SettingsScreen(
         item {
             ListItem(
                 leadingContent = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
-                headlineContent = { Text("Reset Expanda", color = MaterialTheme.colorScheme.error) },
-                supportingContent = { Text("Delete local data and return to the first-run tutorial") },
+                headlineContent = { Text(tr("Reset Expanda"), color = MaterialTheme.colorScheme.error) },
+                supportingContent = { Text(tr("Delete local data and return to the first-run tutorial")) },
                 modifier = Modifier.clickable { confirmResetAll = true },
             )
         }
         }
 
         if (showGlobalAppPicker) AppExclusionPicker(
-            title = "Exclude Expanda from apps",
+            title = tr("Exclude Expanda from apps", "Excluir Expanda de aplicaciones"),
             selectedPackages = state.settings.globallyExcludedPackages,
             onDismiss = { showGlobalAppPicker = false },
             onSave = {
@@ -1273,9 +1274,9 @@ private fun SettingsScreen(
             },
         )
         if (confirmClearClipboard) ConfirmationDialog(
-            title = "Clear clipboard history?",
-            text = "All locally saved clipboard entries will be deleted.",
-            confirmLabel = "Clear",
+            title = tr("Clear clipboard history?", "¿Limpiar historial del portapapeles?"),
+            text = tr("All locally saved clipboard entries will be deleted.", "Se eliminarán todas las entradas guardadas localmente del portapapeles."),
+            confirmLabel = tr("Clear"),
             destructive = true,
             onDismiss = { confirmClearClipboard = false },
             onConfirm = {
@@ -1326,7 +1327,7 @@ private fun ConfirmationDialog(
                 Text(confirmLabel, color = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(tr("Cancel")) } },
     )
 }
 
@@ -1393,7 +1394,7 @@ private fun SelectionToolbarSizeSetting(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("Selection toolbar size", style = MaterialTheme.typography.titleSmall)
+                    Text(tr("Selection toolbar size"), style = MaterialTheme.typography.titleSmall)
                     Text(
                         "Drag ⠿ to move. Long-press ⠿ and drag to resize directly.",
                         style = MaterialTheme.typography.bodySmall,
@@ -1407,7 +1408,7 @@ private fun SelectionToolbarSizeSetting(
                         onReset()
                     },
                 ) {
-                    Text("Reset layout")
+                    Text(tr("Reset layout"))
                 }
             }
 
@@ -1415,7 +1416,7 @@ private fun SelectionToolbarSizeSetting(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("Width", modifier = Modifier.weight(1f))
+                Text(tr("Width"), modifier = Modifier.weight(1f))
                 Text("${(widthDraft * 100).roundToInt()}%", color = MaterialTheme.colorScheme.primary)
             }
             Slider(
@@ -1430,7 +1431,7 @@ private fun SelectionToolbarSizeSetting(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("Height", modifier = Modifier.weight(1f))
+                Text(tr("Height"), modifier = Modifier.weight(1f))
                 Text("${heightDraft.roundToInt()} dp", color = MaterialTheme.colorScheme.primary)
             }
             Slider(
@@ -1565,7 +1566,7 @@ private fun TextScaleSetting(value: Float, onValueChanged: (Float) -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Icon(Icons.Default.FormatSize, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("Text size", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+            Text(tr("Text size"), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
             Text("${(draft * 100).roundToInt()}%", color = MaterialTheme.colorScheme.primary)
             TextButton(
                 onClick = {
@@ -1573,7 +1574,7 @@ private fun TextScaleSetting(value: Float, onValueChanged: (Float) -> Unit) {
                     onValueChanged(draft)
                 },
                 enabled = draft != SettingsRepository.DEFAULT_TEXT_SCALE,
-            ) { Text("Reset") }
+            ) { Text(tr("Reset")) }
         }
         Slider(
             value = draft,
@@ -1583,8 +1584,8 @@ private fun TextScaleSetting(value: Float, onValueChanged: (Float) -> Unit) {
             steps = 14,
         )
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("Smaller", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("Larger", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(tr("Smaller"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(tr("Larger"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -1812,7 +1813,7 @@ private fun SnippetEditorScreen(
                         horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        TextButton(onClick = onDismiss) { Text("Cancel") }
+                        TextButton(onClick = onDismiss) { Text(tr("Cancel")) }
                         Button(
                             enabled = triggerText.isNotBlank() && replacementFields.firstOrNull()?.text?.isNotEmpty() == true,
                             onClick = {
@@ -1858,7 +1859,7 @@ private fun SnippetEditorScreen(
                             },
                         ) {
                             Icon(Icons.Default.Check, null)
-                            Text("Save")
+                            Text(tr("Save"))
                         }
                     }
                 }
@@ -1900,7 +1901,7 @@ private fun SnippetEditorScreen(
                     modifier = Modifier.fillMaxWidth().onFocusChanged {
                         if (it.isFocused) activeTemplateIndex = null
                     },
-                    label = { Text("Name (optional)") },
+                    label = { Text(tr("Name (optional)")) },
                     singleLine = true,
                 )
             }
@@ -1915,7 +1916,7 @@ private fun SnippetEditorScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             TooltipBox(
                                 positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
-                                tooltip = { PlainTooltip { Text("Use regular expression matching") } },
+                                tooltip = { PlainTooltip { Text(tr("Use regular expression matching")) } },
                                 state = rememberTooltipState(),
                             ) {
                                 IconButton(
@@ -1942,7 +1943,7 @@ private fun SnippetEditorScreen(
                             /*
                             TooltipBox(
                                 positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
-                                tooltip = { PlainTooltip { Text("Match uppercase and lowercase exactly") } },
+                                tooltip = { PlainTooltip { Text(tr("Match uppercase and lowercase exactly")) } },
                                 state = rememberTooltipState(),
                             ) {
                                 IconButton(
@@ -2090,7 +2091,7 @@ private fun SnippetEditorScreen(
                     activeTemplateIndex = null
                 }) {
                     Icon(Icons.Default.Add, null)
-                    Text("Add replacement")
+                    Text(tr("Add replacement"))
                 }
             }
             if (showReplacementSelection) {
@@ -2378,8 +2379,8 @@ private fun TagEditor(
                         .weight(1f)
                         .focusRequester(focusRequester)
                         .onFocusChanged { if (it.isFocused) onFocus() },
-                    label = { Text("Add tag") },
-                    placeholder = { Text("Existing or new tag") },
+                    label = { Text(tr("Add tag")) },
+                    placeholder = { Text(tr("Existing or new tag")) },
                     leadingIcon = { Text("#") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
@@ -2435,7 +2436,7 @@ private fun BackgroundSetupDialog(
 ) {
     AlertDialog(
         onDismissRequest = {},
-        title = { Text("Allow Expanda to run in background") },
+        title = { Text(tr("Allow Expanda to run in background")) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Android or the phone's battery saver may stop Expanda after it has been in the background. That can make expansion appear to fail intermittently.")
@@ -2448,10 +2449,10 @@ private fun BackgroundSetupDialog(
             }
         },
         confirmButton = {
-            Button(onClick = onOpenSettings) { Text("Open battery settings") }
+            Button(onClick = onOpenSettings) { Text(tr("Open battery settings")) }
         },
         dismissButton = {
-            TextButton(onClick = onConfigured) { Text("I've configured it") }
+            TextButton(onClick = onConfigured) { Text(tr("I've configured it")) }
         },
     )
 }
@@ -2464,7 +2465,7 @@ private fun AccessibilityDisclosure(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("How text expansion works") },
+        title = { Text(tr("How text expansion works")) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Expanda uses Android's Accessibility service to read changes in editable fields, detect shortcuts, and replace them with your snippets. Text is processed on-device and is never sent anywhere. Password fields are ignored. You can disable the service at any time in Android Settings.")
@@ -2476,8 +2477,8 @@ private fun AccessibilityDisclosure(
                 }
             }
         },
-        confirmButton = { Button(onClick = onAccept) { Text("Continue") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Not now") } },
+        confirmButton = { Button(onClick = onAccept) { Text(tr("Continue")) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(tr("Not now")) } },
     )
 }
 
@@ -2490,7 +2491,7 @@ fun AccessibilitySetupHelpDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Couldn't enable Accessibility?") },
+        title = { Text(tr("Couldn't enable Accessibility?")) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -2507,21 +2508,21 @@ fun AccessibilitySetupHelpDialog(
                     Button(
                         onClick = onOpenAppInfo,
                         modifier = Modifier.fillMaxWidth(),
-                    ) { Text("Open App info") }
+                    ) { Text(tr("Open App info")) }
                     TextButton(
                         onClick = onOpenAccessibility,
                         modifier = Modifier.fillMaxWidth(),
-                    ) { Text("Open Accessibility again") }
+                    ) { Text(tr("Open Accessibility again")) }
                     TextButton(
                         onClick = onCantEnable,
                         modifier = Modifier.fillMaxWidth(),
-                    ) { Text("I don't have that option") }
+                    ) { Text(tr("I don't have that option")) }
                 }
             }
         },
         confirmButton = {},
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Not now") }
+            TextButton(onClick = onDismiss) { Text(tr("Not now")) }
         },
     )
 }
