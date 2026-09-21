@@ -1006,6 +1006,28 @@ private fun SettingsScreen(
         }
         item {
             ListItem(
+                headlineContent = {
+                    Text(tr("Smart cursor capitalization", "Capitalización inteligente del cursor"))
+                },
+                leadingContent = { Icon(Icons.Default.TextFields, null) },
+                supportingContent = {
+                    Text(
+                        tr(
+                            "After a snippet places the cursor inside punctuation, lowercase the first automatic capital when the trigger followed a continuing sentence.",
+                            "Cuando un fragmento coloca el cursor dentro de signos, convierte a minúscula la primera mayúscula automática si el trigger venía en continuidad de una oración.",
+                        ),
+                    )
+                },
+                trailingContent = {
+                    Switch(
+                        state.settings.smartCursorCaseEnabled,
+                        viewModel::setSmartCursorCaseEnabled,
+                    )
+                },
+            )
+        }
+        item {
+            ListItem(
                 headlineContent = { Text(tr("Selection toolbar")) },
                 leadingContent = { Icon(Icons.Default.TextFields, null) },
                 supportingContent = { Text(tr("Show quick text transformations when you select editable text")) },
