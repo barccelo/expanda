@@ -88,6 +88,7 @@ object BackupCodec {
         put("statisticsEnabled", settings.statisticsEnabled)
         put("hapticFeedback", settings.hapticFeedback)
         put("pasteFallbackEnabled", settings.pasteFallbackEnabled)
+        put("smartCursorCaseEnabled", settings.smartCursorCaseEnabled)
         put("suggestionEnabled", settings.suggestionEnabled)
         put("selectionToolbarEnabled", settings.selectionToolbarEnabled)
         put("selectionToolbarWidthFraction", settings.selectionToolbarWidthFraction.toDouble())
@@ -116,6 +117,7 @@ object BackupCodec {
         statisticsEnabled = json.optBoolean("statisticsEnabled", true),
         hapticFeedback = json.optBoolean("hapticFeedback"),
         pasteFallbackEnabled = json.optBoolean("pasteFallbackEnabled"),
+        smartCursorCaseEnabled = json.optBoolean("smartCursorCaseEnabled"),
         suggestionEnabled = json.optBoolean("suggestionEnabled"),
         selectionToolbarEnabled = json.optBoolean("selectionToolbarEnabled", true),
         selectionToolbarWidthFraction = json.optDouble(
