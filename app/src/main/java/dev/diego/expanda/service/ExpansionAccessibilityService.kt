@@ -698,26 +698,42 @@ class ExpansionAccessibilityService : AccessibilityService() {
             ),
         )
 
-        SELECTION_TOOLBAR_ACTIONS.forEach { action ->
+        val fieldText = editableText(node)
+        val toolbarActions = buildSelectionToolbarActions(settings)
+        toolbarActions.forEach { action ->
+            val enabled = when (action.id) {
+                SELECTION_UNDO_ID -> canUndoSelection(anchor, fieldText)
+                SELECTION_TRANSFORMS_MENU_ID, SELECTION_MORE_MENU_ID -> true
+                SELECTION_FIND_REPLACE_ID -> selectedText.isNotEmpty()
+                else -> actionEngine.processSelectedText(action.id, selectedText)
+                    ?.let { it != selectedText } == true
+            }
             val button = ui.body(action.label, sizeSp = actionTextSize).apply {
                 gravity = Gravity.CENTER
                 setPadding(dp(2), 0, dp(2), 0)
                 background = ui.surface(10)
-                isClickable = true
-                isFocusable = true
+                isClickable = enabled
+                isFocusable = enabled
+                alpha = if (enabled) 1f else 0.36f
                 maxLines = 1
                 contentDescription = action.description
-                setOnClickListener {
-                    when (action.id) {
-                        SELECTION_TRANSFORMS_MENU_ID -> showSelectionActionMenu(
-                            title = "Transform selection",
-                            actionIds = SELECTION_TRANSFORM_ACTION_IDS,
-                        )
-                        SELECTION_MORE_MENU_ID -> showSelectionActionMenu(
-                            title = "More selection actions",
-                            actionIds = SELECTION_MORE_ACTION_IDS,
-                        )
-                        else -> applySelectionToolbarAction(action.id)
+                if (enabled) {
+                    setOnClickListener {
+                        when (action.id) {
+                            SELECTION_UNDO_ID -> undoSelectionToolbarAction()
+                            SELECTION_TRANSFORMS_MENU_ID -> showSelectionActionMenu(
+                                title = selectionUiText(settings, "suggested"),
+                                actionIds = SELECTION_CONTEXT_ACTION_IDS,
+                                showAll = false,
+                            )
+                            SELECTION_MORE_MENU_ID -> showSelectionActionMenu(
+                                title = selectionUiText(settings, "all_tools"),
+                                actionIds = SELECTION_CATALOG_ACTION_IDS,
+                                showAll = true,
+                            )
+                            SELECTION_FIND_REPLACE_ID -> showFindReplaceOverlay()
+                            else -> applySelectionToolbarAction(action.id)
+                        }
                     }
                 }
             }
@@ -791,14 +807,62 @@ class ExpansionAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun selectionHasUsefulAction(selectedText: String): Boolean =
-        SELECTION_ALL_ACTION_IDS.any { actionId ->
-            actionEngine.processSelectedText(actionId, selectedText)?.let { it != selectedText } == true
+    private fun selectionHasUsefulAction(selectedText: String): Boolean = selectedText.isNotEmpty()
+
+    private fun buildSelectionToolbarActions(settings: AppSettings): List<SelectionToolbarAction> {
+        val quick = settings.selectionToolbarQuickActionIds.mapNotNull { id ->
+            when (id) {
+                SELECTION_FIND_REPLACE_ID -> SelectionToolbarAction(
+                    id,
+                    "⌕",
+                    selectionUiText(settings, "find_replace"),
+                )
+                else -> ActionEngine.definitions.firstOrNull { it.id == id }?.let { definition ->
+                    SelectionToolbarAction(
+                        id = id,
+                        label = selectionQuickLabel(id),
+                        description = selectionActionDescription(id, settings, definition.description),
+                    )
+                }
+            }
         }
+        return listOf(
+            SelectionToolbarAction(
+                SELECTION_UNDO_ID,
+                "↶",
+                selectionUiText(settings, "undo"),
+            ),
+        ) + quick + listOf(
+            SelectionToolbarAction(
+                SELECTION_TRANSFORMS_MENU_ID,
+                "↔",
+                selectionUiText(settings, "suggested"),
+            ),
+            SelectionToolbarAction(
+                SELECTION_MORE_MENU_ID,
+                "⋯",
+                selectionUiText(settings, "all_tools"),
+            ),
+        )
+    }
+
+    private fun selectionQuickLabel(id: String): String = when (id) {
+        "uppercase" -> "ABC"
+        "lowercase" -> "abc"
+        "sentence_case" -> "Abc."
+        "title_case" -> "Aa"
+        "sort_lines" -> "A↓"
+        "remove_duplicate_lines" -> "≠"
+        "remove_all_spaces" -> "␠×"
+        "reverse_text" -> "↤"
+        "number_lines" -> "1."
+        else -> "•"
+    }
 
     private fun showSelectionActionMenu(
         title: String,
         actionIds: List<String>,
+        showAll: Boolean,
     ) {
         val state = selectionToolbarState ?: return
         val available = actionIds.mapNotNull { actionId ->
