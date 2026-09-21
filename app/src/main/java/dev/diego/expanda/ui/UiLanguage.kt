@@ -25,6 +25,14 @@ fun usesSpanish(language: DisplayLanguage): Boolean = when (language) {
 fun translate(language: DisplayLanguage, english: String, spanish: String): String =
     if (usesSpanish(language)) spanish else english
 
+fun uiText(english: String, spanish: String): String =
+    translate(UiDisplayLanguage.current, english, spanish)
+
+fun uiText(english: String): String {
+    if (!usesSpanish(UiDisplayLanguage.current)) return english
+    return SPANISH[english] ?: english
+}
+
 @Composable
 fun tr(english: String, spanish: String): String =
     translate(UiDisplayLanguage.current, english, spanish)
