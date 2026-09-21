@@ -759,8 +759,8 @@ private fun SnippetRow(
                 if (!match.runsOnAndroid || !match.canEditVisually) {
                     Text(
                         when {
-                            !match.runsOnAndroid -> "Desktop only · kept inactive on Android"
-                            else -> "Source editing required"
+                            !match.runsOnAndroid -> tr("Desktop only · kept inactive on Android", "Sólo escritorio · se mantiene inactivo en Android")
+                            else -> tr("Source editing required", "Se requiere edición de fuente")
                         },
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
@@ -1420,7 +1420,10 @@ private fun SelectionToolbarSizeSetting(
                 Column(Modifier.weight(1f)) {
                     Text(tr("Selection toolbar size"), style = MaterialTheme.typography.titleSmall)
                     Text(
-                        "Drag ⠿ to move. Long-press ⠿ and drag to resize directly.",
+                        tr(
+                            "Drag ⠿ to move. Long-press ⠿ and drag to resize directly.",
+                            "Arrastra ⠿ para mover. Mantén pulsado ⠿ y arrastra para redimensionar.",
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -1522,7 +1525,7 @@ private fun SelectionToolbarQuickActionsSetting(
 }
 
 private fun toolbarQuickActionLabel(id: String, language: DisplayLanguage): String {
-    val es = language == DisplayLanguage.SPANISH
+    val es = usesSpanish(language)
     return when (id) {
         "uppercase" -> if (es) "Mayúsculas" else "Uppercase"
         "lowercase" -> if (es) "Minúsculas" else "Lowercase"
@@ -1558,7 +1561,7 @@ private fun toolbarQuickActionLabel(id: String, language: DisplayLanguage): Stri
 }
 
 private fun toolbarQuickActionDescription(id: String, language: DisplayLanguage): String {
-    val es = language == DisplayLanguage.SPANISH
+    val es = usesSpanish(language)
     return when (id) {
         "find_replace" -> if (es) "Abre el panel Buscar/Reemplazar" else "Open the Find/Replace panel"
         "sort_lines" -> if (es) "Ordena alfabéticamente la selección" else "Sort the selection alphabetically"
@@ -1615,21 +1618,21 @@ private fun TextScaleSetting(value: Float, onValueChanged: (Float) -> Unit) {
 }
 
 private fun ColorSchemeMode.label(): String = when (this) {
-    ColorSchemeMode.WALLPAPER -> "Wallpaper"
-    ColorSchemeMode.DEFAULT -> "Default"
-    ColorSchemeMode.CUSTOM -> "Custom"
+    ColorSchemeMode.WALLPAPER -> uiText("Wallpaper", "Fondo de pantalla")
+    ColorSchemeMode.DEFAULT -> uiText("Default", "Predeterminado")
+    ColorSchemeMode.CUSTOM -> uiText("Custom", "Personalizado")
 }
 
 private fun DisplayLanguage.label(): String = when (this) {
-    DisplayLanguage.SYSTEM -> "System"
+    DisplayLanguage.SYSTEM -> uiText("System", "Sistema")
     DisplayLanguage.ENGLISH -> "English"
     DisplayLanguage.SPANISH -> "Español"
 }
 
 private fun ThemeMode.label(): String = when (this) {
-    ThemeMode.SYSTEM -> "System"
-    ThemeMode.LIGHT -> "Light"
-    ThemeMode.DARK -> "Dark"
+    ThemeMode.SYSTEM -> uiText("System", "Sistema")
+    ThemeMode.LIGHT -> uiText("Light", "Claro")
+    ThemeMode.DARK -> uiText("Dark", "Oscuro")
     ThemeMode.AMOLED -> "AMOLED"
 }
 
