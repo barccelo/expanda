@@ -86,7 +86,14 @@ internal fun ActionsAnimation() {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        FeatureHeading(Icons.Default.Calculate, "Transform text instantly", "Use shortcuts or Android’s selection menu.")
+        FeatureHeading(
+            Icons.Default.Calculate,
+            tr("Transform text instantly", "Transforma texto al instante"),
+            tr(
+                "Use shortcuts or Android’s selection menu.",
+                "Usa atajos o el menú de selección de Android.",
+            ),
+        )
         AnimatedContent(
             targetState = stage,
             transitionSpec = {
@@ -290,8 +297,11 @@ internal fun EspansoCompatibilityAnimation() {
     ) {
         FeatureHeading(
             Icons.Default.Description,
-            "Your snippets are plain-text .yml",
-            "Plain-text files you can edit, copy or move.",
+            tr("Your snippets are plain-text .yml", "Tus fragmentos son archivos .yml de texto plano"),
+            tr(
+                "Plain-text files you can edit, copy or move.",
+                "Archivos de texto plano que puedes editar, copiar o mover.",
+            ),
         )
         Row(
             Modifier.fillMaxWidth(),
@@ -378,7 +388,14 @@ internal fun SourceEditingAnimation() {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        FeatureHeading(Icons.Default.Code, "Edit the real Espanso source", "Open, copy or edit the same .yml file—then validate and save.")
+        FeatureHeading(
+            Icons.Default.Code,
+            tr("Edit the real Espanso source", "Edita la fuente real de Espanso"),
+            tr(
+                "Open, copy or edit the same .yml file—then validate and save.",
+                "Abre, copia o edita el mismo archivo .yml; luego valida y guarda.",
+            ),
+        )
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(20.dp),
@@ -498,7 +515,14 @@ internal fun OpenSourceProjectAnimation() {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        FeatureHeading(Icons.Default.Code, "Open source, local first", "Use Expanda, inspect it and help improve it.")
+        FeatureHeading(
+            Icons.Default.Code,
+            tr("Open source, local first", "Código abierto y local primero"),
+            tr(
+                "Use Expanda, inspect it and help improve it.",
+                "Usa Expanda, inspecciónalo y ayuda a mejorarlo.",
+            ),
+        )
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(22.dp),
