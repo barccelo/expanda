@@ -1375,7 +1375,7 @@ internal fun TemplateVariableEditorDialog(
                             }
 
                             PreviewCard(
-                                title = "Example",
+                                title = tr("Example", "Ejemplo"),
                                 value = preview,
                             )
                         }
@@ -1883,7 +1883,7 @@ private fun VariableRow(
                 IconButton(onClick = onEdit) {
                     Icon(
                         Icons.Default.Edit,
-                        contentDescription = "Edit {{${variable.name}}}",
+                        contentDescription = tr("Edit {{${variable.name}}}", "Editar {{${variable.name}}}"),
                     )
                 }
             }
@@ -2303,7 +2303,7 @@ private fun ChoiceEditor(
                         ) {
                             Icon(
                                 Icons.Default.ArrowUpward,
-                                contentDescription = "Move up",
+                                contentDescription = tr("Move up", "Mover arriba"),
                             )
                         }
 
@@ -2317,7 +2317,7 @@ private fun ChoiceEditor(
                         ) {
                             Icon(
                                 Icons.Default.ArrowDownward,
-                                contentDescription = "Move down",
+                                contentDescription = tr("Move down", "Mover abajo"),
                             )
                         }
 
@@ -2330,7 +2330,7 @@ private fun ChoiceEditor(
                         ) {
                             Icon(
                                 Icons.Default.Delete,
-                                contentDescription = "Delete option",
+                                contentDescription = tr("Delete option", "Eliminar opción"),
                             )
                         }
                     }
@@ -2402,7 +2402,7 @@ private fun ChoiceEditor(
                 ) {
                     Icon(
                         Icons.Default.Check,
-                        contentDescription = "Add option",
+                        contentDescription = tr("Add option", "Agregar opción"),
                     )
                 }
             },
@@ -3108,7 +3108,7 @@ private fun FormFieldDefaultEditor(
                 },
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(value.ifBlank { "Pick default date" })
+                Text(value.ifBlank { tr("Pick default date", "Elegir fecha predeterminada") })
             }
         }
 
@@ -3132,7 +3132,7 @@ private fun FormFieldDefaultEditor(
                 },
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(value.ifBlank { "Pick default time" })
+                Text(value.ifBlank { tr("Pick default time", "Elegir hora predeterminada") })
             }
         }
 
