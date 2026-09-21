@@ -117,7 +117,7 @@ object BackupCodec {
         statisticsEnabled = json.optBoolean("statisticsEnabled", true),
         hapticFeedback = json.optBoolean("hapticFeedback"),
         pasteFallbackEnabled = json.optBoolean("pasteFallbackEnabled"),
-        smartCursorCaseEnabled = json.optBoolean("smartCursorCaseEnabled"),
+        smartCursorCaseEnabled = json.optBoolean("smartCursorCaseEnabled", true),
         suggestionEnabled = json.optBoolean("suggestionEnabled"),
         selectionToolbarEnabled = json.optBoolean("selectionToolbarEnabled", true),
         selectionToolbarWidthFraction = json.optDouble(
