@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Expanda Personal</string>
+    <string name="process_text_label">Acciones de Expanda Personal</string>
+    <string name="process_text_title">Acciones de Expanda Personal</string>
+    <string name="quick_settings_label">Activar/desactivar Expanda Personal</string>
+    <string name="accessibility_service_label">Expansión de texto de Expanda Personal</string>
+    <string name="accessibility_service_description">Detecta abreviaturas escritas en campos editables y las reemplaza por fragmentos almacenados únicamente en este dispositivo. Los campos de contraseña se ignoran.</string>
+</resources>
