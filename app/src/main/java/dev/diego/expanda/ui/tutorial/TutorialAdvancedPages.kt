@@ -207,7 +207,7 @@ private fun SelectionActionPreview(localElapsed: Float, showResult: Boolean) {
         ) {
             Box(Modifier.padding(horizontal = 18.dp), contentAlignment = Alignment.CenterStart) {
                 if (showResult) {
-                    Text("Weekly Project Update")
+                    Text(tr("Weekly Project Update", "Actualización semanal del proyecto"))
                 } else {
                     Text(
                         buildAnnotatedString {
@@ -506,7 +506,7 @@ internal fun OpenSourceProjectAnimation() {
                 ) {
                     Image(
                         painter = painterResource(R.drawable.ic_app_panda),
-                        contentDescription = "Expanda logo",
+                        contentDescription = tr("Expanda logo", "Logo de Expanda"),
                         modifier = Modifier.padding(9.dp),
                     )
                 }
