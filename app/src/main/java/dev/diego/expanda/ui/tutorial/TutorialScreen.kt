@@ -71,6 +71,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.diego.expanda.R
 import dev.diego.expanda.data.AppSettings
+import dev.diego.expanda.ui.tr
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
@@ -176,7 +177,7 @@ fun TutorialScreen(
                     when (page) {
                         1 -> TutorialPage(
                             page = page,
-                            tip = "Set triggers to expand instantly—no space required.",
+                            tip = tr("Set triggers to expand instantly—no space required.", "Configura disparadores para expandir al instante, sin necesidad de espacio."),
                             onSkip = ::skipToStorage,
                             onNext = { goTo(2) },
                         ) { ShortcutExpansionAnimation() }
@@ -202,7 +203,7 @@ fun TutorialScreen(
                         }
                         4 -> TutorialPage(
                             page = page,
-                            tip = "Date, time and random values refresh on every expansion.",
+                            tip = tr("Date, time and random values refresh on every expansion.", "La fecha, la hora y los valores aleatorios se actualizan en cada expansión."),
                             onSkip = ::skipToStorage,
                             onNext = { goTo(5) },
                         ) { DynamicValuesAnimation() }
@@ -213,7 +214,7 @@ fun TutorialScreen(
                         ) { FormChoiceAnimation() }
                         6 -> TutorialPage(
                             page = page,
-                            tip = "Regex triggers do not appear in popup suggestions",
+                            tip = tr("Regex triggers do not appear in popup suggestions", "Los disparadores regex no aparecen en las sugerencias emergentes"),
                             onSkip = ::skipToStorage,
                             onNext = { goTo(7) },
                         ) { RegexAnimation() }
@@ -238,7 +239,7 @@ fun TutorialScreen(
                             onSkip = ::skipToStorage,
                             showSkip = false,
                             onNext = onDone,
-                            nextLabel = "Continue",
+                            nextLabel = tr("Continue"),
                         ) { SourceEditingAnimation() }
                     }
                 }
@@ -324,7 +325,7 @@ private fun WelcomePage(
                     ) { expanded ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                if (expanded) "Type less, say more." else SUBTITLE_TRIGGER.take(subtitleCharacters),
+                                if (expanded) tr("Type less, say more.", "Escribe menos, di más.") else SUBTITLE_TRIGGER.take(subtitleCharacters),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontFamily = if (expanded) FontFamily.Default else FontFamily.Monospace,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -340,7 +341,7 @@ private fun WelcomePage(
         Spacer(Modifier.weight(1f))
         PageDots(currentPage = 0)
         Spacer(Modifier.height(22.dp))
-        NextButton(label = "Get Started", onClick = onGetStarted)
+        NextButton(label = tr("Get Started", "Comenzar"), onClick = onGetStarted)
     }
 }
 
@@ -359,7 +360,7 @@ private fun TutorialPage(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            if (showSkip) TextButton(onClick = onSkip) { Text("Skip") }
+            if (showSkip) TextButton(onClick = onSkip) { Text(tr("Skip", "Omitir")) }
         }
         Box(
             modifier = Modifier.fillMaxWidth().weight(1f),
@@ -390,7 +391,7 @@ internal fun TutorialTip(text: String, modifier: Modifier = Modifier) {
         ) {
             Icon(Icons.Default.Lightbulb, contentDescription = null, modifier = Modifier.size(18.dp))
             Column {
-                Text("Tip", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                Text(tr("Tip", "Consejo"), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                 Text(text, style = MaterialTheme.typography.bodySmall)
             }
         }
