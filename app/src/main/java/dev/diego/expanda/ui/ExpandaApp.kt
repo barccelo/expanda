@@ -165,6 +165,7 @@ import dev.diego.expanda.data.TextMatch
 import dev.diego.expanda.data.TriggerKind
 import dev.diego.expanda.data.ThemeMode
 import dev.diego.expanda.data.ColorSchemeMode
+import dev.diego.expanda.data.DisplayLanguage
 import dev.diego.expanda.data.SettingsRepository
 import dev.diego.expanda.data.SnippetSortMode
 import dev.diego.expanda.data.TemplateSelectionMode
@@ -1008,6 +1009,13 @@ private fun SettingsScreen(
                     onReset = viewModel::resetSelectionToolbarLayout,
                 )
             }
+            item {
+                SelectionToolbarQuickActionsSetting(
+                    actionIds = state.settings.selectionToolbarQuickActionIds,
+                    language = state.settings.displayLanguage,
+                    onChanged = viewModel::setSelectionToolbarQuickActionIds,
+                )
+            }
         }
         item {
             SuggestionSettingsPanel(
@@ -1038,6 +1046,15 @@ private fun SettingsScreen(
         item {
             Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                 Column(Modifier.padding(vertical = 8.dp)) {
+                    CompactChoiceSetting(
+                        icon = Icons.Default.TextFields,
+                        title = "Display language",
+                        options = DisplayLanguage.entries,
+                        selected = state.settings.displayLanguage,
+                        label = DisplayLanguage::label,
+                        onSelected = viewModel::setDisplayLanguage,
+                    )
+                    HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                     CompactChoiceSetting(
                         icon = Icons.Default.Palette,
                         title = "Color scheme",
@@ -1428,6 +1445,88 @@ private fun SelectionToolbarSizeSetting(
 }
 
 @Composable
+private fun SelectionToolbarQuickActionsSetting(
+    actionIds: List<String>,
+    language: DisplayLanguage,
+    onChanged: (List<String>) -> Unit,
+) {
+    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+        Column(Modifier.padding(vertical = 8.dp)) {
+            Text(
+                if (language == DisplayLanguage.SPANISH) "Accesos rápidos" else "Quick actions",
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+            )
+            Text(
+                if (language == DisplayLanguage.SPANISH)
+                    "Elige hasta ${SettingsRepository.MAX_SELECTION_TOOLBAR_QUICK_ACTIONS}. ↶, ↔ y ⋯ permanecen siempre."
+                else
+                    "Choose up to ${SettingsRepository.MAX_SELECTION_TOOLBAR_QUICK_ACTIONS}. ↶, ↔ and ⋯ always stay visible.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
+            )
+            SettingsRepository.AVAILABLE_SELECTION_TOOLBAR_QUICK_ACTIONS.forEach { id ->
+                val checked = id in actionIds
+                val canEnable = checked ||
+                    actionIds.size < SettingsRepository.MAX_SELECTION_TOOLBAR_QUICK_ACTIONS
+                ListItem(
+                    headlineContent = { Text(toolbarQuickActionLabel(id, language)) },
+                    supportingContent = {
+                        Text(toolbarQuickActionDescription(id, language))
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = checked,
+                            enabled = canEnable,
+                            onCheckedChange = { enabled ->
+                                val updated = if (enabled) {
+                                    (actionIds + id).distinct()
+                                        .take(SettingsRepository.MAX_SELECTION_TOOLBAR_QUICK_ACTIONS)
+                                } else {
+                                    actionIds.filterNot { it == id }
+                                }
+                                onChanged(updated)
+                            },
+                        )
+                    },
+                )
+            }
+        }
+    }
+}
+
+private fun toolbarQuickActionLabel(id: String, language: DisplayLanguage): String {
+    val es = language == DisplayLanguage.SPANISH
+    return when (id) {
+        "uppercase" -> if (es) "Mayúsculas" else "Uppercase"
+        "lowercase" -> if (es) "Minúsculas" else "Lowercase"
+        "sentence_case" -> if (es) "Tipo oración" else "Sentence case"
+        "title_case" -> if (es) "Capitalizar palabras" else "Capitalize words"
+        "find_replace" -> if (es) "Buscar y reemplazar" else "Find & replace"
+        "sort_lines" -> if (es) "Ordenar líneas" else "Sort lines"
+        "remove_duplicate_lines" -> if (es) "Eliminar líneas duplicadas" else "Remove duplicate lines"
+        "remove_all_spaces" -> if (es) "Eliminar todos los espacios" else "Remove all spaces"
+        "reverse_text" -> if (es) "Invertir texto" else "Reverse text"
+        "number_lines" -> if (es) "Numerar líneas" else "Number lines"
+        else -> id
+    }
+}
+
+private fun toolbarQuickActionDescription(id: String, language: DisplayLanguage): String {
+    val es = language == DisplayLanguage.SPANISH
+    return when (id) {
+        "find_replace" -> if (es) "Abre el panel Buscar/Reemplazar" else "Open the Find/Replace panel"
+        "sort_lines" -> if (es) "Ordena alfabéticamente la selección" else "Sort the selection alphabetically"
+        "remove_duplicate_lines" -> if (es) "Conserva una sola copia de cada línea" else "Keep one copy of each line"
+        "remove_all_spaces" -> if (es) "Elimina todos los espacios y saltos" else "Delete every whitespace character"
+        "reverse_text" -> if (es) "Invierte los caracteres seleccionados" else "Reverse selected characters"
+        "number_lines" -> if (es) "Agrega 1., 2., 3.…" else "Add 1., 2., 3.…"
+        else -> if (es) "Acción de texto rápida" else "Quick text action"
+    }
+}
+
+@Composable
 private fun TextScaleSetting(value: Float, onValueChanged: (Float) -> Unit) {
     var draft by remember(value) { mutableFloatStateOf(value) }
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
@@ -1465,6 +1564,12 @@ private fun ColorSchemeMode.label(): String = when (this) {
     ColorSchemeMode.WALLPAPER -> "Wallpaper"
     ColorSchemeMode.DEFAULT -> "Default"
     ColorSchemeMode.CUSTOM -> "Custom"
+}
+
+private fun DisplayLanguage.label(): String = when (this) {
+    DisplayLanguage.SYSTEM -> "System"
+    DisplayLanguage.ENGLISH -> "English"
+    DisplayLanguage.SPANISH -> "Español"
 }
 
 private fun ThemeMode.label(): String = when (this) {
