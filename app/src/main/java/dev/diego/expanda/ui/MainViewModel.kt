@@ -240,6 +240,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setStatisticsEnabled(enabled: Boolean) = viewModelScope.launch { settingsRepository.setStatisticsEnabled(enabled) }
     fun setHapticFeedback(enabled: Boolean) = viewModelScope.launch { settingsRepository.setHapticFeedback(enabled) }
     fun setPasteFallbackEnabled(enabled: Boolean) = viewModelScope.launch { settingsRepository.setPasteFallbackEnabled(enabled) }
+    fun setSmartCursorCaseEnabled(enabled: Boolean) = viewModelScope.launch {
+        settingsRepository.setSmartCursorCaseEnabled(enabled)
+    }
     fun setSuggestionEnabled(enabled: Boolean) = viewModelScope.launch { settingsRepository.setSuggestionEnabled(enabled) }
     fun setSelectionToolbarEnabled(enabled: Boolean) = viewModelScope.launch {
         settingsRepository.setSelectionToolbarEnabled(enabled)
