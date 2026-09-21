@@ -198,9 +198,9 @@ internal fun SnippetMatchingOptionsCard(
                     ) {
                         items(UppercaseStyle.entries) { style ->
                             val label = when (style) {
-                                UppercaseStyle.CAPITALIZE -> "First letter"
-                                UppercaseStyle.CAPITALIZE_WORDS -> "Every word"
-                                UppercaseStyle.UPPERCASE -> "ALL CAPS"
+                                UppercaseStyle.CAPITALIZE -> uiText("First letter", "Primera letra")
+                                UppercaseStyle.CAPITALIZE_WORDS -> uiText("Every word", "Cada palabra")
+                                UppercaseStyle.UPPERCASE -> uiText("ALL CAPS", "TODO MAYÚSCULAS")
                             }
                             FilterChip(
                                 selected = uppercaseStyle == style,
