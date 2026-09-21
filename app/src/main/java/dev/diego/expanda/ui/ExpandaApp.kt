@@ -1741,6 +1741,7 @@ private fun SelectionToolbarQuickActionsSetting(
 private fun toolbarQuickActionLabel(id: String, language: DisplayLanguage): String {
     val es = usesSpanish(language)
     return when (id) {
+        SettingsRepository.SELECTION_CASE_GROUP_ID -> if (es) "Mayúsculas/minúsculas" else "Letter case"
         "uppercase" -> if (es) "Mayúsculas" else "Uppercase"
         "lowercase" -> if (es) "Minúsculas" else "Lowercase"
         "sentence_case" -> if (es) "Tipo oración" else "Sentence case"
@@ -1777,6 +1778,10 @@ private fun toolbarQuickActionLabel(id: String, language: DisplayLanguage): Stri
 private fun toolbarQuickActionDescription(id: String, language: DisplayLanguage): String {
     val es = usesSpanish(language)
     return when (id) {
+        SettingsRepository.SELECTION_CASE_GROUP_ID -> if (es)
+            "Agrupa MAYÚSCULAS, minúsculas, tipo oración y capitalización"
+        else
+            "Groups uppercase, lowercase, sentence case and capitalization"
         "find_replace" -> if (es) "Abre el panel Buscar/Reemplazar" else "Open the Find/Replace panel"
         "sort_lines" -> if (es) "Ordena alfabéticamente la selección" else "Sort the selection alphabetically"
         "remove_duplicate_lines" -> if (es) "Conserva una sola copia de cada línea" else "Keep one copy of each line"
