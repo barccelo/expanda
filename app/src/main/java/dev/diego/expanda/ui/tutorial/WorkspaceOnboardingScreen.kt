@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import dev.diego.expanda.ui.tr
 
 private enum class StorageChoice {
     InExpanda,
@@ -73,7 +74,7 @@ fun WorkspaceOnboardingScreen(
             verticalArrangement = Arrangement.Center,
         ) {
             Text(
-                if (folderLinked) "Folder linked" else "Where should snippets live?",
+                if (folderLinked) tr("Folder linked", "Carpeta vinculada") else tr("Where should snippets live?", "¿Dónde deberían guardarse los fragmentos?"),
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
             )
@@ -82,7 +83,7 @@ fun WorkspaceOnboardingScreen(
                 if (folderLinked) {
                     "$sourceFileCount .yml files · $matchCount Android matches"
                 } else {
-                    "Both options use plain-text .yml files in Espanso format. Pick what fits you best."
+                    tr("Both options use plain-text .yml files in Espanso format. Pick what fits you best.", "Ambas opciones usan archivos .yml de texto plano en formato Espanso. Elige la que te convenga.")
                 },
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -102,9 +103,9 @@ fun WorkspaceOnboardingScreen(
                             modifier = Modifier.size(28.dp),
                         )
                         Column {
-                            Text("Local folder linked", fontWeight = FontWeight.SemiBold)
+                            Text(tr("Local folder linked", "Carpeta local vinculada"), fontWeight = FontWeight.SemiBold)
                             Text(
-                                "Your .yml files live in the folder you chose.",
+                                tr("Your .yml files live in the folder you chose.", "Tus archivos .yml están en la carpeta que elegiste."),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -117,27 +118,27 @@ fun WorkspaceOnboardingScreen(
                     modifier = Modifier.fillMaxWidth().height(56.dp),
                     shape = RoundedCornerShape(18.dp),
                 ) {
-                    Text("Continue")
+                    Text(tr("Continue"))
                 }
                 Spacer(Modifier.height(12.dp))
                 OutlinedButton(onClick = onChooseFolder, modifier = Modifier.fillMaxWidth()) {
-                    Text("Choose a different folder")
+                    Text(tr("Choose a different folder", "Elegir otra carpeta"))
                 }
             } else {
                 SelectableStorageOption(
                     selected = storageChoice == StorageChoice.InExpanda,
                     onClick = { storageChoice = StorageChoice.InExpanda },
                     icon = Icons.Default.PhoneAndroid,
-                    title = "In Expanda",
-                    detail = "Simplest option. Snippets stay inside the app. You can link a folder later from Espanso source.",
+                    title = tr("In Expanda", "En Expanda"),
+                    detail = tr("Simplest option. Snippets stay inside the app. You can link a folder later from Espanso source.", "La opción más simple. Los fragmentos permanecen dentro de la app. Puedes vincular una carpeta más tarde desde Fuente Espanso."),
                 )
                 Spacer(Modifier.height(10.dp))
                 SelectableStorageOption(
                     selected = storageChoice == StorageChoice.LocalFolder,
                     onClick = { storageChoice = StorageChoice.LocalFolder },
                     icon = Icons.Default.Folder,
-                    title = "Local folder",
-                    detail = "Same files on disk. Sync with Espanso desktop or edit with other apps.",
+                    title = tr("Local folder", "Carpeta local"),
+                    detail = tr("Same files on disk. Sync with Espanso desktop or edit with other apps.", "Los mismos archivos en el dispositivo. Sincronízalos con Espanso de escritorio o edítalos con otras apps."),
                 )
                 Spacer(Modifier.height(20.dp))
                 Button(
@@ -151,7 +152,7 @@ fun WorkspaceOnboardingScreen(
                     shape = RoundedCornerShape(18.dp),
                 ) {
                     Text(
-                        if (storageChoice == StorageChoice.LocalFolder) "Choose folder" else "Continue",
+                        if (storageChoice == StorageChoice.LocalFolder) tr("Choose folder", "Elegir carpeta") else tr("Continue"),
                     )
                 }
             }
