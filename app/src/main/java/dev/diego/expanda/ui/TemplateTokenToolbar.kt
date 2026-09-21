@@ -972,10 +972,10 @@ internal fun TemplateVariableEditorDialog(
                             },
                             modifier = Modifier.fillMaxWidth(),
                             label = {
-                                Text("Text")
+                                Text(tr("Text", "Texto"))
                             },
                             placeholder = {
-                                Text("Text to insert")
+                                Text(tr("Text to insert", "Texto para insertar"))
                             },
                             minLines = 3,
                         )
@@ -1068,7 +1068,7 @@ internal fun TemplateVariableEditorDialog(
 
                                 DropdownMenuItem(
                                     text = {
-                                        Text("Custom format...")
+                                        Text(tr("Custom format...", "Formato personalizado..."))
                                     },
                                     onClick = {
                                         customDateFormat = true
@@ -1086,7 +1086,7 @@ internal fun TemplateVariableEditorDialog(
                                 },
                                 modifier = Modifier.fillMaxWidth(),
                                 label = {
-                                    Text("Custom format")
+                                    Text(tr("Custom format", "Formato personalizado"))
                                 },
                                 supportingText = {
                                     Text(
@@ -1113,7 +1113,7 @@ internal fun TemplateVariableEditorDialog(
                                         offsetAmount = "-1"
                                     },
                                     label = {
-                                        Text("Yesterday")
+                                        Text(tr("Yesterday", "Ayer"))
                                     },
                                 )
                             }
@@ -1126,7 +1126,7 @@ internal fun TemplateVariableEditorDialog(
                                         offsetAmount = "0"
                                     },
                                     label = {
-                                        Text("Today")
+                                        Text(tr("Today", "Hoy"))
                                     },
                                 )
                             }
@@ -1139,7 +1139,7 @@ internal fun TemplateVariableEditorDialog(
                                         offsetAmount = "1"
                                     },
                                     label = {
-                                        Text("Tomorrow")
+                                        Text(tr("Tomorrow", "Mañana"))
                                     },
                                 )
                             }
@@ -1152,13 +1152,13 @@ internal fun TemplateVariableEditorDialog(
                             },
                             modifier = Modifier.fillMaxWidth(),
                             label = {
-                                Text("Custom offset")
+                                Text(tr("Custom offset", "Desplazamiento personalizado"))
                             },
                             isError = !offsetValid,
                             supportingText =
                                 if (!offsetValid) {
                                     {
-                                        Text("Enter a valid number.")
+                                        Text(tr("Enter a valid number.", "Introduce un número válido."))
                                     }
                                 } else {
                                     null
@@ -1212,7 +1212,7 @@ internal fun TemplateVariableEditorDialog(
                                 },
                                 modifier = Modifier.fillMaxWidth(),
                                 label = {
-                                    Text("Locale")
+                                    Text(tr("Locale", "Configuración regional"))
                                 },
                                 supportingText = {
                                     Text(
@@ -1229,7 +1229,7 @@ internal fun TemplateVariableEditorDialog(
                                 },
                                 modifier = Modifier.fillMaxWidth(),
                                 label = {
-                                    Text("Timezone")
+                                    Text(tr("Timezone", "Zona horaria"))
                                 },
                                 supportingText = {
                                     Text(
@@ -1266,7 +1266,7 @@ internal fun TemplateVariableEditorDialog(
                                     randomFromList = false
                                 },
                                 label = {
-                                    Text("Random text")
+                                    Text(tr("Random text", "Texto aleatorio"))
                                 },
                             )
 
@@ -1276,7 +1276,7 @@ internal fun TemplateVariableEditorDialog(
                                     randomFromList = true
                                 },
                                 label = {
-                                    Text("Random choice")
+                                    Text(tr("Random choice", "Elección aleatoria"))
                                 },
                             )
                         }
@@ -1297,7 +1297,7 @@ internal fun TemplateVariableEditorDialog(
                                 },
                                 modifier = Modifier.fillMaxWidth(),
                                 label = {
-                                    Text("Length")
+                                    Text(tr("Length", "Longitud"))
                                 },
                                 singleLine = true,
                             )
@@ -1354,7 +1354,7 @@ internal fun TemplateVariableEditorDialog(
                                     },
                                     modifier = Modifier.fillMaxWidth(),
                                     label = {
-                                        Text("Characters")
+                                        Text(tr("Characters", "Caracteres"))
                                     },
                                 )
                             }
@@ -1398,7 +1398,7 @@ internal fun TemplateVariableEditorDialog(
                             },
                             modifier = Modifier.fillMaxWidth(),
                             label = {
-                                Text("Layout")
+                                Text(tr("Layout", "Diseño"))
                             },
                             supportingText = {
                                 Text(
@@ -1450,7 +1450,7 @@ internal fun TemplateVariableEditorDialog(
                                 },
                                 modifier = Modifier.weight(1f),
                                 label = {
-                                    Text("Add field")
+                                    Text(tr("Add field", "Agregar campo"))
                                 },
                                 placeholder = {
                                     Text("recipient")
@@ -1477,7 +1477,7 @@ internal fun TemplateVariableEditorDialog(
                                     addFormField()
                                 },
                             ) {
-                                Text("Add")
+                                Text(tr("Add", "Agregar"))
                             }
                         }
 
@@ -1678,10 +1678,10 @@ internal fun TemplateVariableEditorDialog(
                             },
                             modifier = Modifier.fillMaxWidth(),
                             label = {
-                                Text("Trigger")
+                                Text(tr("Trigger", "Disparador"))
                             },
                             supportingText = {
-                                Text("Choose above, or enter a trigger manually.")
+                                Text(tr("Choose above, or enter a trigger manually.", "Elige arriba o escribe un disparador manualmente."))
                             },
                             singleLine = true,
                         )
@@ -1763,7 +1763,7 @@ internal fun TemplateVariableEditorDialog(
                     onClick =
                         onDismiss,
                 ) {
-                    Text("Cancel")
+                    Text(tr("Cancel", "Cancelar"))
                 }
             }
         },
@@ -1780,7 +1780,7 @@ private fun VariablesDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Variables") },
+        title = { Text(tr("Variables", "Variables")) },
         text = {
             Column(
                 Modifier
@@ -1850,7 +1850,7 @@ private fun VariablesDialog(
                 onClick =
                     onDismiss,
             ) {
-                Text("Close")
+                Text(tr("Close", "Cerrar"))
             }
         },
     )
@@ -1877,7 +1877,7 @@ private fun VariableRow(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 TextButton(onClick = onInsert) {
-                    Text("Insert")
+                    Text(tr("Insert", "Insertar"))
                 }
 
                 IconButton(onClick = onEdit) {
@@ -1923,7 +1923,7 @@ private fun VariableAdvancedSection(
                 contentDescription = null,
             )
 
-            Text("Advanced")
+            Text(tr("Advanced", "Avanzado"))
         }
 
         if (expanded) {
@@ -1932,7 +1932,7 @@ private fun VariableAdvancedSection(
                 onValueChange = onNameChanged,
                 modifier = Modifier.fillMaxWidth(),
                 label = {
-                    Text("Variable name (optional)")
+                    Text(tr("Variable name (optional)", "Nombre de variable (opcional)"))
                 },
                 supportingText = when {
                     !explicitNameValid -> {
@@ -1945,7 +1945,7 @@ private fun VariableAdvancedSection(
 
                     duplicate -> {
                         {
-                            Text("That name is already used.")
+                            Text(tr("That name is already used.", "Ese nombre ya está en uso."))
                         }
                     }
 
@@ -1960,7 +1960,7 @@ private fun VariableAdvancedSection(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("Available in every snippet")
+                    Text(tr("Available in every snippet", "Disponible en todos los fragmentos"))
                     Text(
                         "Store this variable globally.",
                         style = MaterialTheme.typography.bodySmall,
@@ -1980,7 +1980,7 @@ private fun VariableAdvancedSection(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f)) {
-                        Text("Expand variables inside this value")
+                        Text(tr("Expand variables inside this value", "Expandir variables dentro de este valor"))
                         Text(
                             "Resolve {{variables}} used by this variable.",
                             style = MaterialTheme.typography.bodySmall,
@@ -2288,7 +2288,7 @@ private fun ChoiceEditor(
                             },
                             modifier = Modifier.weight(1f),
                             label = {
-                                Text("Option ${index + 1}")
+                                Text(tr("Option ${index + 1}", "Opción ${index + 1}"))
                             },
                             singleLine = true,
                         )
@@ -2371,7 +2371,7 @@ private fun ChoiceEditor(
                             },
                             modifier = Modifier.fillMaxWidth(),
                             label = {
-                                Text("Inserted value")
+                                Text(tr("Inserted value", "Valor insertado"))
                             },
                             singleLine = true,
                         )
@@ -2387,7 +2387,7 @@ private fun ChoiceEditor(
             },
             modifier = Modifier.fillMaxWidth(),
             label = {
-                Text("Add option")
+                Text(tr("Add option", "Agregar opción"))
             },
             trailingIcon = {
                 IconButton(
@@ -3060,7 +3060,7 @@ private fun FormFieldTypePicker(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("Type: ${selected.label}")
+                Text(tr("Type: ${selected.label}", "Tipo: ${selected.label}"))
                 Icon(Icons.Default.ExpandMore, contentDescription = null)
             }
         }
@@ -3141,7 +3141,7 @@ private fun FormFieldDefaultEditor(
                 value = value,
                 onValueChange = onValueChange,
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Default text (optional)") },
+                label = { Text(tr("Default text (optional)", "Texto predeterminado (opcional)")) },
                 minLines = 2,
             )
         }
@@ -3151,7 +3151,7 @@ private fun FormFieldDefaultEditor(
                 value = value,
                 onValueChange = onValueChange,
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Default text (optional)") },
+                label = { Text(tr("Default text (optional)", "Texto predeterminado (opcional)")) },
                 singleLine = true,
             )
         }
