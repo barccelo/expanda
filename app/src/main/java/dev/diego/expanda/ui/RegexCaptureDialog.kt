@@ -49,7 +49,7 @@ internal fun regexCaptureCatalog(pattern: String): RegexCaptureCatalog {
     val named = sources.map(CaptureSource::name).toCollection(linkedSetOf())
     val normalized = PYTHON_NAMED_CAPTURE.replace(pattern) { "(?<${it.groupValues[1]}>" }
     runCatching { Pattern.compile(normalized) }.getOrElse {
-        return RegexCaptureCatalog(emptyList(), named, "Fix the regex before adding a capture.")
+        return RegexCaptureCatalog(emptyList(), named, uiText("Fix the regex before adding a capture.", "Corrige la expresión regular antes de agregar una captura."))
     }
     return RegexCaptureCatalog(
         options = sources
@@ -57,7 +57,7 @@ internal fun regexCaptureCatalog(pattern: String): RegexCaptureCatalog {
             .map { source ->
                 RegexCaptureOption(
                     reference = source.name,
-                    label = tr("Named · ${source.name}", "Con nombre · ${source.name}"),
+                    label = uiText("Named · ${source.name}", "Con nombre · ${source.name}"),
                     sourceRange = source.range,
                     source = pattern.substring(source.range),
                 )
@@ -87,7 +87,7 @@ internal fun RegexCaptureEditorDialog(
         text = {
             Column(Modifier.fillMaxWidth().heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
                 Text(
-                    "Parentheses capture the changing parts of a regex. Choose which part to reuse.",
+                    tr("Parentheses capture the changing parts of a regex. Choose which part to reuse.", "Los paréntesis capturan las partes variables de una expresión regular. Elige qué parte reutilizar."),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(12.dp))
@@ -97,7 +97,7 @@ internal fun RegexCaptureEditorDialog(
                     color = MaterialTheme.colorScheme.surfaceContainer,
                 ) {
                     Column(Modifier.padding(12.dp)) {
-                        Text(tr("Trigger preview", "Vista previa del disparador"),, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                        Text(tr("Trigger preview", "Vista previa del disparador"), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(6.dp))
                         Text(
                             highlightedRegexPattern(
