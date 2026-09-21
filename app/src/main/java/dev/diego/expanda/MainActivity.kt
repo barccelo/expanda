@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -38,6 +39,8 @@ import dev.diego.expanda.service.AccessibilityStatus
 import dev.diego.expanda.ui.ExpandaApp
 import dev.diego.expanda.ui.AccessibilitySetupHelpDialog
 import dev.diego.expanda.ui.ImportKind
+import dev.diego.expanda.ui.LocalDisplayLanguage
+import dev.diego.expanda.ui.tr
 import dev.diego.expanda.ui.MainViewModel
 import dev.diego.expanda.ui.PreparedImport
 import dev.diego.expanda.ui.theme.ExpandaTheme
@@ -173,6 +176,7 @@ class MainActivity : ComponentActivity() {
         }
 
         ExpandaTheme(state.settings) {
+            CompositionLocalProvider(LocalDisplayLanguage provides state.settings.displayLanguage) {
                 ExpandaApp(
                 state = state,
                 serviceEnabled = serviceEnabled.value,
@@ -230,10 +234,10 @@ class MainActivity : ComponentActivity() {
                 if (chooseEspansoExport) {
                     AlertDialog(
                         onDismissRequest = { chooseEspansoExport = false },
-                        title = { Text("Export Espanso source") },
+                        title = { Text(tr("Export Espanso source", "Exportar fuente de Espanso")) },
                         text = {
                             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("Choose an exact source file. Combined export is portable but cannot preserve comments from several files.")
+                                Text(tr("Choose an exact source file. Combined export is portable but cannot preserve comments from several files.", "Elige un archivo fuente exacto. La exportación combinada es portátil, pero no puede conservar comentarios de varios archivos."))
                                 espansoSourceFiles.forEach { file ->
                                     TextButton(
                                         onClick = {
@@ -249,12 +253,12 @@ class MainActivity : ComponentActivity() {
                                         exactEspansoExport = null
                                         exportLauncher.launch("expanda-combined.yml")
                                     },
-                                ) { Text("Combined file") }
+                                ) { Text(tr("Combined file", "Archivo combinado")) }
                             }
                         },
                         confirmButton = {},
                         dismissButton = {
-                            TextButton(onClick = { chooseEspansoExport = false }) { Text("Cancel") }
+                            TextButton(onClick = { chooseEspansoExport = false }) { Text(tr("Cancel")) }
                         },
                     )
                 }
@@ -298,6 +302,7 @@ class MainActivity : ComponentActivity() {
                         },
                     )
                 }
+            }
         }
     }
 
@@ -318,13 +323,13 @@ class MainActivity : ComponentActivity() {
                         Text("${prepared.globalVariables.size} global variables")
                     }
                     if (prepared.kind == ImportKind.ESPANSO_FOLDER && prepared.sourceFiles.isEmpty()) {
-                        Text("No YAML files were found. This folder will become the source; existing Expanda YAML will be copied into it.")
+                        Text(tr("No YAML files were found. This folder will become the source; existing Expanda YAML will be copied into it.", "No se encontraron archivos YAML. Esta carpeta se convertirá en la fuente; el YAML existente de Expanda se copiará allí."))
                     } else if (prepared.kind == ImportKind.ESPANSO_FOLDER) {
                         Text("${prepared.sourceFiles.size} source files found. Expanda will read and edit them in this folder.")
                     } else if (prepared.replacesExistingData) {
-                        Text("This restores snippets, settings, exclusions and actions. Current restorable data will be replaced.")
+                        Text(tr("This restores snippets, settings, exclusions and actions. Current restorable data will be replaced.", "Esto restaura fragmentos, ajustes, exclusiones y acciones. Los datos restaurables actuales serán reemplazados."))
                     } else {
-                        Text("Matches with the same primary trigger will be updated. Other matches stay unchanged.")
+                        Text(tr("Matches with the same primary trigger will be updated. Other matches stay unchanged.", "Las coincidencias con el mismo disparador principal se actualizarán. Las demás permanecerán sin cambios."))
                     }
                     if (prepared.issues.isNotEmpty()) {
                         Text("${prepared.issues.size} compatibility warnings")
@@ -345,9 +350,9 @@ class MainActivity : ComponentActivity() {
             dismissButton = {
                 Row {
                     if (onImportSnippetsOnly != null) {
-                        TextButton(onClick = onImportSnippetsOnly) { Text("Snippets only") }
+                        TextButton(onClick = onImportSnippetsOnly) { Text(tr("Snippets only", "Sólo fragmentos")) }
                     }
-                    TextButton(onClick = onDismiss) { Text("Cancel") }
+                    TextButton(onClick = onDismiss) { Text(tr("Cancel")) }
                 }
             },
         )
