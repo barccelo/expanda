@@ -1221,7 +1221,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         val ui = OverlayViews(this, resolveNativeTheme(this, settings))
         val text = state.selectedText
         val words = Regex("\\S+").findAll(text).count()
-        val lines = if (text.isEmpty()) 0 else text.split(Regex("\\R"), -1).size
+        val lines = if (text.isEmpty()) 0 else text.split(Regex("\\R")).size
         val withoutSpaces = text.count { !it.isWhitespace() }
         val details = buildString {
             appendLine("${selectionUiText(settings, "characters")}: ${text.length}")
@@ -3853,41 +3853,78 @@ class ExpansionAccessibilityService : AccessibilityService() {
             val description: String,
         )
 
+        private const val SELECTION_UNDO_ID = "__selection_undo__"
         private const val SELECTION_TRANSFORMS_MENU_ID = "__selection_transforms__"
         private const val SELECTION_MORE_MENU_ID = "__selection_more__"
+        private const val SELECTION_FIND_REPLACE_ID = "find_replace"
+        private const val SELECTION_TEXT_COUNTER_ID = "text_counter"
+        private const val SELECTION_REPEAT_TEXT_ID = "repeat_text"
+        private const val SELECTION_PREFIX_SUFFIX_ID = "prefix_suffix"
+        private const val MAX_SELECTION_UNDO_HISTORY = 10
 
-        private val SELECTION_TOOLBAR_ACTIONS = listOf(
-            SelectionToolbarAction("uppercase", "ABC", "Uppercase selection"),
-            SelectionToolbarAction("lowercase", "abc", "Lowercase selection"),
-            SelectionToolbarAction("sentence_case", "Abc.", "Sentence case"),
-            SelectionToolbarAction("title_case", "Aa", "Capitalize words"),
-            SelectionToolbarAction(SELECTION_TRANSFORMS_MENU_ID, "↔", "More text transformations"),
-            SelectionToolbarAction(SELECTION_MORE_MENU_ID, "⋯", "More selection actions"),
+        private val SELECTION_INTERACTIVE_ACTION_IDS = setOf(
+            SELECTION_FIND_REPLACE_ID,
+            SELECTION_TEXT_COUNTER_ID,
+            SELECTION_REPEAT_TEXT_ID,
+            SELECTION_PREFIX_SUFFIX_ID,
         )
 
-        private val SELECTION_TRANSFORM_ACTION_IDS = listOf(
+        private val SELECTION_CONTEXT_ACTION_IDS = listOf(
+            SELECTION_FIND_REPLACE_ID,
             "remove_diacritics",
             "space_underscore",
             "space_dash",
             "underscore_space",
             "dash_space",
             "trim_spaces",
+            "remove_all_spaces",
             "delete_blank_lines",
-        )
-
-        private val SELECTION_MORE_ACTION_IDS = listOf(
+            "remove_duplicate_lines",
+            "remove_duplicate_words",
+            "remove_line_breaks",
+            "sort_lines",
+            "number_lines",
+            "reverse_text",
+            "reverse_lines",
+            "reverse_words",
             "math_replace",
             "math_append",
             "number_space",
             "number_period",
             "number_comma",
-            "uuid",
         )
 
-        private val SELECTION_ALL_ACTION_IDS =
-            SELECTION_TOOLBAR_ACTIONS.mapNotNull { action ->
-                action.id.takeUnless { it == SELECTION_TRANSFORMS_MENU_ID || it == SELECTION_MORE_MENU_ID }
-            } + SELECTION_TRANSFORM_ACTION_IDS + SELECTION_MORE_ACTION_IDS
+        private val SELECTION_CATALOG_ACTION_IDS = listOf(
+            "uppercase",
+            "lowercase",
+            "sentence_case",
+            "title_case",
+            SELECTION_FIND_REPLACE_ID,
+            "sort_lines",
+            SELECTION_TEXT_COUNTER_ID,
+            SELECTION_REPEAT_TEXT_ID,
+            "trim_spaces",
+            "remove_all_spaces",
+            "delete_blank_lines",
+            "remove_duplicate_lines",
+            "remove_duplicate_words",
+            "remove_line_breaks",
+            SELECTION_PREFIX_SUFFIX_ID,
+            "number_lines",
+            "reverse_text",
+            "reverse_lines",
+            "reverse_words",
+            "remove_diacritics",
+            "space_underscore",
+            "space_dash",
+            "underscore_space",
+            "dash_space",
+            "math_replace",
+            "math_append",
+            "number_space",
+            "number_period",
+            "number_comma",
+        )
 
         private const val MAX_SUGGESTION_LENGTH = 32
         private const val PREVIEW_LENGTH = 220
