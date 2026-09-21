@@ -9,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -115,6 +116,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.input.pointer.pointerInput
@@ -1478,15 +1480,19 @@ private fun SelectionToolbarQuickActionsSetting(
     language: DisplayLanguage,
     onChanged: (List<String>) -> Unit,
 ) {
+    var workingOrder by remember(actionIds) { mutableStateOf(actionIds) }
+    val reorderThresholdPx = with(LocalDensity.current) { 44.dp.toPx() }
+    val es = usesSpanish(language)
+
     Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
         Column(Modifier.padding(vertical = 8.dp)) {
             Text(
-                if (language == DisplayLanguage.SPANISH) "Accesos rápidos" else "Quick actions",
+                if (es) "Accesos rápidos" else "Quick actions",
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
             )
             Text(
-                if (language == DisplayLanguage.SPANISH)
+                if (es)
                     "Elige hasta ${SettingsRepository.MAX_SELECTION_TOOLBAR_QUICK_ACTIONS}. ↶, ↔ y ⋯ permanecen siempre."
                 else
                     "Choose up to ${SettingsRepository.MAX_SELECTION_TOOLBAR_QUICK_ACTIONS}. ↶, ↔ and ⋯ always stay visible.",
@@ -1494,10 +1500,91 @@ private fun SelectionToolbarQuickActionsSetting(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
             )
+
+            if (workingOrder.isNotEmpty()) {
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                Text(
+                    if (es) "Orden en la barra" else "Toolbar order",
+                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+                Text(
+                    if (es) "Mantén pulsado y arrastra para reordenar." else "Long-press and drag to reorder.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
+                )
+                workingOrder.forEach { id ->
+                    var dragDistance by remember(id) { mutableFloatStateOf(0f) }
+                    ListItem(
+                        leadingContent = {
+                            Text(
+                                "≡",
+                                style = MaterialTheme.typography.titleLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        },
+                        headlineContent = { Text(toolbarQuickActionLabel(id, language)) },
+                        supportingContent = {
+                            Text(
+                                if (es) "Arrastra para cambiar la posición"
+                                else "Drag to change position",
+                            )
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .pointerInput(id, workingOrder.size) {
+                                detectDragGesturesAfterLongPress(
+                                    onDragStart = { dragDistance = 0f },
+                                    onDragCancel = {
+                                        dragDistance = 0f
+                                        workingOrder = actionIds
+                                    },
+                                    onDragEnd = {
+                                        dragDistance = 0f
+                                        onChanged(workingOrder)
+                                    },
+                                    onDrag = { _, dragAmount ->
+                                        dragDistance += dragAmount.y
+                                        val index = workingOrder.indexOf(id)
+                                        when {
+                                            dragDistance > reorderThresholdPx &&
+                                                index >= 0 &&
+                                                index < workingOrder.lastIndex -> {
+                                                val reordered = workingOrder.toMutableList()
+                                                val next = reordered[index + 1]
+                                                reordered[index + 1] = id
+                                                reordered[index] = next
+                                                workingOrder = reordered
+                                                dragDistance -= reorderThresholdPx
+                                            }
+
+                                            dragDistance < -reorderThresholdPx && index > 0 -> {
+                                                val reordered = workingOrder.toMutableList()
+                                                val previous = reordered[index - 1]
+                                                reordered[index - 1] = id
+                                                reordered[index] = previous
+                                                workingOrder = reordered
+                                                dragDistance += reorderThresholdPx
+                                            }
+                                        }
+                                    },
+                                )
+                            },
+                    )
+                }
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                Text(
+                    if (es) "Herramientas disponibles" else "Available tools",
+                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
+
             SettingsRepository.AVAILABLE_SELECTION_TOOLBAR_QUICK_ACTIONS.forEach { id ->
-                val checked = id in actionIds
+                val checked = id in workingOrder
                 val canEnable = checked ||
-                    actionIds.size < SettingsRepository.MAX_SELECTION_TOOLBAR_QUICK_ACTIONS
+                    workingOrder.size < SettingsRepository.MAX_SELECTION_TOOLBAR_QUICK_ACTIONS
                 ListItem(
                     headlineContent = { Text(toolbarQuickActionLabel(id, language)) },
                     supportingContent = {
@@ -1509,11 +1596,12 @@ private fun SelectionToolbarQuickActionsSetting(
                             enabled = canEnable,
                             onCheckedChange = { enabled ->
                                 val updated = if (enabled) {
-                                    (actionIds + id).distinct()
+                                    (workingOrder + id).distinct()
                                         .take(SettingsRepository.MAX_SELECTION_TOOLBAR_QUICK_ACTIONS)
                                 } else {
-                                    actionIds.filterNot { it == id }
+                                    workingOrder.filterNot { it == id }
                                 }
+                                workingOrder = updated
                                 onChanged(updated)
                             },
                         )
