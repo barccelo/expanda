@@ -7,6 +7,15 @@ import java.util.Locale
 
 val LocalDisplayLanguage = staticCompositionLocalOf { DisplayLanguage.SYSTEM }
 
+object UiDisplayLanguage {
+    @Volatile
+    var current: DisplayLanguage = DisplayLanguage.SYSTEM
+}
+
+fun setUiDisplayLanguage(language: DisplayLanguage) {
+    UiDisplayLanguage.current = language
+}
+
 fun usesSpanish(language: DisplayLanguage): Boolean = when (language) {
     DisplayLanguage.SPANISH -> true
     DisplayLanguage.ENGLISH -> false
@@ -18,11 +27,11 @@ fun translate(language: DisplayLanguage, english: String, spanish: String): Stri
 
 @Composable
 fun tr(english: String, spanish: String): String =
-    translate(LocalDisplayLanguage.current, english, spanish)
+    translate(UiDisplayLanguage.current, english, spanish)
 
 @Composable
 fun tr(english: String): String {
-    if (!usesSpanish(LocalDisplayLanguage.current)) return english
+    if (!usesSpanish(UiDisplayLanguage.current)) return english
     return SPANISH[english] ?: english
 }
 
