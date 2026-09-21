@@ -1150,11 +1150,11 @@ private fun SettingsScreen(
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(
                                 onClick = {
-                                    folderStatus = tr("Syncing…", "Sincronizando…")
+                                    folderStatus = uiText("Syncing…", "Sincronizando…")
                                     viewModel.syncEspansoFolder { result ->
                                         folderStatus = result.fold(
-                                            onSuccess = { tr("Synced ${it.imported} matches", "Se sincronizaron ${it.imported} coincidencias") },
-                                            onFailure = { tr("Sync failed: ${it.message}", "Error de sincronización: ${it.message}") },
+                                            onSuccess = { uiText("Synced ${it.imported} matches", "Se sincronizaron ${it.imported} coincidencias") },
+                                            onFailure = { uiText("Sync failed: ${it.message}", "Error de sincronización: ${it.message}") },
                                         )
                                     }
                                 },
@@ -1166,7 +1166,7 @@ private fun SettingsScreen(
                             TextButton(
                                 onClick = {
                                     viewModel.unlinkEspansoFolder()
-                                    folderStatus = tr("Folder unlinked; its files were not deleted.", "Carpeta desvinculada; sus archivos no fueron eliminados.")
+                                    folderStatus = uiText("Folder unlinked; its files were not deleted.", "Carpeta desvinculada; sus archivos no fueron eliminados.")
                                 },
                                 modifier = Modifier.weight(1f),
                             ) {
