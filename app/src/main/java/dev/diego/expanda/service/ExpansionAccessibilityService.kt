@@ -51,6 +51,7 @@ import dev.diego.expanda.engine.ActionEngine
 import dev.diego.expanda.engine.ActionOutcome
 import dev.diego.expanda.engine.ActionRequest
 import dev.diego.expanda.engine.SelectedTextOutcome
+import dev.diego.expanda.engine.SmartCursorCase
 import dev.diego.expanda.engine.AppliedExpansion
 import dev.diego.expanda.engine.ExpansionEngine
 import dev.diego.expanda.engine.ExpansionMatch
@@ -131,6 +132,14 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private var suppressSelectionToolbarUntil = 0L
     private var programmaticSelectionUntil = 0L
     private val selectionUndoHistory = ArrayDeque<SelectionUndoEntry>()
+    private var pendingSmartCursorCase: PendingSmartCursorCase? = null
+
+    private data class PendingSmartCursorCase(
+        val anchor: SuggestionAnchor,
+        val baselineText: String,
+        val cursor: Int,
+        val createdAt: Long,
+    )
 
     private data class SelectionToolbarState(
         val anchor: SuggestionAnchor,
@@ -277,6 +286,15 @@ class ExpansionAccessibilityService : AccessibilityService() {
             )
             val selectionStart = node.textSelectionStart.takeIf { it in 0..text.length } ?: cursor
             val activeAnchor = createSuggestionAnchor(node, packageName)
+            if (applyPendingSmartCursorCase(
+                    node = node,
+                    activeAnchor = activeAnchor,
+                    text = text,
+                    settings = settings,
+                )
+            ) {
+                return
+            }
             selectionUndoHistory.peekLast()?.let { undo ->
                 val sameField = SuggestionAnchorPolicy.shouldKeep(undo.anchor, activeAnchor)
                 val internalState = text == undo.afterText ||
@@ -409,8 +427,64 @@ class ExpansionAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun applyPendingSmartCursorCase(
+        node: AccessibilityNodeInfo,
+        activeAnchor: SuggestionAnchor,
+        text: String,
+        settings: AppSettings,
+    ): Boolean {
+        val pending = pendingSmartCursorCase ?: return false
+        if (!settings.smartCursorCaseEnabled ||
+            SystemClock.elapsedRealtime() - pending.createdAt > SMART_CURSOR_CASE_TIMEOUT_MS ||
+            !SuggestionAnchorPolicy.shouldKeep(pending.anchor, activeAnchor)
+        ) {
+            pendingSmartCursorCase = null
+            return false
+        }
+        if (text == pending.baselineText) return false
+
+        val prefix = pending.baselineText.substring(0, pending.cursor)
+        val suffix = pending.baselineText.substring(pending.cursor)
+        val validInsertion = text.length >= pending.baselineText.length &&
+            text.startsWith(prefix) &&
+            text.endsWith(suffix)
+        if (!validInsertion) {
+            pendingSmartCursorCase = null
+            return false
+        }
+
+        val correction = SmartCursorCase.lowercaseFirstInsertedLetter(
+            baselineText = pending.baselineText,
+            cursor = pending.cursor,
+            currentText = text,
+        )
+        if (correction == null) return false
+
+        pendingSmartCursorCase = null
+        if (correction.text == text) return false
+
+        reversibleExpansion = null
+        suppressedExpansion = null
+        hideSuggestions()
+        if (setFieldText(
+                node = node,
+                originalText = text,
+                newText = correction.text,
+                selectionStart = correction.cursor,
+                selectionEnd = correction.cursor,
+                settings = settings,
+            )
+        ) {
+            lastAppliedText = correction.text
+            lastAppliedAt = SystemClock.elapsedRealtime()
+            return true
+        }
+        return false
+    }
+
     override fun onInterrupt() {
         clearExpansionUndo()
+        pendingSmartCursorCase = null
         hideSuggestions()
         hideFormOverlay()
         hideSelectionToolbar()
@@ -418,6 +492,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         clearExpansionUndo()
+        pendingSmartCursorCase = null
         hideSuggestions()
         hideFormOverlay()
         hideSelectionToolbar()
@@ -1725,8 +1800,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
         val restoredText = originalText.replaceRange(
             match.replaceFrom, match.replaceTo, match.matchedText,
         )
+        val expansionAnchor = createSuggestionAnchor(node, packageName)
         reversibleExpansion = ReversibleExpansion(
-            anchor = createSuggestionAnchor(node, packageName),
+            anchor = expansionAnchor,
             appliedText = finalText,
             appliedCursor = finalCursor,
             restoredText = restoredText,
@@ -1734,6 +1810,21 @@ class ExpansionAccessibilityService : AccessibilityService() {
             matchId = match.match.id,
             matchedText = match.matchedText,
         )
+        pendingSmartCursorCase = if (
+            settings.smartCursorCaseEnabled &&
+            rendered.cursorOffset < rendered.text.length &&
+            SmartCursorCase.classify(originalText.substring(0, match.replaceFrom)) ==
+                SmartCursorCase.Context.CONTINUATION
+        ) {
+            PendingSmartCursorCase(
+                anchor = expansionAnchor,
+                baselineText = finalText,
+                cursor = finalCursor,
+                createdAt = SystemClock.elapsedRealtime(),
+            )
+        } else {
+            null
+        }
         suppressedExpansion = null
         lastAppliedText = finalText
         lastAppliedAt = SystemClock.elapsedRealtime()
@@ -3891,6 +3982,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         private const val SELECTION_TOOLBAR_STABILITY_DELAY_MS = 280L
         private const val SELECTION_TOOLBAR_DELETE_SUPPRESSION_MS = 420L
         private const val PROGRAMMATIC_SELECTION_GRACE_MS = 900L
+        private const val SMART_CURSOR_CASE_TIMEOUT_MS = 15_000L
         private const val CLIPBOARD_RESTORE_DELAY_MS = 250L
         /** Two frames at 60 Hz — enough for Blink to finish applying ACTION_SET_TEXT. */
         private const val WEBVIEW_SELECTION_RETRY_DELAY_MS = 32L
