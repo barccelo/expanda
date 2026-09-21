@@ -40,7 +40,7 @@ data class AppSettings(
     val hapticFeedback: Boolean = false,
     val pasteFallbackEnabled: Boolean = false,
     /** One-shot lowercase correction after snippets that place $|$ inside surrounding punctuation. */
-    val smartCursorCaseEnabled: Boolean = false,
+    val smartCursorCaseEnabled: Boolean = true,
     val suggestionEnabled: Boolean = true,
     /** Show Expanda's compact toolbar when editable text is selected in another app. */
     val selectionToolbarEnabled: Boolean = true,
@@ -107,7 +107,7 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
             statisticsEnabled = values[Keys.STATISTICS] ?: true,
             hapticFeedback = values[Keys.HAPTIC] ?: false,
             pasteFallbackEnabled = values[Keys.PASTE_FALLBACK] ?: false,
-            smartCursorCaseEnabled = values[Keys.SMART_CURSOR_CASE] ?: false,
+            smartCursorCaseEnabled = values[Keys.SMART_CURSOR_CASE] ?: true,
             suggestionEnabled = values[Keys.SUGGESTIONS] ?: true,
             selectionToolbarEnabled = values[Keys.SELECTION_TOOLBAR] ?: true,
             selectionToolbarPositionX = values[Keys.SELECTION_TOOLBAR_POSITION_X] ?: -1,
