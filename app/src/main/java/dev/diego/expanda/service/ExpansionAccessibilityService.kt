@@ -704,7 +704,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
             val enabled = when (action.id) {
                 SELECTION_UNDO_ID -> canUndoSelection(anchor, fieldText)
                 SELECTION_TRANSFORMS_MENU_ID, SELECTION_MORE_MENU_ID -> true
-                SELECTION_FIND_REPLACE_ID -> selectedText.isNotEmpty()
+                in SELECTION_INTERACTIVE_ACTION_IDS -> selectedText.isNotEmpty()
                 else -> actionEngine.processSelectedText(action.id, selectedText)
                     ?.let { it != selectedText } == true
             }
@@ -731,7 +731,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                                 actionIds = SELECTION_CATALOG_ACTION_IDS,
                                 showAll = true,
                             )
-                            SELECTION_FIND_REPLACE_ID -> showFindReplaceOverlay()
+                            in SELECTION_INTERACTIVE_ACTION_IDS -> runSelectionTool(action.id)
                             else -> applySelectionToolbarAction(action.id)
                         }
                     }
@@ -811,13 +811,14 @@ class ExpansionAccessibilityService : AccessibilityService() {
 
     private fun buildSelectionToolbarActions(settings: AppSettings): List<SelectionToolbarAction> {
         val quick = settings.selectionToolbarQuickActionIds.mapNotNull { id ->
-            when (id) {
-                SELECTION_FIND_REPLACE_ID -> SelectionToolbarAction(
-                    id,
-                    "⌕",
-                    selectionUiText(settings, "find_replace"),
+            if (id in SELECTION_INTERACTIVE_ACTION_IDS) {
+                SelectionToolbarAction(
+                    id = id,
+                    label = selectionQuickLabel(id),
+                    description = selectionActionTitle(id, settings, ""),
                 )
-                else -> ActionEngine.definitions.firstOrNull { it.id == id }?.let { definition ->
+            } else {
+                ActionEngine.definitions.firstOrNull { it.id == id }?.let { definition ->
                     SelectionToolbarAction(
                         id = id,
                         label = selectionQuickLabel(id),
@@ -856,6 +857,26 @@ class ExpansionAccessibilityService : AccessibilityService() {
         "remove_all_spaces" -> "␠×"
         "reverse_text" -> "↤"
         "number_lines" -> "1."
+        SELECTION_FIND_REPLACE_ID -> "⌕"
+        SELECTION_TEXT_COUNTER_ID -> "#"
+        SELECTION_REPEAT_TEXT_ID -> "×"
+        SELECTION_PREFIX_SUFFIX_ID -> "P/S"
+        "delete_blank_lines" -> "∅"
+        "remove_duplicate_words" -> "W≠"
+        "remove_line_breaks" -> "↵×"
+        "reverse_lines" -> "L↕"
+        "reverse_words" -> "W↔"
+        "remove_diacritics" -> "á→a"
+        "trim_spaces" -> "⇥"
+        "space_underscore" -> "_"
+        "space_dash" -> "-"
+        "underscore_space" -> "_→␠"
+        "dash_space" -> "-→␠"
+        "math_replace" -> "="
+        "math_append" -> "+="
+        "number_space" -> "1 000"
+        "number_period" -> "1.000"
+        "number_comma" -> "1,000"
         else -> "•"
     }
 
