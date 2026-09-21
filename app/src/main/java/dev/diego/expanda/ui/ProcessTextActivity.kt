@@ -40,6 +40,7 @@ class ProcessTextActivity : ComponentActivity() {
         }
         setContent {
             val settings by (application as ExpandaApplication).settingsRepository.settings.collectAsState()
+            setUiDisplayLanguage(settings.displayLanguage)
             CompositionLocalProvider(LocalDisplayLanguage provides settings.displayLanguage) {
                 ExpandaTheme(settings) { ActionChooser(selectedText, ::returnText) { finish() } }
             }
