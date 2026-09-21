@@ -92,6 +92,8 @@ object BackupCodec {
         put("selectionToolbarEnabled", settings.selectionToolbarEnabled)
         put("selectionToolbarWidthFraction", settings.selectionToolbarWidthFraction.toDouble())
         put("selectionToolbarHeightDp", settings.selectionToolbarHeightDp)
+        put("selectionToolbarQuickActionIds", JSONArray(settings.selectionToolbarQuickActionIds))
+        put("displayLanguage", settings.displayLanguage.name)
         put("suggestionShowActions", settings.suggestionShowActions)
         put("matchFromBeginning", settings.matchFromBeginning)
         put("suggestionCompactList", settings.suggestionCompactList)
@@ -129,6 +131,15 @@ object BackupCodec {
         ).coerceIn(
             SettingsRepository.MIN_SELECTION_TOOLBAR_HEIGHT_DP,
             SettingsRepository.MAX_SELECTION_TOOLBAR_HEIGHT_DP,
+        ),
+        selectionToolbarQuickActionIds = json.stringList("selectionToolbarQuickActionIds")
+            .filter { it in SettingsRepository.AVAILABLE_SELECTION_TOOLBAR_QUICK_ACTIONS }
+            .distinct()
+            .take(SettingsRepository.MAX_SELECTION_TOOLBAR_QUICK_ACTIONS)
+            .ifEmpty { SettingsRepository.DEFAULT_SELECTION_TOOLBAR_QUICK_ACTIONS },
+        displayLanguage = enumOrDefault(
+            json.optString("displayLanguage"),
+            dev.diego.expanda.data.DisplayLanguage.SYSTEM,
         ),
         suggestionShowActions = json.optBoolean("suggestionShowActions", true),
         matchFromBeginning = json.optBoolean("matchFromBeginning", true),
