@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import dev.diego.expanda.R
 import dev.diego.expanda.service.ExpansionAccessibilityService
+import dev.diego.expanda.ui.tr
 import kotlinx.coroutines.delay
 
 /** A real native editor so the accessibility service can be exercised inside Expanda. */
@@ -92,8 +93,8 @@ fun TestScreen(serviceEnabled: Boolean, active: Boolean) {
                     tint = if (serviceEnabled) colors.onSecondaryContainer else colors.onErrorContainer,
                 )
                 Text(
-                    if (serviceEnabled) "Accessibility service ready"
-                    else "Enable the accessibility service to expand triggers here",
+                    if (serviceEnabled) tr("Accessibility service ready", "Servicio de accesibilidad listo")
+                    else tr("Enable the accessibility service to expand triggers here", "Activa el servicio de accesibilidad para expandir disparadores aquí"),
                     color = if (serviceEnabled) colors.onSecondaryContainer else colors.onErrorContainer,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -113,7 +114,7 @@ fun TestScreen(serviceEnabled: Boolean, active: Boolean) {
             modifier = Modifier.fillMaxWidth(),
         ) {
             Icon(Icons.AutoMirrored.Filled.ViewList, contentDescription = null)
-            Text("  Open suggestion overlay")
+            Text("  " + tr("Open suggestion overlay"))
         }
         Surface(
             modifier = Modifier.fillMaxWidth().height(320.dp),
@@ -127,14 +128,14 @@ fun TestScreen(serviceEnabled: Boolean, active: Boolean) {
                         editor = this
                         id = R.id.expanda_test_input
                         gravity = Gravity.TOP or Gravity.START
-                        hint = "Try a snippet…"
+                        hint = if (dev.diego.expanda.ui.usesSpanish(dev.diego.expanda.ui.LocalDisplayLanguage.current)) "Prueba un fragmento…" else "Try a snippet…"
                         setBackgroundColor(AndroidColor.TRANSPARENT)
                         inputType = InputType.TYPE_CLASS_TEXT or
                             InputType.TYPE_TEXT_FLAG_MULTI_LINE or
                             InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
                         isSingleLine = false
                         importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
-                        contentDescription = "Expanda writing playground"
+                        contentDescription = tr("Expanda writing playground")
                     }
                 },
                 update = { currentEditor ->
@@ -158,7 +159,7 @@ fun TestScreen(serviceEnabled: Boolean, active: Boolean) {
         ) {
             Icon(Icons.Default.EditNote, contentDescription = null, tint = colors.primary)
             Text(
-                "Tip: undo an expansion with Backspace.",
+                tr("Tip: undo an expansion with Backspace.", "Consejo: deshaz una expansión con Retroceso."),
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.onSurfaceVariant,
             )
