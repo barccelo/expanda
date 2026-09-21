@@ -60,6 +60,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.diego.expanda.R
+import dev.diego.expanda.ui.tr
 import dev.diego.expanda.ui.ProjectLinks
 
 private const val ACTIONS_LOOP = 28_000
@@ -96,21 +97,21 @@ internal fun ActionsAnimation() {
         ) { current ->
             when (current) {
                 ActionDemoStage.MATH -> ActionShortcutPreview(
-                    title = "Calculate expression",
+                    title = tr("Calculate expression"),
                     before = "12 * 8",
                     shortcut = "==",
                     after = "96",
                     localElapsed = elapsed,
                 )
                 ActionDemoStage.UPPERCASE -> ActionShortcutPreview(
-                    title = "Uppercase",
+                    title = tr("Uppercase"),
                     before = "hello world",
                     shortcut = ",uu",
                     after = "HELLO WORLD",
                     localElapsed = elapsed - 5_600f,
                 )
                 ActionDemoStage.UNDERSCORE -> ActionShortcutPreview(
-                    title = "Spaces to underscores",
+                    title = tr("Spaces to underscores"),
                     before = "hello world",
                     shortcut = ",su",
                     after = "hello_world",
@@ -197,7 +198,7 @@ private fun SelectionActionPreview(localElapsed: Float, showResult: Boolean) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text("Selected-text actions", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(tr("Selected-text actions", "Acciones sobre texto seleccionado"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Surface(
             modifier = Modifier.fillMaxWidth().height(78.dp),
             shape = RoundedCornerShape(18.dp),
@@ -230,10 +231,10 @@ private fun SelectionActionPreview(localElapsed: Float, showResult: Boolean) {
                 contentColor = MaterialTheme.colorScheme.inverseOnSurface,
             ) {
                 Row(Modifier.padding(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Cut", Modifier.padding(7.dp), style = MaterialTheme.typography.labelMedium)
-                    Text("Copy", Modifier.padding(7.dp), style = MaterialTheme.typography.labelMedium)
+                    Text(tr("Cut", "Cortar"), Modifier.padding(7.dp), style = MaterialTheme.typography.labelMedium)
+                    Text(tr("Copy"), Modifier.padding(7.dp), style = MaterialTheme.typography.labelMedium)
                     Box(contentAlignment = Alignment.Center) {
-                        Text("Expanda actions", Modifier.padding(7.dp), style = MaterialTheme.typography.labelMedium)
+                        Text(tr("Expanda actions", "Acciones de Expanda"), Modifier.padding(7.dp), style = MaterialTheme.typography.labelMedium)
                         TutorialTouch(menuPress)
                     }
                 }
@@ -250,11 +251,11 @@ private fun SelectionActionPreview(localElapsed: Float, showResult: Boolean) {
                     shadowElevation = 8.dp,
                 ) {
                     Column(Modifier.padding(8.dp)) {
-                        Text("Expanda actions", Modifier.padding(8.dp), fontWeight = FontWeight.SemiBold)
-                        Text("Uppercase", Modifier.fillMaxWidth().padding(8.dp))
-                        Text("Spaces to underscores", Modifier.fillMaxWidth().padding(8.dp))
+                        Text(tr("Expanda actions", "Acciones de Expanda"), Modifier.padding(8.dp), fontWeight = FontWeight.SemiBold)
+                        Text(tr("Uppercase"), Modifier.fillMaxWidth().padding(8.dp))
+                        Text(tr("Spaces to underscores"), Modifier.fillMaxWidth().padding(8.dp))
                         Box(contentAlignment = Alignment.Center) {
-                            Text("Capitalize words", Modifier.fillMaxWidth().padding(8.dp))
+                            Text(tr("Capitalize words"), Modifier.fillMaxWidth().padding(8.dp))
                             TutorialTouch(actionPress)
                         }
                     }
@@ -264,7 +265,7 @@ private fun SelectionActionPreview(localElapsed: Float, showResult: Boolean) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(6.dp))
-                Text("Capitalization applied", color = MaterialTheme.colorScheme.primary)
+                Text(tr("Capitalization applied", "Capitalización aplicada"), color = MaterialTheme.colorScheme.primary)
             }
         }
     }
@@ -318,7 +319,7 @@ internal fun EspansoCompatibilityAnimation() {
                     Spacer(Modifier.height(10.dp))
                     Text("Expanda", fontWeight = FontWeight.SemiBold)
                     AnimatedVisibility(visible = imported, enter = fadeIn() + scaleIn()) {
-                        Text(".yml source", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(tr(".yml source", "Fuente .yml"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -340,9 +341,9 @@ internal fun EspansoCompatibilityAnimation() {
             contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
         ) {
             Column(Modifier.padding(horizontal = 14.dp, vertical = 11.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text("YOUR CHOICE", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                Text(tr("YOUR CHOICE", "TU ELECCIÓN"), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                 Text(
-                    "Keep snippets in Expanda for the simplest setup, or link a local folder later to sync with Espanso desktop.",
+                    tr("Keep snippets in Expanda for the simplest setup, or link a local folder later to sync with Espanso desktop.", "Mantén los fragmentos en Expanda para la configuración más simple o vincula luego una carpeta local para sincronizar con Espanso de escritorio."),
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
@@ -390,7 +391,7 @@ internal fun SourceEditingAnimation() {
                             ) {
                                 Icon(Icons.Default.AutoAwesome, null, modifier = Modifier.size(16.dp))
                                 Spacer(Modifier.width(5.dp))
-                                Text("AI prompt", style = MaterialTheme.typography.labelMedium)
+                                Text(tr("AI prompt", "Instrucción para IA"), style = MaterialTheme.typography.labelMedium)
                             }
                             TutorialTouch(aiPress)
                         }
@@ -424,7 +425,7 @@ internal fun SourceEditingAnimation() {
                     horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    if (validated) Text("Valid YAML", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
+                    if (validated) Text(tr("Valid YAML", "YAML válido"), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
                     Surface(
                         shape = RoundedCornerShape(10.dp),
                         color = if (saved) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer,
@@ -436,7 +437,7 @@ internal fun SourceEditingAnimation() {
                                     Icon(Icons.Default.Check, null, modifier = Modifier.size(16.dp))
                                     Spacer(Modifier.width(5.dp))
                                 }
-                                Text(if (saved) "Saved" else "Save", style = MaterialTheme.typography.labelMedium)
+                                Text(if (saved) tr("Saved", "Guardado") else tr("Save"), style = MaterialTheme.typography.labelMedium)
                             }
                             TutorialTouch(savePress)
                         }
@@ -527,7 +528,7 @@ internal fun OpenSourceProjectAnimation() {
         OutlinedButton(onClick = { uriHandler.openUri(ProjectLinks.REPOSITORY) }) {
             Icon(Icons.AutoMirrored.Filled.OpenInNew, null)
             Spacer(Modifier.width(8.dp))
-            Text("Open GitHub repository")
+            Text(tr("Open GitHub repository", "Abrir repositorio de GitHub"))
         }
     }
 }
