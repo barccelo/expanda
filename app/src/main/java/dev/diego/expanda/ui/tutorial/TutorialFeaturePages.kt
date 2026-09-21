@@ -97,7 +97,11 @@ internal fun UndoExpansionAnimation() {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        FeatureHeading(Icons.AutoMirrored.Filled.Undo, "Undo in one tap", "Backspace restores the original trigger.")
+        FeatureHeading(
+            Icons.AutoMirrored.Filled.Undo,
+            tr("Undo in one tap", "Deshacer con un toque"),
+            tr("Backspace restores the original trigger.", "Retroceso restaura el disparador original."),
+        )
         TutorialTextField {
             AnimatedContent(
                 targetState = stage,
@@ -111,7 +115,10 @@ internal fun UndoExpansionAnimation() {
                     Text(
                         when (current) {
                             UndoStage.TYPING -> ";hello".take(typedCount)
-                            UndoStage.EXPANDED -> "Hello! Thanks for getting in touch."
+                            UndoStage.EXPANDED -> tr(
+                                "Hello! Thanks for getting in touch.",
+                                "¡Hola! Gracias por comunicarte.",
+                            )
                             UndoStage.RESTORED -> ";hello"
                             UndoStage.IGNORED -> ";hello "
                             UndoStage.CONTINUING -> ";hello $continued"
