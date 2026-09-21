@@ -33,6 +33,7 @@ import android.view.ContextThemeWrapper
 import android.view.inputmethod.InputMethodManager
 import android.widget.Spinner
 import android.widget.EditText
+import android.widget.CheckBox
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -59,6 +60,7 @@ import dev.diego.expanda.engine.TemplateFieldInputType
 import dev.diego.expanda.engine.TemplateFieldRequest
 import dev.diego.expanda.engine.TemplateSelector
 import dev.diego.expanda.data.AppSettings
+import dev.diego.expanda.data.DisplayLanguage
 import dev.diego.expanda.data.SettingsRepository
 import dev.diego.expanda.data.TextMatch
 import dev.diego.expanda.data.TemplateSelectionMode
@@ -74,6 +76,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.ArrayDeque
 import java.util.Locale
 import java.lang.ref.WeakReference
 import kotlin.math.roundToInt
@@ -127,6 +130,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private var selectionToolbarShowTask: Runnable? = null
     private var suppressSelectionToolbarUntil = 0L
     private var programmaticSelectionUntil = 0L
+    private val selectionUndoHistory = ArrayDeque<SelectionUndoEntry>()
 
     private data class SelectionToolbarState(
         val anchor: SuggestionAnchor,
@@ -141,6 +145,16 @@ class ExpansionAccessibilityService : AccessibilityService() {
         val start: Int,
         val end: Int,
         val selectedText: String,
+    )
+
+    private data class SelectionUndoEntry(
+        val anchor: SuggestionAnchor,
+        val beforeText: String,
+        val beforeStart: Int,
+        val beforeEnd: Int,
+        val afterText: String,
+        val afterStart: Int,
+        val afterEnd: Int,
     )
 
     /** Context saved while clipboard overlay / capture reads the clipboard. */
@@ -263,6 +277,13 @@ class ExpansionAccessibilityService : AccessibilityService() {
             )
             val selectionStart = node.textSelectionStart.takeIf { it in 0..text.length } ?: cursor
             val activeAnchor = createSuggestionAnchor(node, packageName)
+            selectionUndoHistory.peekLast()?.let { undo ->
+                val sameField = SuggestionAnchorPolicy.shouldKeep(undo.anchor, activeAnchor)
+                val internalState = text == undo.afterText ||
+                    (text == lastAppliedText &&
+                        SystemClock.elapsedRealtime() - lastAppliedAt < REENTRANCY_WINDOW_MS)
+                if (!sameField || !internalState) selectionUndoHistory.clear()
+            }
             when (reversibleExpansion?.let {
                 ExpansionUndoPolicy.backspaceDecision(it, activeAnchor, text, cursor)
             }) {
