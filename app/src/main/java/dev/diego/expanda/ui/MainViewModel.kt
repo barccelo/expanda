@@ -11,6 +11,7 @@ import dev.diego.expanda.data.AppSettings
 import dev.diego.expanda.data.BackupCodec
 import dev.diego.expanda.data.ClipboardEntry
 import dev.diego.expanda.data.ColorSchemeMode
+import dev.diego.expanda.data.DisplayLanguage
 import dev.diego.expanda.data.CompatibilityIssue
 import dev.diego.expanda.data.CsvCodec
 import dev.diego.expanda.data.DashboardStats
@@ -251,6 +252,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
     fun resetSelectionToolbarLayout() = viewModelScope.launch {
         settingsRepository.resetSelectionToolbarLayout()
+    }
+    fun setSelectionToolbarQuickActionIds(ids: List<String>) = viewModelScope.launch {
+        settingsRepository.setSelectionToolbarQuickActionIds(ids)
+    }
+    fun setDisplayLanguage(language: DisplayLanguage) = viewModelScope.launch {
+        settingsRepository.setDisplayLanguage(language)
     }
     fun setSuggestionShowActions(enabled: Boolean) = viewModelScope.launch { settingsRepository.setSuggestionShowActions(enabled) }
     fun setMatchFromBeginning(enabled: Boolean) = viewModelScope.launch { settingsRepository.setMatchFromBeginning(enabled) }
