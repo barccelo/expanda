@@ -375,7 +375,7 @@ fun ExpandaApp(
                                 scope.launch { pagerState.animateScrollToPage(item.ordinal) }
                             },
                             icon = { Icon(item.icon, null) },
-                            label = { Text(item.label) },
+                            label = { Text(tr(item.label)) },
                         )
                     }
                 }
@@ -456,8 +456,8 @@ fun ExpandaApp(
 
     if (confirmDelete) AlertDialog(
         onDismissRequest = { confirmDelete = false },
-        title = { Text("Delete ${selectedVisibleIds.size} snippets?") },
-        text = { Text("This cannot be undone.") },
+        title = { Text(tr("Delete ${selectedVisibleIds.size} snippets?", "¿Eliminar ${selectedVisibleIds.size} fragmentos?")) },
+        text = { Text(tr("This cannot be undone.", "Esto no se puede deshacer.")) },
         confirmButton = {
             Button(onClick = {
                 viewModel.delete(selectedVisibleIds)
@@ -469,14 +469,14 @@ fun ExpandaApp(
     )
     if (confirmDeleteTags) AlertDialog(
         onDismissRequest = { confirmDeleteTags = false },
-        title = { Text("Delete tags from ${selectedVisibleIds.size} snippets?") },
-        text = { Text("The snippets will remain; only their tags will be removed.") },
+        title = { Text(tr("Delete tags from ${selectedVisibleIds.size} snippets?", "¿Eliminar etiquetas de ${selectedVisibleIds.size} fragmentos?")) },
+        text = { Text(tr("The snippets will remain; only their tags will be removed.", "Los fragmentos permanecerán; sólo se eliminarán sus etiquetas.")) },
         confirmButton = {
             TextButton(onClick = {
                 viewModel.clearTags(selectedVisibleIds)
                 confirmDeleteTags = false
                 exitSelection()
-            }) { Text("Delete tags") }
+            }) { Text(tr("Delete tags")) }
         },
         dismissButton = { TextButton(onClick = { confirmDeleteTags = false }) { Text(tr("Cancel")) } },
     )
@@ -602,13 +602,15 @@ private fun SnippetList(
         if (!serviceEnabled) Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
             Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Expansion service is off", fontWeight = FontWeight.SemiBold)
+                    Text(tr("Expansion service is off", "El servicio de expansión está desactivado"), fontWeight = FontWeight.SemiBold)
                     Text(
                         if (needsRestrictedSettings) {
-                            "Enable Expanda in Accessibility settings. If the toggle stays greyed out, " +
-                                "your phone may require Allow restricted settings in App info (⋮ menu)."
+                            tr(
+                                "Enable Expanda in Accessibility settings. If the toggle stays greyed out, your phone may require Allow restricted settings in App info (⋮ menu).",
+                                "Activa Expanda en los ajustes de Accesibilidad. Si el interruptor permanece deshabilitado, tu teléfono puede requerir Permitir ajustes restringidos en Información de la app (menú ⋮).",
+                            )
                         } else {
-                            "Enable it in Android Accessibility settings."
+                            tr("Enable it in Android Accessibility settings.", "Actívalo en los ajustes de Accesibilidad de Android.")
                         },
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -623,7 +625,7 @@ private fun SnippetList(
                 value = state.search,
                 onValueChange = viewModel::setSearch,
                 modifier = Modifier.fillMaxWidth().padding(16.dp).focusRequester(searchFocusRequester),
-                placeholder = { Text("Search snippets") },
+                placeholder = { Text(tr("Search snippets", "Buscar fragmentos")) },
                 leadingIcon = { Icon(Icons.Default.Search, null) },
                 trailingIcon = {
                     IconButton(onClick = {
@@ -632,7 +634,7 @@ private fun SnippetList(
                         keyboardController?.hide()
                         onHideSearch()
                     }) {
-                        Icon(Icons.Default.Close, "Close search")
+                        Icon(Icons.Default.Close, tr("Close search", "Cerrar búsqueda"))
                     }
                 },
                 singleLine = true,
@@ -798,10 +800,14 @@ private fun EmptyState(
     Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Icon(Icons.Default.TextFields, null)
-        Text(if (hasSnippets) "No matching snippets" else "No snippets yet", style = MaterialTheme.typography.titleMedium)
         Text(
-            if (hasSnippets) "Try another search or tag."
-            else "Create your own snippet, or start with ready-made examples.",
+            if (hasSnippets) tr("No matching snippets", "No hay fragmentos coincidentes")
+            else tr("No snippets yet", "Aún no hay fragmentos"),
+            style = MaterialTheme.typography.titleMedium,
+        )
+        Text(
+            if (hasSnippets) tr("Try another search or tag.", "Prueba otra búsqueda o etiqueta.")
+            else tr("Create your own snippet, or start with ready-made examples.", "Crea tu propio fragmento o comienza con ejemplos preparados."),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         if (!hasSnippets) {
@@ -854,16 +860,19 @@ private fun ExampleSnippetsToggleContent(inFlight: Boolean, examplesPresent: Boo
             color = if (compact) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onPrimary,
         )
     } else {
-        Text(if (examplesPresent) "Remove example snippets" else "Add example snippets")
+        Text(
+            if (examplesPresent) tr("Remove example snippets", "Eliminar fragmentos de ejemplo")
+            else tr("Add example snippets", "Agregar fragmentos de ejemplo"),
+        )
     }
 }
 
 @Composable private fun StatsScreen(viewModel: MainViewModel) {
     val stats = viewModel.stats()
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { StatCard("Expansions", stats.totalExpansions.toString()) }
-        item { StatCard("Characters saved", stats.estimatedCharactersSaved.toString()) }
-        item { StatCard("Estimated time saved", "${stats.estimatedSecondsSaved / 60}m ${stats.estimatedSecondsSaved % 60}s") }
+        item { StatCard(tr("Expansions", "Expansiones"), stats.totalExpansions.toString()) }
+        item { StatCard(tr("Characters saved", "Caracteres ahorrados"), stats.estimatedCharactersSaved.toString()) }
+        item { StatCard(tr("Estimated time saved", "Tiempo estimado ahorrado"), "${stats.estimatedSecondsSaved / 60}m ${stats.estimatedSecondsSaved % 60}s") }
     }
 }
 
@@ -900,7 +909,7 @@ private fun SettingsScreen(
 
     Box(Modifier.fillMaxSize()) {
         LazyColumn {
-        item { SettingsSectionHeader(Icons.Default.Settings, "General") }
+        item { SettingsSectionHeader(Icons.Default.Settings, tr("General", "General")) }
         item {
             ListItem(
                 headlineContent = { Text(tr("About Expanda")) },
@@ -921,7 +930,7 @@ private fun SettingsScreen(
             ListItem(
                 headlineContent = { Text(tr("Text expansion")) },
                 leadingContent = { Icon(Icons.Default.Lightbulb, null) },
-                supportingContent = { Text(if (serviceEnabled) "Accessibility service enabled" else "Service disabled") },
+                supportingContent = { Text(if (serviceEnabled) tr("Accessibility service enabled", "Servicio de accesibilidad activado") else tr("Service disabled", "Servicio desactivado")) },
                 trailingContent = { Switch(state.settings.expansionEnabled, viewModel::setExpansionEnabled) },
             )
         }
@@ -932,17 +941,17 @@ private fun SettingsScreen(
                 leadingContent = { Icon(Icons.Default.BatteryStd, null) },
                 supportingContent = {
                     Text(
-                        if (backgroundAllowed) "Battery optimization exemption granted"
-                        else "Open battery settings and choose No restrictions for Expanda",
+                        if (backgroundAllowed) tr("Battery optimization exemption granted", "Exención de optimización de batería concedida")
+                        else tr("Open battery settings and choose No restrictions for Expanda", "Abre los ajustes de batería y elige Sin restricciones para Expanda"),
                     )
                 },
-                trailingContent = { Text(if (backgroundAllowed) "Ready" else "Required") },
+                trailingContent = { Text(if (backgroundAllowed) tr("Ready") else tr("Required")) },
                 modifier = Modifier.selectable(false, onClick = openBackgroundSettings),
             )
         }
         item {
             ListItem(
-                headlineContent = { Text(if (state.settings.isPaused) "Resume now" else "Pause for one hour") },
+                headlineContent = { Text(if (state.settings.isPaused) tr("Resume now") else tr("Pause for one hour")) },
                 leadingContent = { Icon(Icons.Default.PauseCircle, null) },
                 modifier = Modifier.selectable(false) {
                     if (state.settings.isPaused) viewModel.resume() else viewModel.pauseFor(60 * 60 * 1000L)
@@ -955,15 +964,21 @@ private fun SettingsScreen(
                 leadingContent = { Icon(Icons.Default.Apps, null) },
                 supportingContent = {
                     Text(
-                        if (state.settings.globallyExcludedPackages.isEmpty()) "Expanda is available in every app"
-                        else "${state.settings.globallyExcludedPackages.size} apps excluded globally",
+                        if (state.settings.globallyExcludedPackages.isEmpty()) {
+                            tr("Expanda is available in every app", "Expanda está disponible en todas las aplicaciones")
+                        } else {
+                            tr(
+                                "${state.settings.globallyExcludedPackages.size} apps excluded globally",
+                                "${state.settings.globallyExcludedPackages.size} aplicaciones excluidas globalmente",
+                            )
+                        },
                     )
                 },
                 modifier = Modifier.clickable { showGlobalAppPicker = true },
             )
         }
         item { HorizontalDivider() }
-        item { SettingsSectionHeader(Icons.Default.Tune, "Interaction") }
+        item { SettingsSectionHeader(Icons.Default.Tune, tr("Interaction", "Interacción")) }
         item {
             ListItem(
                 headlineContent = { Text(tr("Clipboard history")) },
@@ -1036,9 +1051,9 @@ private fun SettingsScreen(
         item {
             val stats = viewModel.stats()
             ListItem(
-                headlineContent = { Text("${stats.estimatedCharactersSaved} characters saved") },
+                headlineContent = { Text(tr("${stats.estimatedCharactersSaved} characters saved", "${stats.estimatedCharactersSaved} caracteres ahorrados")) },
                 leadingContent = { Icon(Icons.Default.QueryStats, null) },
-                supportingContent = { Text("${stats.totalExpansions} expansions") },
+                supportingContent = { Text(tr("${stats.totalExpansions} expansions", "${stats.totalExpansions} expansiones")) },
                 trailingContent = { Switch(state.settings.statisticsEnabled, viewModel::setStatisticsEnabled) },
             )
         }
@@ -1067,7 +1082,7 @@ private fun SettingsScreen(
                     if (state.settings.colorSchemeMode == ColorSchemeMode.CUSTOM) {
                         Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
                             Text(
-                                "Custom Material color",
+                                tr("Custom Material color", "Color Material personalizado"),
                                 style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -1102,7 +1117,10 @@ private fun SettingsScreen(
                         Column {
                             Text("Espanso", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                             Text(
+                                tr(
                                 "Plain-text Espanso .yml files. Keep them in Expanda, or link a folder to sync with desktop.",
+                                "Archivos .yml de Espanso en texto plano. Consérvalos en Expanda o vincula una carpeta para sincronizar con el escritorio.",
+                            ),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -1124,19 +1142,19 @@ private fun SettingsScreen(
                     ) {
                         Icon(Icons.Default.Folder, null)
                         Text(
-                            if (state.settings.espansoFolderUri == null) "  Link match folder"
-                            else "  Change match folder",
+                            if (state.settings.espansoFolderUri == null) "  " + tr("Link match folder", "Vincular carpeta de coincidencias")
+                            else "  " + tr("Change match folder", "Cambiar carpeta de coincidencias"),
                         )
                     }
                     if (state.settings.espansoFolderUri != null) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(
                                 onClick = {
-                                    folderStatus = "Syncing…"
+                                    folderStatus = tr("Syncing…", "Sincronizando…")
                                     viewModel.syncEspansoFolder { result ->
                                         folderStatus = result.fold(
-                                            onSuccess = { "Synced ${it.imported} matches" },
-                                            onFailure = { "Sync failed: ${it.message}" },
+                                            onSuccess = { tr("Synced ${it.imported} matches", "Se sincronizaron ${it.imported} coincidencias") },
+                                            onFailure = { tr("Sync failed: ${it.message}", "Error de sincronización: ${it.message}") },
                                         )
                                     }
                                 },
@@ -1148,7 +1166,7 @@ private fun SettingsScreen(
                             TextButton(
                                 onClick = {
                                     viewModel.unlinkEspansoFolder()
-                                    folderStatus = "Folder unlinked; its files were not deleted."
+                                    folderStatus = tr("Folder unlinked; its files were not deleted.", "Carpeta desvinculada; sus archivos no fueron eliminados.")
                                 },
                                 modifier = Modifier.weight(1f),
                             ) {
@@ -1172,7 +1190,7 @@ private fun SettingsScreen(
         }
         item {
             Text(
-                "Expanda backup",
+                tr("Expanda backup", "Copia de seguridad de Expanda"),
                 modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 4.dp),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1181,9 +1199,12 @@ private fun SettingsScreen(
         item {
             Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Full app backup", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text(tr("Full app backup"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     Text(
+                        tr(
                         "Restores snippets, variables, settings, exclusions and actions. Clipboard contents and device permissions are not included.",
+                        "Restaura fragmentos, variables, ajustes, exclusiones y acciones. No incluye el contenido del portapapeles ni los permisos del dispositivo.",
+                    ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -1223,7 +1244,7 @@ private fun SettingsScreen(
             ListItem(
                 leadingContent = { Icon(Icons.Default.ContentPaste, null) },
                 headlineContent = { Text(tr("Clear clipboard history")) },
-                supportingContent = { Text("${state.clipboardEntries.size} saved entries") },
+                supportingContent = { Text(tr("${state.clipboardEntries.size} saved entries", "${state.clipboardEntries.size} entradas guardadas")) },
                 modifier = Modifier.clickable(enabled = state.clipboardEntries.isNotEmpty()) {
                     confirmClearClipboard = true
                 },
@@ -1234,7 +1255,7 @@ private fun SettingsScreen(
             ListItem(
                 leadingContent = { Icon(Icons.Default.QueryStats, null) },
                 headlineContent = { Text(tr("Reset usage statistics")) },
-                supportingContent = { Text("Clears ${stats.totalExpansions} expansion counts and local usage records") },
+                supportingContent = { Text(tr("Clears ${stats.totalExpansions} expansion counts and local usage records", "Borra ${stats.totalExpansions} conteos de expansión y registros locales de uso")) },
                 modifier = Modifier.clickable(enabled = stats.totalExpansions > 0) {
                     confirmResetStatistics = true
                 },
@@ -1243,7 +1264,7 @@ private fun SettingsScreen(
         item {
             ListItem(
                 leadingContent = { Icon(Icons.Default.Info, null) },
-                headlineContent = { Text(if (diagnosticsCopied) "Diagnostics copied" else "Copy diagnostics") },
+                headlineContent = { Text(if (diagnosticsCopied) tr("Diagnostics copied") else tr("Copy diagnostics")) },
                 supportingContent = { Text(tr("Version and device state only; no text, clipboard or app names")) },
                 modifier = Modifier.clickable {
                     val clipboard = context.getSystemService(ClipboardManager::class.java)
@@ -1285,9 +1306,9 @@ private fun SettingsScreen(
             },
         )
         if (confirmResetStatistics) ConfirmationDialog(
-            title = "Reset usage statistics?",
-            text = "Expansion counters and local usage records will return to zero.",
-            confirmLabel = "Reset",
+            title = tr("Reset usage statistics?", "¿Restablecer estadísticas de uso?"),
+            text = tr("Expansion counters and local usage records will return to zero.", "Los contadores de expansión y registros locales de uso volverán a cero."),
+            confirmLabel = tr("Reset"),
             destructive = true,
             onDismiss = { confirmResetStatistics = false },
             onConfirm = {
@@ -1296,9 +1317,12 @@ private fun SettingsScreen(
             },
         )
         if (confirmResetAll) ConfirmationDialog(
-            title = "Reset Expanda?",
-            text = "Snippets, variables, settings, actions, statistics and clipboard history will be deleted. Default examples and the tutorial will return.",
-            confirmLabel = "Reset everything",
+            title = tr("Reset Expanda?", "¿Restablecer Expanda?"),
+            text = tr(
+                "Snippets, variables, settings, actions, statistics and clipboard history will be deleted. Default examples and the tutorial will return.",
+                "Se eliminarán fragmentos, variables, ajustes, acciones, estadísticas e historial del portapapeles. Volverán los ejemplos predeterminados y el tutorial.",
+            ),
+            confirmLabel = tr("Reset everything", "Restablecer todo"),
             destructive = true,
             onDismiss = { confirmResetAll = false },
             onConfirm = {
@@ -1794,7 +1818,7 @@ private fun SnippetEditorScreen(
                 Column(Modifier.fillMaxWidth().imePadding()) {
                     activeTemplateIndex?.let { activeIndex ->
                         Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
-                            Text("Insert into replacement", style = MaterialTheme.typography.labelLarge)
+                            Text(tr("Insert into replacement"), style = MaterialTheme.typography.labelLarge)
                             TemplateTokenToolbar(
                                 modifier = Modifier.fillMaxWidth(),
                                 snippets = availableSnippets.filterNot { it.id == initial?.id },
@@ -1910,7 +1934,7 @@ private fun SnippetEditorScreen(
                     value = triggerText,
                     onValueChange = { triggerText = it },
                     modifier = Modifier.fillMaxWidth().onFocusChanged { if (it.isFocused) activeTemplateIndex = null },
-                    label = { Text(if (triggerKind == TriggerKind.REGEX) "Regex trigger" else "Trigger") },
+                    label = { Text(if (triggerKind == TriggerKind.REGEX) tr("Regex trigger") else tr("Trigger")) },
                     singleLine = true,
                     trailingIcon = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -2026,7 +2050,7 @@ private fun SnippetEditorScreen(
             }
 
             item {
-                Text("Replacements", style = MaterialTheme.typography.titleSmall)
+                Text(tr("Replacements"), style = MaterialTheme.typography.titleSmall)
             }
             itemsIndexed(replacementFields, key = { index, _ -> "replacement-$index" }) { index, replacement ->
                 OutlinedTextField(
@@ -2070,7 +2094,7 @@ private fun SnippetEditorScreen(
                                 true
                             }
                         },
-                    label = { Text("Replacement #${index + 1}") },
+                    label = { Text(tr("Replacement #${index + 1}", "Reemplazo #${index + 1}")) },
                     minLines = 3,
                     visualTransformation = templateTokenVisualTransformation(
                         variables,
@@ -2223,7 +2247,7 @@ private fun SnippetEditorScreen(
     }
     if (showExcludedApps) {
         AppExclusionPicker(
-            title = "Exclude this snippet from apps",
+            title = tr("Exclude this snippet from apps", "Excluir este fragmento de aplicaciones"),
             selectedPackages = excludedPackages,
             onDismiss = { showExcludedApps = false },
             onSave = {
@@ -2439,8 +2463,14 @@ private fun BackgroundSetupDialog(
         title = { Text(tr("Allow Expanda to run in background")) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Android or the phone's battery saver may stop Expanda after it has been in the background. That can make expansion appear to fail intermittently.")
-                Text("Open battery settings and set Expanda to No restrictions (or allow unrestricted background use).")
+                Text(tr(
+                    "Android or the phone's battery saver may stop Expanda after it has been in the background. That can make expansion appear to fail intermittently.",
+                    "Android o el ahorro de batería del teléfono pueden detener Expanda tras permanecer en segundo plano. Eso puede hacer que la expansión parezca fallar de forma intermitente.",
+                ))
+                Text(tr(
+                    "Open battery settings and set Expanda to No restrictions (or allow unrestricted background use).",
+                    "Abre los ajustes de batería y configura Expanda como Sin restricciones (o permite uso en segundo plano sin restricciones).",
+                ))
                 Text(
                     if (backgroundAllowed) "Android battery optimization exemption: granted."
                     else "Android battery optimization exemption: not detected yet.",
@@ -2468,7 +2498,10 @@ private fun AccessibilityDisclosure(
         title = { Text(tr("How text expansion works")) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Expanda uses Android's Accessibility service to read changes in editable fields, detect shortcuts, and replace them with your snippets. Text is processed on-device and is never sent anywhere. Password fields are ignored. You can disable the service at any time in Android Settings.")
+                Text(tr(
+                    "Expanda uses Android's Accessibility service to read changes in editable fields, detect shortcuts, and replace them with your snippets. Text is processed on-device and is never sent anywhere. Password fields are ignored. You can disable the service at any time in Android Settings.",
+                    "Expanda usa el servicio de Accesibilidad de Android para leer cambios en campos editables, detectar atajos y reemplazarlos por tus fragmentos. El texto se procesa en el dispositivo y nunca se envía a ningún lugar. Los campos de contraseña se ignoran. Puedes desactivar el servicio en cualquier momento desde los ajustes de Android.",
+                ))
                 if (needsRestrictedSettings) {
                     Text(
                         "This APK was installed outside Google Play. On some phones the Accessibility toggle stays greyed out until you allow restricted settings in App info (⋮ menu). Many installs work without that step — we'll open Accessibility settings next.",
