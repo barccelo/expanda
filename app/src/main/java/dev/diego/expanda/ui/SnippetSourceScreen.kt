@@ -214,7 +214,7 @@ internal fun SnippetSourceScreen(
                                 onClick = { validate()?.let { pendingDocument = it } },
                                 enabled = changed && !saving && !syncing && selected != null,
                             ) {
-                                Icon(Icons.Default.Check, contentDescription = "Save source")
+                                Icon(Icons.Default.Check, contentDescription = tr("Save source"))
                             }
                         }
                     },
@@ -288,7 +288,7 @@ internal fun SnippetSourceScreen(
                         onClick = { validate()?.let { pendingDocument = it } },
                         enabled = changed && !saving && !syncing && selected != null,
                     ) {
-                        Icon(Icons.Default.Check, contentDescription = "Save source")
+                        Icon(Icons.Default.Check, contentDescription = tr("Save source"))
                     }
                 }
             }
@@ -512,7 +512,7 @@ private fun SourceFolderControls(
                     enabled = !changed && !busy,
                 ) {
                     Icon(Icons.Default.Folder, null)
-                    Text(if (linked) " Change folder" else " Link folder")
+                    Text(" " + if (linked) tr("Change folder") else tr("Link folder"))
                 }
                 if (linked) {
                     OutlinedButton(
