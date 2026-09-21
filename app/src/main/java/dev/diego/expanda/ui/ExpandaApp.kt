@@ -161,6 +161,7 @@ import androidx.compose.ui.res.painterResource
 import kotlin.math.atan2
 import kotlin.math.min
 import kotlin.math.roundToInt
+import dev.diego.expanda.data.AppSettings
 import dev.diego.expanda.data.ExampleSnippets
 import dev.diego.expanda.data.MatchOptions
 import dev.diego.expanda.data.MatchTrigger
