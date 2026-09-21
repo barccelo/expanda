@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.stateIn
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK, AMOLED }
 enum class ColorSchemeMode { WALLPAPER, DEFAULT, CUSTOM }
+enum class DisplayLanguage { SYSTEM, ENGLISH, SPANISH }
 data class AppSettings(
     val expansionEnabled: Boolean = true,
     val consentAccepted: Boolean = false,
@@ -47,6 +48,10 @@ data class AppSettings(
     /** Selection toolbar size. Width is a display fraction; height is density-independent pixels. */
     val selectionToolbarWidthFraction: Float = SettingsRepository.DEFAULT_SELECTION_TOOLBAR_WIDTH,
     val selectionToolbarHeightDp: Int = SettingsRepository.DEFAULT_SELECTION_TOOLBAR_HEIGHT_DP,
+    /** Ordered quick actions shown directly between Undo and the two menu buttons. */
+    val selectionToolbarQuickActionIds: List<String> = SettingsRepository.DEFAULT_SELECTION_TOOLBAR_QUICK_ACTIONS,
+    /** Display language for Expanda Personal surfaces that support localization. */
+    val displayLanguage: DisplayLanguage = DisplayLanguage.SYSTEM,
     val suggestionShowActions: Boolean = true,
     val matchFromBeginning: Boolean = true,
     /** Keep the suggestion list visually dense when enabled. */
@@ -110,6 +115,12 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
             selectionToolbarHeightDp = (
                 values[Keys.SELECTION_TOOLBAR_HEIGHT_DP] ?: DEFAULT_SELECTION_TOOLBAR_HEIGHT_DP
             ).coerceIn(MIN_SELECTION_TOOLBAR_HEIGHT_DP, MAX_SELECTION_TOOLBAR_HEIGHT_DP),
+            selectionToolbarQuickActionIds = decodeToolbarQuickActions(
+                values[Keys.SELECTION_TOOLBAR_QUICK_ACTIONS],
+            ),
+            displayLanguage = values[Keys.DISPLAY_LANGUAGE]?.let {
+                runCatching { DisplayLanguage.valueOf(it) }.getOrNull()
+            } ?: DisplayLanguage.SYSTEM,
             suggestionShowActions = values[Keys.SUGGESTION_SHOW_ACTIONS] ?: true,
             matchFromBeginning = values[Keys.MATCH_BEGINNING] ?: true,
             suggestionCompactList = values[Keys.SUGGESTION_COMPACT] ?: true,
@@ -186,6 +197,16 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         it.remove(Keys.SELECTION_TOOLBAR_WIDTH)
         it.remove(Keys.SELECTION_TOOLBAR_HEIGHT_DP)
     }
+    suspend fun setSelectionToolbarQuickActionIds(ids: List<String>) = store.edit {
+        val normalized = ids
+            .filter { it in AVAILABLE_SELECTION_TOOLBAR_QUICK_ACTIONS }
+            .distinct()
+            .take(MAX_SELECTION_TOOLBAR_QUICK_ACTIONS)
+        it[Keys.SELECTION_TOOLBAR_QUICK_ACTIONS] = normalized.joinToString(SEPARATOR)
+    }
+    suspend fun setDisplayLanguage(language: DisplayLanguage) = store.edit {
+        it[Keys.DISPLAY_LANGUAGE] = language.name
+    }
     suspend fun setSuggestionShowActions(enabled: Boolean) = store.edit { it[Keys.SUGGESTION_SHOW_ACTIONS] = enabled }
     suspend fun setMatchFromBeginning(enabled: Boolean) = store.edit { it[Keys.MATCH_BEGINNING] = enabled }
     suspend fun setSuggestionCompactList(enabled: Boolean) = store.edit {
@@ -256,6 +277,8 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         val SELECTION_TOOLBAR_POSITION_Y = intPreferencesKey("selection_toolbar_position_y")
         val SELECTION_TOOLBAR_WIDTH = floatPreferencesKey("selection_toolbar_width_fraction")
         val SELECTION_TOOLBAR_HEIGHT_DP = intPreferencesKey("selection_toolbar_height_dp")
+        val SELECTION_TOOLBAR_QUICK_ACTIONS = stringPreferencesKey("selection_toolbar_quick_actions")
+        val DISPLAY_LANGUAGE = stringPreferencesKey("display_language")
         val SUGGESTION_SHOW_ACTIONS = booleanPreferencesKey("suggestion_show_actions")
         val MATCH_BEGINNING = booleanPreferencesKey("match_beginning")
         val SUGGESTION_COMPACT = booleanPreferencesKey("suggestion_compact_list")
@@ -289,6 +312,12 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
             .coerceIn(MIN_SELECTION_TOOLBAR_WIDTH, MAX_SELECTION_TOOLBAR_WIDTH)
         values[Keys.SELECTION_TOOLBAR_HEIGHT_DP] = snapshot.selectionToolbarHeightDp
             .coerceIn(MIN_SELECTION_TOOLBAR_HEIGHT_DP, MAX_SELECTION_TOOLBAR_HEIGHT_DP)
+        values[Keys.SELECTION_TOOLBAR_QUICK_ACTIONS] = snapshot.selectionToolbarQuickActionIds
+            .filter { it in AVAILABLE_SELECTION_TOOLBAR_QUICK_ACTIONS }
+            .distinct()
+            .take(MAX_SELECTION_TOOLBAR_QUICK_ACTIONS)
+            .joinToString(SEPARATOR)
+        values[Keys.DISPLAY_LANGUAGE] = snapshot.displayLanguage.name
         values[Keys.SUGGESTION_SHOW_ACTIONS] = snapshot.suggestionShowActions
         values[Keys.MATCH_BEGINNING] = snapshot.matchFromBeginning
         values[Keys.SUGGESTION_COMPACT] = snapshot.suggestionCompactList
@@ -316,12 +345,37 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         const val MIN_SELECTION_TOOLBAR_HEIGHT_DP = 44
         const val MAX_SELECTION_TOOLBAR_HEIGHT_DP = 88
         const val DEFAULT_SELECTION_TOOLBAR_HEIGHT_DP = 56
+        const val MAX_SELECTION_TOOLBAR_QUICK_ACTIONS = 6
+        val DEFAULT_SELECTION_TOOLBAR_QUICK_ACTIONS =
+            listOf("uppercase", "lowercase", "sentence_case", "title_case")
+        val AVAILABLE_SELECTION_TOOLBAR_QUICK_ACTIONS = listOf(
+            "uppercase",
+            "lowercase",
+            "sentence_case",
+            "title_case",
+            "find_replace",
+            "sort_lines",
+            "remove_duplicate_lines",
+            "remove_all_spaces",
+            "reverse_text",
+            "number_lines",
+        )
         const val MIN_SUGGESTION_WIDTH = 0.50f
         const val MAX_SUGGESTION_WIDTH = 0.98f
         const val DEFAULT_SUGGESTION_WIDTH = 0.92f
         const val MIN_SUGGESTION_HEIGHT_DP = 120
         const val MAX_SUGGESTION_HEIGHT_DP = 720
         const val DEFAULT_SUGGESTION_HEIGHT_DP = 280
+
+        private fun decodeToolbarQuickActions(raw: String?): List<String> {
+            val decoded = raw
+                ?.split(SEPARATOR)
+                ?.filter { it in AVAILABLE_SELECTION_TOOLBAR_QUICK_ACTIONS }
+                ?.distinct()
+                ?.take(MAX_SELECTION_TOOLBAR_QUICK_ACTIONS)
+                .orEmpty()
+            return if (raw == null) DEFAULT_SELECTION_TOOLBAR_QUICK_ACTIONS else decoded
+        }
 
         private fun legacyTextScale(mode: String?): Float = when (mode) {
             "SMALL" -> 0.90f
