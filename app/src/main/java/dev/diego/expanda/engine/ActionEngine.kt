@@ -69,7 +69,16 @@ class ActionEngine {
         "dash_space" -> text.replace('-', ' ')
         "uuid" -> UUID.randomUUID().toString()
         "trim_spaces" -> text.trim()
+        "remove_all_spaces" -> text.filterNot(Char::isWhitespace)
         "delete_blank_lines" -> text.lineSequence().filterNot(String::isBlank).joinToString("\n")
+        "remove_duplicate_lines" -> distinctLines(text)
+        "remove_duplicate_words" -> distinctWords(text)
+        "remove_line_breaks" -> text.replace(Regex("\\s*\\R\\s*"), " ").replace(Regex(" {2,}"), " ")
+        "sort_lines" -> text.split(Regex("\\R")).sortedWith(String.CASE_INSENSITIVE_ORDER).joinToString("\n")
+        "number_lines" -> text.split(Regex("\\R")).mapIndexed { index, line -> "${index + 1}. $line" }.joinToString("\n")
+        "reverse_text" -> text.reversed()
+        "reverse_lines" -> text.split(Regex("\\R")).asReversed().joinToString("\n")
+        "reverse_words" -> reverseWords(text)
         else -> null
     }
 
@@ -150,7 +159,9 @@ class ActionEngine {
                 val text = withoutCommand.substring(0, baseCursor.coerceAtMost(withoutCommand.length))
                 outcome(text, text.length)
             }
-            "trim_spaces", "delete_blank_lines" ->
+            "trim_spaces", "remove_all_spaces", "delete_blank_lines", "remove_duplicate_lines",
+            "remove_duplicate_words", "remove_line_breaks", "sort_lines", "number_lines",
+            "reverse_text", "reverse_lines", "reverse_words" ->
                 replaceAll { processSelectedText(definition.id, it) ?: it }
             "uuid" -> processSelectedText(definition.id, withoutCommand)
                 ?.let { outcome(it, it.length) }
@@ -247,7 +258,16 @@ class ActionEngine {
             ActionDefinition("delete_before", ",db", "Delete before cursor", ActionCategory.DELETION, "Delete from the start to the cursor"),
             ActionDefinition("delete_after", ",da", "Delete after cursor", ActionCategory.DELETION, "Delete from the cursor to the end"),
             ActionDefinition("trim_spaces", ",ts", "Trim spaces", ActionCategory.DELETION, "Delete leading and trailing spaces", supportsSelectedText = true),
+            ActionDefinition("remove_all_spaces", ",ras", "Remove all spaces", ActionCategory.DELETION, "Delete every whitespace character", supportsSelectedText = true),
             ActionDefinition("delete_blank_lines", ",ka", "Delete blank lines", ActionCategory.DELETION, "Remove empty lines", supportsSelectedText = true),
+            ActionDefinition("remove_duplicate_lines", ",rdl", "Remove duplicate lines", ActionCategory.DELETION, "Keep the first occurrence of each line", supportsSelectedText = true),
+            ActionDefinition("remove_duplicate_words", ",rdw", "Remove duplicate words", ActionCategory.DELETION, "Keep the first occurrence of each word", supportsSelectedText = true),
+            ActionDefinition("remove_line_breaks", ",rlb", "Remove line breaks", ActionCategory.DELETION, "Join lines with spaces", supportsSelectedText = true),
+            ActionDefinition("sort_lines", ",sl", "Sort lines", ActionCategory.TEXT, "Sort selected lines alphabetically", supportsSelectedText = true),
+            ActionDefinition("number_lines", ",nl", "Number lines", ActionCategory.TEXT, "Add sequential numbers to lines", supportsSelectedText = true),
+            ActionDefinition("reverse_text", ",rt", "Reverse text", ActionCategory.TEXT, "Reverse all selected characters", supportsSelectedText = true),
+            ActionDefinition("reverse_lines", ",rln", "Reverse lines", ActionCategory.TEXT, "Reverse the order of selected lines", supportsSelectedText = true),
+            ActionDefinition("reverse_words", ",rw", "Reverse words", ActionCategory.TEXT, "Reverse the order of selected words", supportsSelectedText = true),
             ActionDefinition("cursor_start", ",cs", "Cursor to start", ActionCategory.CURSOR, "Place the cursor at the start"),
             ActionDefinition("cursor_end", ",ce", "Cursor to end", ActionCategory.CURSOR, "Place the cursor at the end"),
             ActionDefinition("copy_all", ",cc", "Copy all", ActionCategory.CLIPBOARD, "Copy all text"),
@@ -287,6 +307,24 @@ class ActionEngine {
                 }
             }
         }
+
+        private fun distinctLines(value: String): String {
+            val seen = linkedSetOf<String>()
+            return value.split(Regex("\\R"))
+                .filter { seen.add(it) }
+                .joinToString("\n")
+        }
+
+        private fun distinctWords(value: String): String {
+            val seen = linkedSetOf<String>()
+            return Regex("\\S+").findAll(value)
+                .map { it.value }
+                .filter { seen.add(it) }
+                .joinToString(" ")
+        }
+
+        private fun reverseWords(value: String): String =
+            Regex("\\S+").findAll(value).map { it.value }.toList().asReversed().joinToString(" ")
 
         private fun titleCase(value: String): String = buildString(value.length) {
             var boundary = true
