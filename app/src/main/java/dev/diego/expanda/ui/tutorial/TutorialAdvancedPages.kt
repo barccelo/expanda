@@ -326,10 +326,22 @@ internal fun EspansoCompatibilityAnimation() {
         }
         AnimatedContent(
             targetState = when {
-                desktopReady -> "Same .yml format Espanso uses on desktop"
-                folderReady -> "Keep them in Expanda, or link a folder to sync"
-                imported -> "Edit the same plain-text files inside Expanda"
-                else -> "Your snippets are files you can inspect and move"
+                desktopReady -> tr(
+                    "Same .yml format Espanso uses on desktop",
+                    "El mismo formato .yml que usa Espanso en escritorio",
+                )
+                folderReady -> tr(
+                    "Keep them in Expanda, or link a folder to sync",
+                    "Consérvalos en Expanda o vincula una carpeta para sincronizar",
+                )
+                imported -> tr(
+                    "Edit the same plain-text files inside Expanda",
+                    "Edita los mismos archivos de texto plano dentro de Expanda",
+                )
+                else -> tr(
+                    "Your snippets are files you can inspect and move",
+                    "Tus fragmentos son archivos que puedes inspeccionar y mover",
+                )
             },
             transitionSpec = { fadeIn(tween(320)).togetherWith(fadeOut(tween(220))) },
             label = "espanso source state",
