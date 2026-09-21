@@ -242,7 +242,7 @@ internal fun FormChoiceAnimation() {
                     timeChanged = timeChanged,
                 )
                 FormStage.RESULT -> TutorialTextField(minHeight = 100) {
-                    Text("Meeting with Sam · Online\n2026-08-26 at 10:30")
+                    Text(tr("Meeting with Sam · Online\n2026-08-26 at 10:30", "Reunión con Sam · En línea\n2026-08-26 a las 10:30"))
                 }
             }
         }
