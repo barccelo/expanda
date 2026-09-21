@@ -688,7 +688,11 @@ class ExpansionAccessibilityService : AccessibilityService() {
             background = ui.surface(10)
             isClickable = true
             isFocusable = true
-            contentDescription = "Move selection toolbar. Long press and drag to resize."
+            contentDescription = localizedSelectionUi(
+                settings,
+                "Move selection toolbar. Long press and drag to resize.",
+                "Mover barra de selección. Mantén pulsado y arrastra para redimensionar.",
+            )
         }
         container.addView(
             dragHandle,
@@ -954,7 +958,10 @@ class ExpansionAccessibilityService : AccessibilityService() {
             )
         }
 
-        val footer = overlayCancelFooter(ui) { hideFormOverlay() }
+        val footer = overlayCancelFooter(
+            ui,
+            localizedSelectionUi(settings, "Cancel", "Cancelar"),
+        ) { hideFormOverlay() }
         val bounds = displayBounds(windowManager)
         val maxContentHeight = (bounds.height() * 0.62f).toInt().coerceAtLeast(dp(220))
         val root = buildPickerOverlayRoot(
@@ -1273,6 +1280,12 @@ class ExpansionAccessibilityService : AccessibilityService() {
         DisplayLanguage.ENGLISH -> false
         DisplayLanguage.SYSTEM -> Locale.getDefault().language.equals("es", ignoreCase = true)
     }
+
+    private fun localizedSelectionUi(
+        settings: AppSettings,
+        english: String,
+        spanish: String,
+    ): String = if (selectionUsesSpanish(settings)) spanish else english
 
     private fun selectionUiText(settings: AppSettings, key: String): String {
         val es = selectionUsesSpanish(settings)
@@ -1958,7 +1971,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(14), dp(12), dp(14), dp(8))
-            addView(ui.title("Choose snippet").apply {
+            addView(ui.title(localizedSelectionUi(settings, "Choose snippet", "Elegir fragmento")).apply {
                 setPadding(dp(6), dp(2), dp(6), dp(8))
             })
         }
@@ -1976,7 +1989,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 background = ui.surface()
                 isClickable = true
                 isFocusable = true
-                contentDescription = "Use $title"
+                contentDescription = localizedSelectionUi(settings, "Use $title", "Usar $title")
                 setOnClickListener {
                     formOverlay?.let { overlay -> runCatching { windowManager.removeView(overlay) } }
                     formOverlay = null
@@ -1992,7 +2005,10 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 ).apply { bottomMargin = dp(6) },
             )
         }
-        val footer = overlayCancelFooter(ui) { hideFormOverlay() }
+        val footer = overlayCancelFooter(
+            ui,
+            localizedSelectionUi(settings, "Cancel", "Cancelar"),
+        ) { hideFormOverlay() }
         val bounds = displayBounds(windowManager)
         val maxContentHeight = (bounds.height() * 0.55f).toInt().coerceAtLeast(dp(180))
         val root = buildPickerOverlayRoot(content, footer, candidates.size, maxContentHeight, ui.panel(22), ui)
@@ -2040,7 +2056,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         val list = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(14), dp(12), dp(14), dp(8))
-            addView(ui.title("Choose replacement").apply {
+            addView(ui.title(localizedSelectionUi(settings, "Choose replacement", "Elegir reemplazo")).apply {
                 setPadding(dp(6), dp(2), dp(6), dp(8))
             })
         }
@@ -2051,7 +2067,11 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 background = ui.surface()
                 isClickable = true
                 isFocusable = true
-                contentDescription = "Use replacement ${index + 1}"
+                contentDescription = localizedSelectionUi(
+                    settings,
+                    "Use replacement ${index + 1}",
+                    "Usar reemplazo ${index + 1}",
+                )
                 setOnClickListener {
                     val rendered = renderMatch(match, index)
                     formOverlay?.let { overlay -> runCatching { windowManager.removeView(overlay) } }
@@ -2072,7 +2092,10 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 bottomMargin = dp(6)
             })
         }
-        val footer = overlayCancelFooter(ui) { hideFormOverlay() }
+        val footer = overlayCancelFooter(
+            ui,
+            localizedSelectionUi(settings, "Cancel", "Cancelar"),
+        ) { hideFormOverlay() }
         val bounds = displayBounds(windowManager)
         val maxContentHeight = (bounds.height() * 0.55f).toInt().coerceAtLeast(dp(180))
         val root = buildPickerOverlayRoot(list, footer, match.match.replacements.size, maxContentHeight, ui.panel(22), ui)
@@ -2110,7 +2133,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(16), dp(20), dp(12))
-            addView(ui.title("Complete snippet").apply {
+            addView(ui.title(localizedSelectionUi(settings, "Complete snippet", "Completar fragmento")).apply {
                 setPadding(0, 0, 0, dp(12))
             })
         }
@@ -2158,6 +2181,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
         addPreviewText(panel, rendered.text.substring(previewIndex.coerceAtMost(rendered.text.length)), ui)
         val footer = overlayActionFooter(
             ui,
+            primaryLabel = localizedSelectionUi(settings, "Insert", "Insertar"),
+            cancelLabel = localizedSelectionUi(settings, "Cancel", "Cancelar"),
             onCancel = { hideFormOverlay() },
             onPrimary = {
                 val values = valueReaders.mapValues { it.value.invoke() }
@@ -2203,7 +2228,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(18), dp(16), dp(18), dp(8))
-            addView(ui.title("Choose ${field.label}").apply {
+            addView(ui.title(localizedSelectionUi(settings, "Choose ${field.label}", "Elegir ${field.label}")).apply {
                 setPadding(0, 0, 0, dp(8))
             })
             val preview = rendered.text.substring(0, field.start) + "[…]" +
@@ -2225,7 +2250,10 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 LinearLayout.LayoutParams.WRAP_CONTENT,
             ).apply { bottomMargin = dp(6) })
         }
-        val footer = overlayCancelFooter(ui) { hideFormOverlay() }
+        val footer = overlayCancelFooter(
+            ui,
+            localizedSelectionUi(settings, "Cancel", "Cancelar"),
+        ) { hideFormOverlay() }
         val bounds = displayBounds(windowManager)
         val maxContentHeight = (bounds.height() * 0.55f).toInt().coerceAtLeast(dp(180))
         val root = buildPickerOverlayRoot(panel, footer, field.options.size, maxContentHeight, ui.panel(), ui)
@@ -2908,7 +2936,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
             textSize = ui.scaled(19f)
             includeFontPadding = false
             setPadding(0, dp(1), 0, dp(3))
-            contentDescription = "Move suggestion popup"
+            contentDescription = localizedSelectionUi(settings, "Move suggestion popup", "Mover panel de sugerencias")
         }
         val close = TextView(this).apply {
             this.text = "×"
@@ -2918,7 +2946,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
             includeFontPadding = false
             isClickable = true
             isFocusable = true
-            contentDescription = "Close suggestion popup"
+            contentDescription = localizedSelectionUi(settings, "Close suggestion popup", "Cerrar panel de sugerencias")
             background = ui.surface(9)
             setOnClickListener { hideSuggestions() }
         }
@@ -2935,7 +2963,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
             includeFontPadding = false
             isClickable = true
             isFocusable = true
-            contentDescription = "Resize suggestion popup width and height"
+            contentDescription = localizedSelectionUi(settings, "Resize suggestion popup width and height", "Redimensionar ancho y alto del panel de sugerencias")
             background = ui.surface(9)
         }
         val list = LinearLayout(this).apply {
