@@ -59,6 +59,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import dev.diego.expanda.ui.tr
 
 private const val UNDO_LOOP = 12_600
 private const val FEATURE_LOOP = 7_600
@@ -165,7 +166,7 @@ internal fun DynamicValuesAnimation() {
                 }
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Text("Daily brief", fontWeight = FontWeight.SemiBold)
+                    Text(tr("Daily brief", "Resumen diario"), fontWeight = FontWeight.SemiBold)
                     AnimatedValue(showDate, "2026-08-25", MaterialTheme.colorScheme.primary)
                     AnimatedValue(showTime, "09:30", MaterialTheme.colorScheme.secondary)
                     AnimatedValue(showRandom, "Reference · Q7M4", MaterialTheme.colorScheme.tertiary)
@@ -278,7 +279,7 @@ internal fun RegexAnimation() {
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         ) {
             Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                Text("Trigger", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(tr("Trigger"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(triggerRule, fontFamily = FontFamily.Monospace)
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -350,11 +351,11 @@ private fun FormPreview(
             shadowElevation = 8.dp,
         ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Complete snippet", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text("Meeting with", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(tr("Complete snippet", "Completar fragmento"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(tr("Meeting with", "Reunión con"), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 InlineField(
                     value = name,
-                    placeholder = "Name",
+                    placeholder = tr("Name", "Nombre"),
                     showCursor = nameCursor,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -366,20 +367,20 @@ private fun FormPreview(
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
                     InlineField("2026-08-26")
-                    Text("at")
+                    Text(tr("at", "a las"))
                     Box(contentAlignment = Alignment.Center) {
                         InlineField(if (timeChanged) "10:30" else "10:00")
                         TutorialTouch(timePress)
                     }
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    Text("Cancel", modifier = Modifier.padding(12.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(tr("Cancel"), modifier = Modifier.padding(12.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Box(contentAlignment = Alignment.Center) {
                         Surface(
                             shape = RoundedCornerShape(20.dp),
                             color = MaterialTheme.colorScheme.primary,
                             contentColor = MaterialTheme.colorScheme.onPrimary,
-                        ) { Text("Insert", modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp)) }
+                        ) { Text(tr("Insert"), modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp)) }
                         TutorialTouch(insertPress)
                     }
                 }
@@ -412,7 +413,7 @@ private fun ChoiceField(open: Boolean, selected: Boolean, fieldTouch: Float, ite
                 Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text(if (selected) "Online" else "Choose location")
+                Text(if (selected) tr("Online", "En línea") else tr("Choose location", "Elegir ubicación"))
                 Text(if (open) "▲" else "▼", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -429,10 +430,10 @@ private fun ChoiceField(open: Boolean, selected: Boolean, fieldTouch: Float, ite
             ) {
                 Column {
                     Box(contentAlignment = Alignment.Center) {
-                        Text("Online", modifier = Modifier.fillMaxWidth().padding(11.dp))
+                        Text(tr("Online", "En línea"), modifier = Modifier.fillMaxWidth().padding(11.dp))
                         TutorialTouch(itemTouch)
                     }
-                    Text("In person", modifier = Modifier.fillMaxWidth().padding(11.dp))
+                    Text(tr("In person", "Presencial"), modifier = Modifier.fillMaxWidth().padding(11.dp))
                 }
             }
         }
@@ -482,7 +483,7 @@ private fun ClockPickerPreview(selectedMinute: Int, clockPress: Float, donePress
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Text("Select time", modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.labelLarge)
+            Text(tr("Select time", "Seleccionar hora"), modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.labelLarge)
             Box(contentAlignment = Alignment.Center) {
                 TimePicker(state = pickerState)
                 TutorialTouch(
@@ -492,7 +493,7 @@ private fun ClockPickerPreview(selectedMinute: Int, clockPress: Float, donePress
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 Box(contentAlignment = Alignment.Center) {
-                    Text("OK", modifier = Modifier.padding(horizontal = 18.dp, vertical = 9.dp), color = MaterialTheme.colorScheme.primary)
+                    Text(tr("OK", "Aceptar"), modifier = Modifier.padding(horizontal = 18.dp, vertical = 9.dp), color = MaterialTheme.colorScheme.primary)
                     TutorialTouch(donePress)
                 }
             }
