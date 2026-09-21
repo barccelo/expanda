@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import dev.diego.expanda.data.AppSettings
 import dev.diego.expanda.data.SettingsRepository
+import dev.diego.expanda.ui.tr
 import kotlin.math.roundToInt
 
 /** Shared controls used by Settings and the live onboarding preview. */
@@ -53,35 +54,35 @@ fun SuggestionSettingsPanel(
 ) {
     Column(modifier) {
         ListItem(
-            headlineContent = { Text("Suggestion overlay") },
+            headlineContent = { Text(tr("Suggestion overlay")) },
             leadingContent = { Icon(Icons.Default.Lightbulb, null) },
             supportingContent = if (compactPresentation) null else {
-                { Text("Show matching snippets while you type") }
+                { Text(tr("Show matching snippets while you type")) }
             },
             trailingContent = { Switch(settings.suggestionEnabled, onEnabledChanged) },
         )
         if (settings.suggestionEnabled) {
             if (showAdditionalOptions) {
                 ListItem(
-                    headlineContent = { Text("Show actions in suggestions") },
+                    headlineContent = { Text(tr("Show actions in suggestions")) },
                     leadingContent = { Icon(Icons.Default.Bolt, null) },
-                    supportingContent = { Text("Include enabled actions alongside text snippets") },
+                    supportingContent = { Text(tr("Include enabled actions alongside text snippets")) },
                     trailingContent = { Switch(settings.suggestionShowActions, onShowActionsChanged) },
                 )
             }
             ListItem(
-                headlineContent = { Text(if (compactPresentation) "Compact list" else "Compact suggestion list") },
+                headlineContent = { Text(if (compactPresentation) tr("Compact list") else tr("Compact suggestion list")) },
                 leadingContent = { Icon(Icons.AutoMirrored.Filled.ViewList, null) },
                 supportingContent = if (compactPresentation) null else {
-                    { Text("Off shows the replacement preview") }
+                    { Text(tr("Off shows the replacement preview")) }
                 },
                 trailingContent = { Switch(settings.suggestionCompactList, onCompactChanged) },
             )
             ListItem(
-                headlineContent = { Text(if (compactPresentation) "Minimum characters" else "Minimum matching characters") },
+                headlineContent = { Text(if (compactPresentation) tr("Minimum characters") else tr("Minimum matching characters")) },
                 leadingContent = { Icon(Icons.Default.FormatSize, null) },
                 supportingContent = if (compactPresentation) null else {
-                    { Text("Suggestions start after ${settings.suggestionMinChars} characters") }
+                    { Text(tr("Suggestions start after ${settings.suggestionMinChars} characters", "Las sugerencias aparecen después de ${settings.suggestionMinChars} caracteres")) }
                 },
                 trailingContent = {
                     Stepper(
@@ -102,10 +103,10 @@ fun SuggestionSettingsPanel(
                 onHeightPreviewChanged = onHeightPreviewChanged,
             )
             ListItem(
-                headlineContent = { Text(if (compactPresentation) "Resize button" else "Show popup resize button") },
+                headlineContent = { Text(if (compactPresentation) tr("Resize button") else tr("Show popup resize button")) },
                 leadingContent = { Icon(Icons.Default.AspectRatio, null) },
                 supportingContent = if (compactPresentation) null else {
-                    { Text("Drag the bottom-left control diagonally to resize width and height") }
+                    { Text(tr("Drag the bottom-left control diagonally to resize width and height")) }
                 },
                 trailingContent = {
                     Switch(settings.suggestionResizeHandleEnabled, onResizeHandleChanged)
@@ -113,8 +114,8 @@ fun SuggestionSettingsPanel(
             )
             if (showAdditionalOptions) {
                 ListItem(
-                    headlineContent = { Text("Match suggestions from beginning") },
-                    supportingContent = { Text("Turn off to match text anywhere in a shortcut") },
+                    headlineContent = { Text(tr("Match suggestions from beginning")) },
+                    supportingContent = { Text(tr("Turn off to match text anywhere in a shortcut")) },
                     trailingContent = {
                         Switch(settings.matchFromBeginning, onMatchFromBeginningChanged)
                     },
@@ -139,14 +140,14 @@ private fun PopupSizeSettings(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text("Suggestion popup size", style = MaterialTheme.typography.bodyLarge)
+        Text(tr("Suggestion popup size"), style = MaterialTheme.typography.bodyLarge)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             PopupDimensionSlider(
                 icon = Icons.Default.SwapHoriz,
-                label = "Width",
+                label = tr("Width"),
                 valueLabel = "${(widthDraft * 100).roundToInt()}%",
                 value = widthDraft,
                 onValueChange = {
@@ -160,7 +161,7 @@ private fun PopupSizeSettings(
             )
             PopupDimensionSlider(
                 icon = Icons.Default.SwapVert,
-                label = "Height",
+                label = tr("Height"),
                 valueLabel = "${heightDraft.roundToInt()} dp",
                 value = heightDraft,
                 onValueChange = {
