@@ -39,6 +39,8 @@ data class AppSettings(
     val statisticsEnabled: Boolean = true,
     val hapticFeedback: Boolean = false,
     val pasteFallbackEnabled: Boolean = false,
+    /** One-shot lowercase correction after snippets that place $|$ inside surrounding punctuation. */
+    val smartCursorCaseEnabled: Boolean = false,
     val suggestionEnabled: Boolean = true,
     /** Show Expanda's compact toolbar when editable text is selected in another app. */
     val selectionToolbarEnabled: Boolean = true,
@@ -105,6 +107,7 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
             statisticsEnabled = values[Keys.STATISTICS] ?: true,
             hapticFeedback = values[Keys.HAPTIC] ?: false,
             pasteFallbackEnabled = values[Keys.PASTE_FALLBACK] ?: false,
+            smartCursorCaseEnabled = values[Keys.SMART_CURSOR_CASE] ?: false,
             suggestionEnabled = values[Keys.SUGGESTIONS] ?: true,
             selectionToolbarEnabled = values[Keys.SELECTION_TOOLBAR] ?: true,
             selectionToolbarPositionX = values[Keys.SELECTION_TOOLBAR_POSITION_X] ?: -1,
@@ -171,6 +174,7 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
     suspend fun setStatisticsEnabled(enabled: Boolean) = store.edit { it[Keys.STATISTICS] = enabled }
     suspend fun setHapticFeedback(enabled: Boolean) = store.edit { it[Keys.HAPTIC] = enabled }
     suspend fun setPasteFallbackEnabled(enabled: Boolean) = store.edit { it[Keys.PASTE_FALLBACK] = enabled }
+    suspend fun setSmartCursorCaseEnabled(enabled: Boolean) = store.edit { it[Keys.SMART_CURSOR_CASE] = enabled }
     suspend fun setSuggestionEnabled(enabled: Boolean) = store.edit { it[Keys.SUGGESTIONS] = enabled }
     suspend fun setSelectionToolbarEnabled(enabled: Boolean) = store.edit { it[Keys.SELECTION_TOOLBAR] = enabled }
     suspend fun setSelectionToolbarPosition(x: Int, y: Int) = store.edit {
@@ -271,6 +275,7 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         val STATISTICS = booleanPreferencesKey("statistics")
         val HAPTIC = booleanPreferencesKey("haptic_feedback")
         val PASTE_FALLBACK = booleanPreferencesKey("paste_fallback")
+        val SMART_CURSOR_CASE = booleanPreferencesKey("smart_cursor_case")
         val SUGGESTIONS = booleanPreferencesKey("suggestions")
         val SELECTION_TOOLBAR = booleanPreferencesKey("selection_toolbar")
         val SELECTION_TOOLBAR_POSITION_X = intPreferencesKey("selection_toolbar_position_x")
@@ -306,6 +311,7 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         values[Keys.STATISTICS] = snapshot.statisticsEnabled
         values[Keys.HAPTIC] = snapshot.hapticFeedback
         values[Keys.PASTE_FALLBACK] = snapshot.pasteFallbackEnabled
+        values[Keys.SMART_CURSOR_CASE] = snapshot.smartCursorCaseEnabled
         values[Keys.SUGGESTIONS] = snapshot.suggestionEnabled
         values[Keys.SELECTION_TOOLBAR] = snapshot.selectionToolbarEnabled
         values[Keys.SELECTION_TOOLBAR_WIDTH] = snapshot.selectionToolbarWidthFraction
