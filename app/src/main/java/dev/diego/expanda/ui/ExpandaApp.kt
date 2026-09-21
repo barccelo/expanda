@@ -128,6 +128,8 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.input.OffsetMapping
@@ -907,6 +909,7 @@ private fun SettingsScreen(
     var confirmResetAll by remember { mutableStateOf(false) }
     var diagnosticsCopied by remember { mutableStateOf(false) }
     var folderStatus by remember { mutableStateOf<String?>(null) }
+    var showSelectionToolbarSettings by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
     Box(Modifier.fillMaxSize()) {
@@ -1030,32 +1033,27 @@ private fun SettingsScreen(
             ListItem(
                 headlineContent = { Text(tr("Selection toolbar")) },
                 leadingContent = { Icon(Icons.Default.TextFields, null) },
-                supportingContent = { Text(tr("Show quick text transformations when you select editable text")) },
-                trailingContent = {
-                    Switch(
-                        state.settings.selectionToolbarEnabled,
-                        viewModel::setSelectionToolbarEnabled,
+                supportingContent = {
+                    Text(
+                        if (state.settings.selectionToolbarEnabled) {
+                            tr(
+                                "Enabled · ${state.settings.selectionToolbarQuickActionIds.size} quick actions",
+                                "Activada · ${state.settings.selectionToolbarQuickActionIds.size} accesos rápidos",
+                            )
+                        } else {
+                            tr("Disabled")
+                        },
                     )
                 },
+                trailingContent = {
+                    Text(
+                        "›",
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+                modifier = Modifier.clickable { showSelectionToolbarSettings = true },
             )
-        }
-        if (state.settings.selectionToolbarEnabled) {
-            item {
-                SelectionToolbarSizeSetting(
-                    widthFraction = state.settings.selectionToolbarWidthFraction,
-                    heightDp = state.settings.selectionToolbarHeightDp,
-                    onWidthChanged = viewModel::setSelectionToolbarWidthFraction,
-                    onHeightChanged = viewModel::setSelectionToolbarHeightDp,
-                    onReset = viewModel::resetSelectionToolbarLayout,
-                )
-            }
-            item {
-                SelectionToolbarQuickActionsSetting(
-                    actionIds = state.settings.selectionToolbarQuickActionIds,
-                    language = state.settings.displayLanguage,
-                    onChanged = viewModel::setSelectionToolbarQuickActionIds,
-                )
-            }
         }
         item {
             SuggestionSettingsPanel(
@@ -1309,6 +1307,17 @@ private fun SettingsScreen(
         }
         }
 
+        if (showSelectionToolbarSettings) {
+            SelectionToolbarSettingsDialog(
+                settings = state.settings,
+                onDismiss = { showSelectionToolbarSettings = false },
+                onEnabledChanged = viewModel::setSelectionToolbarEnabled,
+                onWidthChanged = viewModel::setSelectionToolbarWidthFraction,
+                onHeightChanged = viewModel::setSelectionToolbarHeightDp,
+                onResetLayout = viewModel::resetSelectionToolbarLayout,
+                onQuickActionsChanged = viewModel::setSelectionToolbarQuickActionIds,
+            )
+        }
         if (showGlobalAppPicker) AppExclusionPicker(
             title = tr("Exclude Expanda from apps", "Excluir Expanda de aplicaciones"),
             selectedPackages = state.settings.globallyExcludedPackages,
@@ -1419,6 +1428,100 @@ private fun <T> CompactChoiceSetting(
                     onClick = { onSelected(option) },
                     label = { Text(label(option)) },
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SelectionToolbarSettingsDialog(
+    settings: AppSettings,
+    onDismiss: () -> Unit,
+    onEnabledChanged: (Boolean) -> Unit,
+    onWidthChanged: (Float) -> Unit,
+    onHeightChanged: (Int) -> Unit,
+    onResetLayout: () -> Unit,
+    onQuickActionsChanged: (List<String>) -> Unit,
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .heightIn(max = 760.dp),
+            shape = RoundedCornerShape(24.dp),
+            tonalElevation = 6.dp,
+        ) {
+            Column {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 20.dp, top = 12.dp, end = 8.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            tr("Selection toolbar"),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            tr(
+                                "Configure visibility, size and quick actions.",
+                                "Configura visibilidad, tamaño y accesos rápidos.",
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, tr("Close"))
+                    }
+                }
+                HorizontalDivider()
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 680.dp),
+                    contentPadding = PaddingValues(bottom = 16.dp),
+                ) {
+                    item {
+                        ListItem(
+                            headlineContent = { Text(tr("Selection toolbar")) },
+                            supportingContent = {
+                                Text(tr("Show quick text transformations when you select editable text"))
+                            },
+                            leadingContent = { Icon(Icons.Default.TextFields, null) },
+                            trailingContent = {
+                                Switch(
+                                    checked = settings.selectionToolbarEnabled,
+                                    onCheckedChange = onEnabledChanged,
+                                )
+                            },
+                        )
+                    }
+                    if (settings.selectionToolbarEnabled) {
+                        item {
+                            SelectionToolbarSizeSetting(
+                                widthFraction = settings.selectionToolbarWidthFraction,
+                                heightDp = settings.selectionToolbarHeightDp,
+                                onWidthChanged = onWidthChanged,
+                                onHeightChanged = onHeightChanged,
+                                onReset = onResetLayout,
+                            )
+                        }
+                        item {
+                            SelectionToolbarQuickActionsSetting(
+                                actionIds = settings.selectionToolbarQuickActionIds,
+                                language = settings.displayLanguage,
+                                onChanged = onQuickActionsChanged,
+                            )
+                        }
+                    }
+                }
             }
         }
     }
