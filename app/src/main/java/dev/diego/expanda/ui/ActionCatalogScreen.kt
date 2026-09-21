@@ -136,10 +136,10 @@ private fun ActionRow(
 ) {
     ListItem(
         overlineContent = { Text(shortcut, fontFamily = FontFamily.Monospace) },
-        headlineContent = { Text(definition.title) },
+        headlineContent = { Text(tr(definition.title)) },
         supportingContent = {
             Column {
-                Text(definition.description)
+                Text(tr(definition.description))
                 if (definition.supportsSelectedText) {
                     Text(
                         "Also available from Android's selected-text menu",
@@ -171,8 +171,8 @@ private fun ShortcutEditorDialog(
     val normalized = value.trim()
     val duplicate = allShortcuts.any { (id, shortcut) -> id != definition.id && shortcut == normalized }
     val error = when {
-        normalized.isEmpty() -> "The shortcut cannot be empty"
-        duplicate -> "Another action already uses this shortcut"
+        normalized.isEmpty() -> tr("The shortcut cannot be empty")
+        duplicate -> tr("Another action already uses this shortcut")
         else -> null
     }
     AlertDialog(
@@ -180,7 +180,7 @@ private fun ShortcutEditorDialog(
         title = { Text(tr("Edit action shortcut")) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(definition.title)
+                Text(tr(definition.title))
                 OutlinedTextField(
                     value = value,
                     onValueChange = { value = it },
@@ -203,13 +203,14 @@ private fun ShortcutEditorDialog(
     )
 }
 
+@Composable
 private fun ActionCategory.displayName(): String = when (this) {
-    ActionCategory.NUMBER -> "Numbers and calculations"
-    ActionCategory.TEXT -> "Text"
-    ActionCategory.SELECTION -> "Selection"
-    ActionCategory.DELETION -> "Deletion"
-    ActionCategory.CURSOR -> "Cursor"
-    ActionCategory.CLIPBOARD -> "Clipboard"
+    ActionCategory.NUMBER -> tr("Numbers and calculations")
+    ActionCategory.TEXT -> tr("Text")
+    ActionCategory.SELECTION -> tr("Selection")
+    ActionCategory.DELETION -> tr("Deletion")
+    ActionCategory.CURSOR -> tr("Cursor")
+    ActionCategory.CLIPBOARD -> tr("Clipboard")
     ActionCategory.ANDROID -> "Android"
     ActionCategory.EXPANDA -> "Expanda"
 }
