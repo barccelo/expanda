@@ -1066,6 +1066,327 @@ class ExpansionAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun showFindReplaceOverlay() {
+        val state = selectionToolbarState ?: return
+        val settings = settingsRepository.settings.value
+        hideFormOverlay()
+        val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        val ui = OverlayViews(this, resolveNativeTheme(this, settings))
+        val findInput = ui.input(selectionUiText(settings, "find"), "").apply {
+            setSingleLine(true)
+        }
+        val replaceInput = ui.input(selectionUiText(settings, "replace_with"), "").apply {
+            setSingleLine(true)
+        }
+        val caseSensitive = CheckBox(this).apply {
+            text = selectionUiText(settings, "case_sensitive")
+            setTextColor(ui.theme.onSurface)
+        }
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(16), dp(18), dp(8))
+            addView(ui.title(selectionUiText(settings, "find_replace")))
+            addView(ui.body(state.selectedText.replace('\n', ' ').take(140), secondary = true).apply {
+                setPadding(0, dp(4), 0, dp(10))
+                maxLines = 2
+            })
+            addView(ui.fieldGroup(selectionUiText(settings, "find"), findInput))
+            addView(ui.fieldGroup(selectionUiText(settings, "replace_with"), replaceInput))
+            addView(caseSensitive)
+        }
+        val footer = overlayActionFooter(
+            ui = ui,
+            primaryLabel = selectionUiText(settings, "replace_all"),
+            cancelLabel = selectionUiText(settings, "cancel"),
+            onCancel = { hideFormOverlay() },
+            onPrimary = {
+                val needle = findInput.text.toString()
+                if (needle.isEmpty()) return@overlayActionFooter
+                val replacement = replaceInput.text.toString()
+                val result = if (caseSensitive.isChecked) {
+                    state.selectedText.replace(needle, replacement)
+                } else {
+                    Regex(Regex.escape(needle), RegexOption.IGNORE_CASE)
+                        .replace(state.selectedText, replacement)
+                }
+                hideFormOverlay()
+                applyCustomSelectionReplacement(state, result)
+            },
+        )
+        val root = buildOverlayRoot(panel, footer, ui.panel(22), ui)
+        val params = overlayDialogParams(windowManager, softInput = true)
+        runCatching {
+            windowManager.addView(root, params)
+            formOverlay = root
+            findInput.requestFocus()
+            findInput.postDelayed({
+                (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager)
+                    .showSoftInput(findInput, InputMethodManager.SHOW_IMPLICIT)
+            }, 120L)
+        }.onFailure {
+            formOverlay = null
+        }
+    }
+
+    private fun showPrefixSuffixOverlay() {
+        val state = selectionToolbarState ?: return
+        val settings = settingsRepository.settings.value
+        hideFormOverlay()
+        val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        val ui = OverlayViews(this, resolveNativeTheme(this, settings))
+        val prefix = ui.input(selectionUiText(settings, "prefix"), "").apply { setSingleLine(true) }
+        val suffix = ui.input(selectionUiText(settings, "suffix"), "").apply { setSingleLine(true) }
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(16), dp(18), dp(8))
+            addView(ui.title(selectionUiText(settings, "prefix_suffix")))
+            addView(ui.fieldGroup(selectionUiText(settings, "prefix"), prefix))
+            addView(ui.fieldGroup(selectionUiText(settings, "suffix"), suffix))
+        }
+        val footer = overlayActionFooter(
+            ui = ui,
+            primaryLabel = selectionUiText(settings, "apply"),
+            cancelLabel = selectionUiText(settings, "cancel"),
+            onCancel = { hideFormOverlay() },
+            onPrimary = {
+                val result = prefix.text.toString() + state.selectedText + suffix.text.toString()
+                hideFormOverlay()
+                applyCustomSelectionReplacement(state, result)
+            },
+        )
+        val root = buildOverlayRoot(panel, footer, ui.panel(22), ui)
+        val params = overlayDialogParams(windowManager, softInput = true)
+        runCatching {
+            windowManager.addView(root, params)
+            formOverlay = root
+            prefix.requestFocus()
+            prefix.postDelayed({
+                (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager)
+                    .showSoftInput(prefix, InputMethodManager.SHOW_IMPLICIT)
+            }, 120L)
+        }.onFailure { formOverlay = null }
+    }
+
+    private fun showRepeatTextOverlay() {
+        val state = selectionToolbarState ?: return
+        val settings = settingsRepository.settings.value
+        hideFormOverlay()
+        val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        val ui = OverlayViews(this, resolveNativeTheme(this, settings))
+        val count = ui.input(selectionUiText(settings, "repeat_count"), "2").apply {
+            setSingleLine(true)
+            inputType = InputType.TYPE_CLASS_NUMBER
+        }
+        val separator = ui.input(selectionUiText(settings, "separator"), "\\n").apply {
+            setSingleLine(true)
+        }
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(16), dp(18), dp(8))
+            addView(ui.title(selectionUiText(settings, "repeat_text")))
+            addView(ui.fieldGroup(selectionUiText(settings, "repeat_count"), count))
+            addView(ui.fieldGroup(selectionUiText(settings, "separator"), separator))
+            addView(ui.body(selectionUiText(settings, "separator_hint"), secondary = true))
+        }
+        val footer = overlayActionFooter(
+            ui = ui,
+            primaryLabel = selectionUiText(settings, "apply"),
+            cancelLabel = selectionUiText(settings, "cancel"),
+            onCancel = { hideFormOverlay() },
+            onPrimary = {
+                val times = count.text.toString().toIntOrNull()?.coerceIn(1, 1000) ?: 1
+                val separatorValue = separator.text.toString()
+                    .replace("\\n", "\n")
+                    .replace("\\t", "\t")
+                val result = List(times) { state.selectedText }.joinToString(separatorValue)
+                hideFormOverlay()
+                applyCustomSelectionReplacement(state, result)
+            },
+        )
+        val root = buildOverlayRoot(panel, footer, ui.panel(22), ui)
+        val params = overlayDialogParams(windowManager, softInput = true)
+        runCatching {
+            windowManager.addView(root, params)
+            formOverlay = root
+            count.requestFocus()
+            count.selectAll()
+        }.onFailure { formOverlay = null }
+    }
+
+    private fun showTextCounterOverlay() {
+        val state = selectionToolbarState ?: return
+        val settings = settingsRepository.settings.value
+        hideFormOverlay()
+        val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        val ui = OverlayViews(this, resolveNativeTheme(this, settings))
+        val text = state.selectedText
+        val words = Regex("\\S+").findAll(text).count()
+        val lines = if (text.isEmpty()) 0 else text.split(Regex("\\R"), -1).size
+        val withoutSpaces = text.count { !it.isWhitespace() }
+        val details = buildString {
+            appendLine("${selectionUiText(settings, "characters")}: ${text.length}")
+            appendLine("${selectionUiText(settings, "characters_no_spaces")}: $withoutSpaces")
+            appendLine("${selectionUiText(settings, "words")}: $words")
+            append("${selectionUiText(settings, "lines")}: $lines")
+        }
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(16), dp(18), dp(8))
+            addView(ui.title(selectionUiText(settings, "text_counter")))
+            addView(ui.body(details).apply { setPadding(0, dp(10), 0, dp(8)) })
+        }
+        val footer = overlayCancelFooter(
+            ui,
+            selectionUiText(settings, "close"),
+        ) { hideFormOverlay() }
+        val root = buildOverlayRoot(content, footer, ui.panel(22), ui)
+        val params = overlayDialogParams(windowManager, softInput = false)
+        runCatching {
+            windowManager.addView(root, params)
+            formOverlay = root
+        }.onFailure { formOverlay = null }
+    }
+
+    private fun selectionUsesSpanish(settings: AppSettings): Boolean = when (settings.displayLanguage) {
+        DisplayLanguage.SPANISH -> true
+        DisplayLanguage.ENGLISH -> false
+        DisplayLanguage.SYSTEM -> Locale.getDefault().language.equals("es", ignoreCase = true)
+    }
+
+    private fun selectionUiText(settings: AppSettings, key: String): String {
+        val es = selectionUsesSpanish(settings)
+        return when (key) {
+            "undo" -> if (es) "Deshacer" else "Undo"
+            "suggested" -> if (es) "Sugeridas" else "Suggested"
+            "all_tools" -> if (es) "Todas las herramientas" else "All tools"
+            "find_replace" -> if (es) "Buscar y reemplazar" else "Find & replace"
+            "find" -> if (es) "Buscar" else "Find"
+            "replace_with" -> if (es) "Reemplazar por" else "Replace with"
+            "replace_all" -> if (es) "Reemplazar todo" else "Replace all"
+            "case_sensitive" -> if (es) "Distinguir mayúsculas y minúsculas" else "Case sensitive"
+            "cancel" -> if (es) "Cancelar" else "Cancel"
+            "close" -> if (es) "Cerrar" else "Close"
+            "apply" -> if (es) "Aplicar" else "Apply"
+            "prefix" -> if (es) "Prefijo" else "Prefix"
+            "suffix" -> if (es) "Sufijo" else "Suffix"
+            "prefix_suffix" -> if (es) "Prefijo / Sufijo" else "Prefix / Suffix"
+            "repeat_text" -> if (es) "Repetir texto" else "Repeat text"
+            "repeat_count" -> if (es) "Cantidad" else "Count"
+            "separator" -> if (es) "Separador" else "Separator"
+            "separator_hint" -> if (es) "Usa \\n para salto de línea y \\t para tabulación." else "Use \\n for a new line and \\t for a tab."
+            "text_counter" -> if (es) "Contador de texto" else "Text counter"
+            "characters" -> if (es) "Caracteres" else "Characters"
+            "characters_no_spaces" -> if (es) "Caracteres sin espacios" else "Characters without spaces"
+            "words" -> if (es) "Palabras" else "Words"
+            "lines" -> if (es) "Líneas" else "Lines"
+            else -> key
+        }
+    }
+
+    private fun selectionActionTitle(
+        id: String,
+        settings: AppSettings,
+        fallback: String,
+    ): String {
+        if (!selectionUsesSpanish(settings)) {
+            return when (id) {
+                SELECTION_FIND_REPLACE_ID -> "Find & replace"
+                SELECTION_TEXT_COUNTER_ID -> "Text counter"
+                SELECTION_REPEAT_TEXT_ID -> "Repeat text"
+                SELECTION_PREFIX_SUFFIX_ID -> "Prefix / Suffix"
+                else -> fallback.ifBlank { id }
+            }
+        }
+        return when (id) {
+            "uppercase" -> "Mayúsculas"
+            "lowercase" -> "Minúsculas"
+            "sentence_case" -> "Tipo oración"
+            "title_case" -> "Capitalizar palabras"
+            "remove_diacritics" -> "Quitar diacríticos"
+            "space_underscore" -> "Espacios a guiones bajos"
+            "space_dash" -> "Espacios a guiones"
+            "underscore_space" -> "Guiones bajos a espacios"
+            "dash_space" -> "Guiones a espacios"
+            "trim_spaces" -> "Quitar espacios de los extremos"
+            "remove_all_spaces" -> "Eliminar todos los espacios"
+            "delete_blank_lines" -> "Eliminar líneas vacías"
+            "remove_duplicate_lines" -> "Eliminar líneas duplicadas"
+            "remove_duplicate_words" -> "Eliminar palabras duplicadas"
+            "remove_line_breaks" -> "Quitar saltos de línea"
+            "sort_lines" -> "Ordenar líneas"
+            "number_lines" -> "Numerar líneas"
+            "reverse_text" -> "Invertir texto"
+            "reverse_lines" -> "Invertir líneas"
+            "reverse_words" -> "Invertir palabras"
+            "math_replace" -> "Calcular expresión"
+            "math_append" -> "Calcular y añadir resultado"
+            "number_space" -> "Miles con espacios"
+            "number_period" -> "Miles con punto"
+            "number_comma" -> "Miles con coma"
+            SELECTION_FIND_REPLACE_ID -> "Buscar y reemplazar"
+            SELECTION_TEXT_COUNTER_ID -> "Contador de texto"
+            SELECTION_REPEAT_TEXT_ID -> "Repetir texto"
+            SELECTION_PREFIX_SUFFIX_ID -> "Prefijo / Sufijo"
+            else -> fallback.ifBlank { id }
+        }
+    }
+
+    private fun selectionActionDescription(
+        id: String,
+        settings: AppSettings,
+        fallback: String,
+    ): String {
+        if (!selectionUsesSpanish(settings)) return when (id) {
+            SELECTION_FIND_REPLACE_ID -> "Replace occurrences only inside the selected text"
+            SELECTION_TEXT_COUNTER_ID -> "Count characters, words and lines"
+            SELECTION_REPEAT_TEXT_ID -> "Repeat the selected text a chosen number of times"
+            SELECTION_PREFIX_SUFFIX_ID -> "Add text before and after the selection"
+            else -> fallback
+        }
+        return when (id) {
+            "uppercase" -> "Convertir la selección a mayúsculas"
+            "lowercase" -> "Convertir la selección a minúsculas"
+            "sentence_case" -> "Aplicar mayúscula al inicio de cada oración"
+            "title_case" -> "Capitalizar la primera letra de cada palabra"
+            "remove_diacritics" -> "Convertir á, é, ñ, etc. a caracteres simples"
+            "trim_spaces" -> "Eliminar espacios al inicio y al final"
+            "remove_all_spaces" -> "Eliminar todos los espacios y caracteres en blanco"
+            "delete_blank_lines" -> "Eliminar líneas vacías"
+            "remove_duplicate_lines" -> "Conservar sólo la primera aparición de cada línea"
+            "remove_duplicate_words" -> "Conservar sólo la primera aparición de cada palabra"
+            "remove_line_breaks" -> "Unir las líneas con espacios"
+            "sort_lines" -> "Ordenar alfabéticamente las líneas seleccionadas"
+            "number_lines" -> "Agregar numeración consecutiva a las líneas"
+            "reverse_text" -> "Invertir todos los caracteres"
+            "reverse_lines" -> "Invertir el orden de las líneas"
+            "reverse_words" -> "Invertir el orden de las palabras"
+            SELECTION_FIND_REPLACE_ID -> "Buscar y reemplazar sólo dentro de la selección"
+            SELECTION_TEXT_COUNTER_ID -> "Contar caracteres, palabras y líneas"
+            SELECTION_REPEAT_TEXT_ID -> "Repetir la selección la cantidad indicada"
+            SELECTION_PREFIX_SUFFIX_ID -> "Agregar texto antes y después de la selección"
+            else -> fallback
+        }
+    }
+
+    private fun selectionToolGroup(id: String): String = when (id) {
+        SELECTION_FIND_REPLACE_ID, "sort_lines", SELECTION_TEXT_COUNTER_ID, SELECTION_REPEAT_TEXT_ID,
+        "uppercase", "lowercase", "sentence_case", "title_case" -> "basic"
+        "trim_spaces", "remove_all_spaces", "delete_blank_lines", "remove_duplicate_lines",
+        "remove_duplicate_words", "remove_line_breaks" -> "remove"
+        SELECTION_PREFIX_SUFFIX_ID, "number_lines", "reverse_text", "reverse_lines", "reverse_words" -> "edit"
+        else -> "format"
+    }
+
+    private fun selectionGroupTitle(group: String, settings: AppSettings): String {
+        val es = selectionUsesSpanish(settings)
+        return when (group) {
+            "basic" -> if (es) "Herramientas básicas" else "Basic tools"
+            "remove" -> if (es) "Limpiar / eliminar" else "Remove tools"
+            "edit" -> if (es) "Editar" else "Edit tools"
+            else -> if (es) "Formato y utilidades" else "Format & utilities"
+        }
+    }
+
     private fun applySelectionToolbarAction(actionId: String) {
         val state = selectionToolbarState ?: return
         clearAccessibilityCache()
@@ -1916,6 +2237,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
 
     private fun overlayCancelFooter(
         ui: OverlayViews,
+        cancelLabel: String = "Cancel",
         onCancel: () -> Unit,
     ): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
@@ -1923,7 +2245,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         setPadding(dp(16), dp(12), dp(16), dp(12))
         minimumHeight = dp(56)
         addView(
-            ui.footerButton("Cancel", primary = false, onCancel),
+            ui.footerButton(cancelLabel, primary = false, onCancel),
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 dp(48),
@@ -1934,6 +2256,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private fun overlayActionFooter(
         ui: OverlayViews,
         primaryLabel: String = "Insert",
+        cancelLabel: String = "Cancel",
         onCancel: () -> Unit,
         onPrimary: () -> Unit,
     ): LinearLayout = LinearLayout(this).apply {
@@ -1942,7 +2265,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         setPadding(dp(16), dp(12), dp(16), dp(12))
         minimumHeight = dp(56)
         addView(
-            ui.footerButton("Cancel", primary = false, onCancel),
+            ui.footerButton(cancelLabel, primary = false, onCancel),
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 dp(48),
