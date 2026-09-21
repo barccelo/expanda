@@ -130,7 +130,7 @@ class MainActivity : ComponentActivity() {
                         else "Exported with $exportIssues compatibility warnings",
                     )
                 }
-                    .onFailure { snackbar.showSnackbar(tr("Export failed: ${it.message}", "Error de exportación: ${it.message}")) }
+                    .onFailure { snackbar.showSnackbar(uiText("Export failed: ${it.message}", "Error de exportación: ${it.message}")) }
             }
         }
         val importLauncher = rememberLauncherForActivityResult(
@@ -152,8 +152,8 @@ class MainActivity : ComponentActivity() {
                     .onSuccess { data ->
                         viewModel.prepareImport(data, sourceName)
                             .onSuccess { pendingImport = it }
-                            .onFailure { scope.launch { snackbar.showSnackbar(tr("Import failed: ${it.message}", "Error de importación: ${it.message}")) } }
-                    }.onFailure { snackbar.showSnackbar(tr("Import failed: ${it.message}", "Error de importación: ${it.message}")) }
+                            .onFailure { scope.launch { snackbar.showSnackbar(uiText(uiText("Import failed: ${it.message}", "Error de importación: ${it.message}"), "Error de importación: ${it.message}")) } }
+                    }.onFailure { snackbar.showSnackbar(uiText(uiText("Import failed: ${it.message}", "Error de importación: ${it.message}"), "Error de importación: ${it.message}")) }
             }
         }
         val folderLauncher = rememberLauncherForActivityResult(
@@ -167,12 +167,12 @@ class MainActivity : ComponentActivity() {
                     )
                 }
                 if (permission.isFailure) {
-                    snackbar.showSnackbar(tr("Expanda needs lasting read and write access to this folder.", "Expanda necesita acceso permanente de lectura y escritura a esta carpeta."))
+                    snackbar.showSnackbar(uiText("Expanda needs lasting read and write access to this folder.", "Expanda necesita acceso permanente de lectura y escritura a esta carpeta."))
                     return@launch
                 }
                 viewModel.prepareEspansoFolder(uri)
                     .onSuccess { pendingImport = it }
-                    .onFailure { snackbar.showSnackbar(tr("Folder scan failed: ${it.message}", "Error al revisar la carpeta: ${it.message}")) }
+                    .onFailure { snackbar.showSnackbar(uiText("Folder scan failed: ${it.message}", "Error al revisar la carpeta: ${it.message}")) }
             }
         }
 
@@ -278,8 +278,8 @@ class MainActivity : ComponentActivity() {
                                 viewModel.applyImport(snippetsOnly) { result ->
                                     scope.launch {
                                         snackbar.showSnackbar(result.fold(
-                                            onSuccess = { tr("Imported ${it.imported} matches", "Se importaron ${it.imported} coincidencias") },
-                                            onFailure = { "Import failed: ${it.message}" },
+                                            onSuccess = { uiText("Imported ${it.imported} matches", "Se importaron ${it.imported} coincidencias") },
+                                            onFailure = { uiText("Import failed: ${it.message}", "Error de importación: ${it.message}") },
                                         ))
                                     }
                                 }
@@ -291,12 +291,12 @@ class MainActivity : ComponentActivity() {
                                 scope.launch {
                                     snackbar.showSnackbar(result.fold(
                                         onSuccess = {
-                                            val verb = if (prepared.replacesExistingData) tr("Restored", "Restauradas") else tr("Imported", "Importadas")
-                                            "$verb ${it.imported} " + tr("matches", "coincidencias") +
+                                            val verb = if (prepared.replacesExistingData) uiText("Restored", "Restauradas") else uiText("Imported", "Importadas")
+                                            "$verb ${it.imported} " + uiText("matches", "coincidencias") +
                                                 if (it.issues.isEmpty()) "" else
-                                                    " " + tr("with ${it.issues.size} warnings: ${it.issues.first().message}", "con ${it.issues.size} advertencias: ${it.issues.first().message}")
+                                                    " " + uiText("with ${it.issues.size} warnings: ${it.issues.first().message}", "con ${it.issues.size} advertencias: ${it.issues.first().message}")
                                         },
-                                        onFailure = { "Import failed: ${it.message}" },
+                                        onFailure = { uiText("Import failed: ${it.message}", "Error de importación: ${it.message}") },
                                     ))
                                 }
                             }
