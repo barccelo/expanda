@@ -202,10 +202,7 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         it.remove(Keys.SELECTION_TOOLBAR_HEIGHT_DP)
     }
     suspend fun setSelectionToolbarQuickActionIds(ids: List<String>) = store.edit {
-        val normalized = ids
-            .filter { it in AVAILABLE_SELECTION_TOOLBAR_QUICK_ACTIONS }
-            .distinct()
-            .take(MAX_SELECTION_TOOLBAR_QUICK_ACTIONS)
+        val normalized = normalizeToolbarQuickActions(ids)
         it[Keys.SELECTION_TOOLBAR_QUICK_ACTIONS] = normalized.joinToString(SEPARATOR)
     }
     suspend fun setDisplayLanguage(language: DisplayLanguage) = store.edit {
@@ -318,11 +315,9 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
             .coerceIn(MIN_SELECTION_TOOLBAR_WIDTH, MAX_SELECTION_TOOLBAR_WIDTH)
         values[Keys.SELECTION_TOOLBAR_HEIGHT_DP] = snapshot.selectionToolbarHeightDp
             .coerceIn(MIN_SELECTION_TOOLBAR_HEIGHT_DP, MAX_SELECTION_TOOLBAR_HEIGHT_DP)
-        values[Keys.SELECTION_TOOLBAR_QUICK_ACTIONS] = snapshot.selectionToolbarQuickActionIds
-            .filter { it in AVAILABLE_SELECTION_TOOLBAR_QUICK_ACTIONS }
-            .distinct()
-            .take(MAX_SELECTION_TOOLBAR_QUICK_ACTIONS)
-            .joinToString(SEPARATOR)
+        values[Keys.SELECTION_TOOLBAR_QUICK_ACTIONS] =
+            normalizeToolbarQuickActions(snapshot.selectionToolbarQuickActionIds)
+                .joinToString(SEPARATOR)
         values[Keys.DISPLAY_LANGUAGE] = snapshot.displayLanguage.name
         values[Keys.SUGGESTION_SHOW_ACTIONS] = snapshot.suggestionShowActions
         values[Keys.MATCH_BEGINNING] = snapshot.matchFromBeginning
@@ -352,13 +347,17 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         const val MAX_SELECTION_TOOLBAR_HEIGHT_DP = 88
         const val DEFAULT_SELECTION_TOOLBAR_HEIGHT_DP = 56
         const val MAX_SELECTION_TOOLBAR_QUICK_ACTIONS = 6
-        val DEFAULT_SELECTION_TOOLBAR_QUICK_ACTIONS =
-            listOf("uppercase", "lowercase", "sentence_case", "title_case")
-        val AVAILABLE_SELECTION_TOOLBAR_QUICK_ACTIONS = listOf(
+        const val SELECTION_CASE_GROUP_ID = "case_group"
+        private val LEGACY_SELECTION_CASE_ACTION_IDS = setOf(
             "uppercase",
             "lowercase",
             "sentence_case",
             "title_case",
+        )
+        val DEFAULT_SELECTION_TOOLBAR_QUICK_ACTIONS =
+            listOf(SELECTION_CASE_GROUP_ID)
+        val AVAILABLE_SELECTION_TOOLBAR_QUICK_ACTIONS = listOf(
+            SELECTION_CASE_GROUP_ID,
             "find_replace",
             "sort_lines",
             "text_counter",
@@ -393,13 +392,23 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         const val DEFAULT_SUGGESTION_HEIGHT_DP = 280
 
         private fun decodeToolbarQuickActions(raw: String?): List<String> {
-            val decoded = raw
-                ?.split(SEPARATOR)
-                ?.filter { it in AVAILABLE_SELECTION_TOOLBAR_QUICK_ACTIONS }
-                ?.distinct()
-                ?.take(MAX_SELECTION_TOOLBAR_QUICK_ACTIONS)
-                .orEmpty()
-            return if (raw == null) DEFAULT_SELECTION_TOOLBAR_QUICK_ACTIONS else decoded
+            if (raw == null) return DEFAULT_SELECTION_TOOLBAR_QUICK_ACTIONS
+            return normalizeToolbarQuickActions(raw.split(SEPARATOR))
+        }
+
+        private fun normalizeToolbarQuickActions(ids: List<String>): List<String> {
+            val normalized = mutableListOf<String>()
+            ids.forEach { rawId ->
+                val id = if (rawId in LEGACY_SELECTION_CASE_ACTION_IDS) {
+                    SELECTION_CASE_GROUP_ID
+                } else {
+                    rawId
+                }
+                if (id in AVAILABLE_SELECTION_TOOLBAR_QUICK_ACTIONS && id !in normalized) {
+                    normalized += id
+                }
+            }
+            return normalized.take(MAX_SELECTION_TOOLBAR_QUICK_ACTIONS)
         }
 
         private fun legacyTextScale(mode: String?): Float = when (mode) {
