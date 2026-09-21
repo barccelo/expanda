@@ -351,7 +351,7 @@ private fun TutorialPage(
     onSkip: () -> Unit,
     onNext: () -> Unit,
     tip: String? = null,
-    nextLabel: String = "Next",
+    nextLabel: String? = null,
     showSkip: Boolean = true,
     content: @Composable () -> Unit,
 ) {
@@ -372,7 +372,7 @@ private fun TutorialPage(
         }
         PageDots(currentPage = page)
         Spacer(Modifier.height(22.dp))
-        NextButton(label = nextLabel, onClick = onNext)
+        NextButton(label = nextLabel ?: tr("Next", "Siguiente"), onClick = onNext)
     }
 }
 
