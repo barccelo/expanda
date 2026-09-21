@@ -202,7 +202,7 @@ internal fun SnippetSourceScreen(
         topBar = {
             if (!embedded) {
                 TopAppBar(
-                    title = { Text("Espanso source") },
+                    title = { Text(tr("Espanso source")) },
                     navigationIcon = {
                         IconButton(onClick = ::leave) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
@@ -231,7 +231,7 @@ internal fun SnippetSourceScreen(
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(onClick = { showGuide = true }, modifier = Modifier.weight(1f)) {
                                 Icon(Icons.Default.Info, null)
-                                Text(" Guide")
+                                Text(" " + tr("Guide"))
                             }
                             OutlinedButton(
                                 onClick = { copy("Espanso source", draft.text) },
@@ -239,7 +239,7 @@ internal fun SnippetSourceScreen(
                                 enabled = selected != null,
                             ) {
                                 Icon(Icons.Default.ContentCopy, null)
-                                Text(" Copy")
+                                Text(" " + tr("Copy"))
                             }
                             if (linkedFolderUri != null) {
                                 OutlinedButton(
@@ -248,7 +248,7 @@ internal fun SnippetSourceScreen(
                                     enabled = selected != null && !saving && !syncing,
                                 ) {
                                     Icon(Icons.Default.Edit, null)
-                                    Text(" Open")
+                                    Text(" " + tr("Open"))
                                 }
                             }
                         }
@@ -258,7 +258,7 @@ internal fun SnippetSourceScreen(
                             enabled = changed && !saving && !syncing && selected != null,
                         ) {
                             Icon(Icons.Default.Check, null)
-                            Text(" Save source")
+                            Text(" " + tr("Save source"))
                         }
                     }
                 }
@@ -363,7 +363,7 @@ internal fun SnippetSourceScreen(
                         TransformedText(transformed, OffsetMapping.Identity)
                     },
                     label = { Text(selected.relativePath) },
-                    supportingText = if (imeVisible) null else { { Text("${draft.text.length} characters") } },
+                    supportingText = if (imeVisible) null else { { Text(tr("${draft.text.length} characters", "${draft.text.length} caracteres")) } },
                 )
             }
             if (!imeVisible) {
@@ -390,8 +390,8 @@ internal fun SnippetSourceScreen(
         }
         AlertDialog(
             onDismissRequest = { if (!saving) pendingDocument = null },
-            title = { Text("Save ${document.relativePath}?") },
-            text = { Text("${decoded.matches.size} matches and ${decoded.globalVariables.size} global variables are valid.") },
+            title = { Text(tr("Save ${document.relativePath}?", "¿Guardar ${document.relativePath}?")) },
+            text = { Text(tr("${decoded.matches.size} matches and ${decoded.globalVariables.size} global variables are valid.", "${decoded.matches.size} coincidencias y ${decoded.globalVariables.size} variables globales son válidas.")) },
             confirmButton = {
                 Button(
                     onClick = {
@@ -409,10 +409,10 @@ internal fun SnippetSourceScreen(
                         }
                     },
                     enabled = !saving,
-                ) { Text("Save") }
+                ) { Text(tr("Save")) }
             },
             dismissButton = {
-                TextButton(onClick = { pendingDocument = null }, enabled = !saving) { Text("Cancel") }
+                TextButton(onClick = { pendingDocument = null }, enabled = !saving) { Text(tr("Cancel")) }
             },
         )
     }
@@ -430,10 +430,10 @@ internal fun SnippetSourceScreen(
     if (confirmDiscard) {
         AlertDialog(
             onDismissRequest = { confirmDiscard = false },
-            title = { Text("Discard source changes?") },
-            text = { Text("Edits made since the last save will be lost.") },
-            confirmButton = { Button(onClick = onDismiss) { Text("Discard") } },
-            dismissButton = { TextButton(onClick = { confirmDiscard = false }) { Text("Keep editing") } },
+            title = { Text(tr("Discard source changes?", "¿Descartar cambios de la fuente?")) },
+            text = { Text(tr("Edits made since the last save will be lost.", "Se perderán los cambios realizados desde el último guardado.")) },
+            confirmButton = { Button(onClick = onDismiss) { Text(tr("Discard")) } },
+            dismissButton = { TextButton(onClick = { confirmDiscard = false }) { Text(tr("Keep editing")) } },
         )
     }
 }
@@ -443,7 +443,7 @@ private fun SourceGuideDialog(onDismiss: () -> Unit, onCopyPrompt: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Default.AutoAwesome, null) },
-        title = { Text("Source and AI guide") },
+        title = { Text(tr("Source and AI guide")) },
         text = {
             Column(
                 Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState()),
@@ -459,10 +459,10 @@ private fun SourceGuideDialog(onDismiss: () -> Unit, onCopyPrompt: () -> Unit) {
         confirmButton = {
             Button(onClick = onCopyPrompt) {
                 Icon(Icons.Default.AutoAwesome, null)
-                Text(" Copy AI prompt")
+                Text(" " + tr("Copy AI prompt"))
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Close") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(tr("Close")) } },
     )
 }
 
@@ -521,7 +521,7 @@ private fun SourceFolderControls(
                         enabled = !changed && !busy,
                     ) {
                         Icon(Icons.Default.Sync, null)
-                        Text(" Sync folder")
+                        Text(" " + tr("Sync folder"))
                     }
                 }
             }
