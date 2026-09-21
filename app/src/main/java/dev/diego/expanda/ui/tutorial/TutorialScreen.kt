@@ -282,7 +282,7 @@ private fun WelcomePage(
                     ) {
                         Image(
                             painter = painterResource(R.drawable.ic_app_panda),
-                            contentDescription = "Expanda logo",
+                            contentDescription = tr("Expanda logo", "Logo de Expanda"),
                             modifier = Modifier.padding(14.dp),
                         )
                     }
