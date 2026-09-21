@@ -16,10 +16,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.diego.expanda.ExpandaApplication
 import dev.diego.expanda.R
@@ -40,7 +40,9 @@ class ProcessTextActivity : ComponentActivity() {
         }
         setContent {
             val settings by (application as ExpandaApplication).settingsRepository.settings.collectAsState()
-            ExpandaTheme(settings) { ActionChooser(selectedText, ::returnText) { finish() } }
+            CompositionLocalProvider(LocalDisplayLanguage provides settings.displayLanguage) {
+                ExpandaTheme(settings) { ActionChooser(selectedText, ::returnText) { finish() } }
+            }
         }
     }
 
@@ -65,7 +67,7 @@ private fun ActionChooser(text: String, select: (String) -> Unit, dismiss: () ->
     }
     AlertDialog(
         onDismissRequest = dismiss,
-        title = { Text(stringResource(R.string.process_text_title)) },
+        title = { Text(tr("Expanda Personal actions", "Acciones de Expanda Personal")) },
         text = {
             Column(
                 Modifier.fillMaxWidth().heightIn(max = 520.dp)
@@ -74,8 +76,8 @@ private fun ActionChooser(text: String, select: (String) -> Unit, dismiss: () ->
                 if (results.isEmpty()) Text(tr("No transformation changes this selection."))
                 results.forEach { (action, result) ->
                     ListItem(
-                        headlineContent = { Text(action.title) },
-                        supportingContent = { Text(action.description) },
+                        headlineContent = { Text(tr(action.title)) },
+                        supportingContent = { Text(tr(action.description)) },
                         modifier = Modifier.fillMaxWidth(),
                         trailingContent = {
                             TextButton(onClick = { select(result) }) { Text(tr("Use")) }
