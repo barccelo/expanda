@@ -64,7 +64,7 @@ internal fun AboutExpandaSheet(onDismiss: () -> Unit) {
             ) {
                 Image(
                     painter = painterResource(R.drawable.ic_app_panda),
-                    contentDescription = "Expanda logo",
+                    contentDescription = tr("Expanda logo", "Logo de Expanda"),
                     modifier = Modifier.padding(11.dp),
                 )
             }
@@ -84,15 +84,19 @@ internal fun AboutExpandaSheet(onDismiss: () -> Unit) {
 
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Local and open", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text(tr("Local and open", "Local y abierto"),, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     Text(
-                        "Expanda runs on your device and has no Internet permission, accounts, ads or analytics. " +
-                            "Its source is public, and GPLv3 keeps distributed changes open.",
+                        tr(
+                            "Expanda runs on your device and has no Internet permission, accounts, ads or analytics. Its source is public, and GPLv3 keeps distributed changes open.",
+                            "Expanda funciona en tu dispositivo y no tiene permiso de Internet, cuentas, anuncios ni analíticas. Su código es público y GPLv3 mantiene abiertas las modificaciones distribuidas.",
+                        ),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Text(
-                        "I built it quickly for my own use with extensive AI help. I am not an Android developer, " +
-                            "and parts of the code still need human review. Bug reports and pull requests are welcome.",
+                        tr(
+                            "I built it quickly for my own use with extensive AI help. I am not an Android developer, and parts of the code still need human review. Bug reports and pull requests are welcome.",
+                            "Lo construí rápidamente para mi propio uso con amplia ayuda de IA. No soy desarrollador de Android y partes del código aún requieren revisión humana. Los reportes de errores y pull requests son bienvenidos.",
+                        ),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -102,30 +106,33 @@ internal fun AboutExpandaSheet(onDismiss: () -> Unit) {
 
             AboutLink(
                 icon = Icons.Default.Code,
-                title = "Source code",
+                title = tr("Source code", "Código fuente"),
                 subtitle = "github.com/diegomarzaa/expanda",
                 onClick = { uriHandler.openUri(ProjectLinks.REPOSITORY) },
             )
             AboutLink(
                 icon = Icons.Default.BugReport,
-                title = "Issues and contributions",
-                subtitle = "Report bugs or open a pull request",
+                title = tr("Issues and contributions", "Problemas y contribuciones"),
+                subtitle = tr("Report bugs or open a pull request", "Reportar errores o abrir un pull request"),
                 onClick = { uriHandler.openUri(ProjectLinks.ISSUES) },
             )
             AboutLink(
                 icon = Icons.Default.Person,
-                title = "Diego on GitHub",
+                title = tr("Diego on GitHub", "Diego en GitHub"),
                 subtitle = "@diegomarzaa",
                 onClick = { uriHandler.openUri(ProjectLinks.AUTHOR_GITHUB) },
             )
             AboutLink(
                 icon = Icons.Default.Favorite,
-                title = "Support Expanda",
-                subtitle = "Buy me a coffee on Ko-fi",
+                title = tr("Support Expanda", "Apoyar Expanda"),
+                subtitle = tr("Buy me a coffee on Ko-fi", "Invítame un café en Ko-fi"),
                 onClick = { uriHandler.openUri(ProjectLinks.SUPPORT) },
             )
             Text(
-                "Inspired by Typing Hero and Expandroid, with offline Espanso compatibility in development.",
+                tr(
+                    "Inspired by Typing Hero and Expandroid, with offline Espanso compatibility in development.",
+                    "Inspirado en Typing Hero y Expandroid, con compatibilidad offline con Espanso en desarrollo.",
+                ),
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 14.dp),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
