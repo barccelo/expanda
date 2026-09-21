@@ -116,6 +116,18 @@ class ActionEngineTest {
         assertEquals(5, result?.selectionEnd)
     }
 
+    @Test fun `tooly style selected text transforms are deterministic`() {
+        assertEquals("abc", engine.processSelectedText("remove_all_spaces", " a b c "))
+        assertEquals("a\nb\nc", engine.processSelectedText("sort_lines", "c\na\nb"))
+        assertEquals("a\nb", engine.processSelectedText("remove_duplicate_lines", "a\nb\na"))
+        assertEquals("one two", engine.processSelectedText("remove_duplicate_words", "one two one"))
+        assertEquals("one two", engine.processSelectedText("remove_line_breaks", "one\ntwo"))
+        assertEquals("1. one\n2. two", engine.processSelectedText("number_lines", "one\ntwo"))
+        assertEquals("cba", engine.processSelectedText("reverse_text", "abc"))
+        assertEquals("three\ntwo\none", engine.processSelectedText("reverse_lines", "one\ntwo\nthree"))
+        assertEquals("three two one", engine.processSelectedText("reverse_words", "one two three"))
+    }
+
     @Test fun `only context free actions are exposed to Android selected text`() {
         val exposed = ActionEngine.definitions.filter { it.supportsSelectedText }.map { it.id }.toSet()
         assertEquals(true, "uppercase" in exposed)
