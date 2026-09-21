@@ -2135,7 +2135,7 @@ private fun EditableOptionList(
                 Modifier.fillMaxWidth(),
             label = {
                 Text(
-                    "Add option",
+                    tr("Add option", "Agregar opción"),
                 )
             },
             trailingIcon = {
