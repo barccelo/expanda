@@ -93,6 +93,67 @@ class ActionEngineTest {
         assertEquals(";up", result?.matchedTrigger)
     }
 
+    @Test fun `previous word case triggers consume themselves and transform only the previous word`() {
+        val upper = engine.execute(
+            ActionContext("uno dos my", "uno dos my".length),
+            enabledActionIds = setOf("uppercase_previous_word"),
+        )
+        assertEquals("uno DOS", upper?.text)
+        assertEquals(" my", upper?.matchedTrigger)
+        assertEquals("uppercase_previous_word", upper?.definition?.id)
+
+        val lower = engine.execute(
+            ActionContext("UNO DOS mn", "UNO DOS mn".length),
+            enabledActionIds = setOf("lowercase_previous_word"),
+        )
+        assertEquals("UNO dos", lower?.text)
+        assertEquals(" mn", lower?.matchedTrigger)
+    }
+
+    @Test fun `previous word scope skips punctuation but preserves it`() {
+        assertEquals(
+            "HOLA,",
+            engine.execute(
+                ActionContext("Hola, my", "Hola, my".length),
+                enabledActionIds = setOf("uppercase_previous_word"),
+            )?.text,
+        )
+        assertEquals(
+            "Ya café...",
+            engine.execute(
+                ActionContext("Ya CAFÉ... mn", "Ya CAFÉ... mn".length),
+                enabledActionIds = setOf("lowercase_previous_word"),
+            )?.text,
+        )
+    }
+
+    @Test fun `renaming a previous word trigger keeps its scope`() {
+        val result = engine.execute(
+            ActionContext("uno dos upw", "uno dos upw".length),
+            enabledActionIds = setOf("uppercase_previous_word"),
+            triggerOverrides = mapOf("uppercase_previous_word" to listOf(" upw")),
+        )
+        assertEquals("uno DOS", result?.text)
+        assertEquals(" upw", result?.matchedTrigger)
+    }
+
+    @Test fun `regular case actions still transform the whole field`() {
+        assertEquals(
+            "UNO DOS",
+            engine.execute(
+                ActionContext("Uno dos,uu", "Uno dos,uu".length),
+                enabledActionIds = setOf("uppercase"),
+            )?.text,
+        )
+        assertEquals(
+            "uno dos",
+            engine.execute(
+                ActionContext("UNO DOS,ll", "UNO DOS,ll".length),
+                enabledActionIds = setOf("lowercase"),
+            )?.text,
+        )
+    }
+
     @Test fun `typing actions are declared opt in by default`() {
         assertEquals(true, ActionEngine.definitions.all { !it.enabledByDefault })
     }
