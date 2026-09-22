@@ -1001,6 +1001,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         var dragMenuActive = false
         var longPressTask: Runnable? = null
         var menuParams: WindowManager.LayoutParams? = null
+        var menuScreenBounds: Rect? = null
         var optionViews: List<TextView> = emptyList()
         var hoveredIndex = -1
 
@@ -1091,6 +1092,21 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 this.x = x
                 this.y = y
             }
+
+            // WindowManager overlay coordinates can be offset from MotionEvent.rawX/rawY
+            // by system bars. Calibrate against the already-visible selection toolbar,
+            // which lives in the same overlay coordinate space.
+            val toolbarScreenLocation = IntArray(2)
+            toolbarView.getLocationOnScreen(toolbarScreenLocation)
+            val screenOffsetX = toolbarScreenLocation[0] - toolbarParams.x
+            val screenOffsetY = toolbarScreenLocation[1] - toolbarParams.y
+            menuScreenBounds = Rect(
+                x + screenOffsetX,
+                y + screenOffsetY,
+                x + screenOffsetX + menuWidth,
+                y + screenOffsetY + menuHeight,
+            )
+
             runCatching {
                 windowManager.addView(root, params)
                 selectionGroupOverlay = root
@@ -1101,25 +1117,27 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 Log.w(TAG, "Could not show selection group drag menu", it)
                 selectionGroupOverlay = null
                 menuParams = null
+                menuScreenBounds = null
                 optionViews = emptyList()
                 dragMenuActive = false
             }
         }
 
         fun hoverFor(rawX: Float, rawY: Float): Int {
-            val overlay = selectionGroupOverlay ?: return -1
-            val actualBounds = Rect()
-            if (!overlay.getGlobalVisibleRect(actualBounds) ||
-                actualBounds.width() <= 0 ||
-                actualBounds.height() <= 0
+            val bounds = menuScreenBounds ?: return -1
+            if (rawX < bounds.left || rawX >= bounds.right ||
+                rawY < bounds.top || rawY >= bounds.bottom
             ) {
                 return -1
             }
-            if (!actualBounds.contains(rawX.toInt(), rawY.toInt())) return -1
 
-            val relativeX = (rawX - actualBounds.left)
-                .coerceIn(0f, actualBounds.width().toFloat().coerceAtLeast(1f) - 1f)
-            return ((relativeX / actualBounds.width().coerceAtLeast(1)) * actionIds.size)
+            val innerLeft = bounds.left + dp(4)
+            val innerRight = bounds.right - dp(4)
+            val innerWidth = (innerRight - innerLeft).coerceAtLeast(1)
+            if (rawX < innerLeft || rawX >= innerRight) return -1
+
+            val relativeX = rawX - innerLeft
+            return ((relativeX / innerWidth) * actionIds.size)
                 .toInt()
                 .coerceIn(0, actionIds.lastIndex)
         }
@@ -1159,6 +1177,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                         hideSelectionGroupOverlay()
                         dragMenuActive = false
                         menuParams = null
+                        menuScreenBounds = null
                         optionViews = emptyList()
                         hoveredIndex = -1
                         if (index in actionIds.indices) {
@@ -1175,6 +1194,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     hideSelectionGroupOverlay()
                     dragMenuActive = false
                     menuParams = null
+                    menuScreenBounds = null
                     optionViews = emptyList()
                     hoveredIndex = -1
                     true
