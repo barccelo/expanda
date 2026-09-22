@@ -15,6 +15,7 @@ import android.os.Vibrator
 import android.os.VibratorManager
 import android.os.Handler
 import android.os.Looper
+import android.os.PersistableBundle
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Rect
@@ -66,6 +67,8 @@ import dev.diego.expanda.data.DisplayLanguage
 import dev.diego.expanda.data.SettingsRepository
 import dev.diego.expanda.data.TextMatch
 import dev.diego.expanda.data.TemplateSelectionMode
+import dev.diego.expanda.data.VaultEntry
+import dev.diego.expanda.data.VaultField
 import dev.diego.expanda.service.overlay.OverlayViews
 import dev.diego.expanda.ui.theme.NativeThemeTokens
 import dev.diego.expanda.ui.theme.resolveNativeTheme
@@ -106,6 +109,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private val templateSelector = TemplateSelector()
     private val actionEngine = ActionEngine()
     private val repository by lazy { (application as ExpandaApplication).matchRepository }
+    private val vaultRepository by lazy { (application as ExpandaApplication).vaultRepository }
     private val settingsRepository by lazy { (application as ExpandaApplication).settingsRepository }
     private val actionSettingsStore by lazy { (application as ExpandaApplication).actionSettingsStore }
     private val clipboardMonitor by lazy { (application as ExpandaApplication).clipboardMonitor }
@@ -336,6 +340,31 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 if (ExpansionUndoPolicy.isRestoredText(suppressed, activeAnchor, text)) return
             }
             if (text == lastAppliedText && SystemClock.elapsedRealtime() - lastAppliedAt < REENTRANCY_WINDOW_MS) return
+            findVaultEntryTrigger(text, cursor)?.let { (entry, trigger) ->
+                val triggerStart = cursor - trigger.length
+                val withoutTrigger = text.removeRange(triggerStart, cursor)
+                suppressedExpansion = null
+                hideSuggestions()
+                if (setFieldText(
+                        node = node,
+                        originalText = text,
+                        newText = withoutTrigger,
+                        selectionStart = triggerStart,
+                        selectionEnd = triggerStart,
+                        settings = settings,
+                    )
+                ) {
+                    lastAppliedText = withoutTrigger
+                    lastAppliedAt = SystemClock.elapsedRealtime()
+                    showVaultOverlay(
+                        entryId = entry.id,
+                        anchor = activeAnchor,
+                        insertionCursor = triggerStart,
+                    )
+                }
+                return
+            }
+
             val action = actionEngine.execute(
                 ActionContext(
                     text = text,
@@ -3355,6 +3384,351 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 scope.launch { settingsRepository.setSuggestionEnabled(enabled) }
             }
             ActionRequest.OpenNewSnippet -> openNewSnippetEditor()
+            ActionRequest.OpenVault -> showVaultOverlay()
+        }
+    }
+
+    private fun findVaultEntryTrigger(
+        text: String,
+        cursor: Int,
+    ): Pair<VaultEntry, String>? {
+        if (cursor !in 0..text.length) return null
+        return vaultRepository.entries.value
+            .asSequence()
+            .flatMap { entry -> entry.triggers.asSequence().map { trigger -> entry to trigger } }
+            .filter { (_, trigger) -> trigger.isNotBlank() && trigger.length <= cursor }
+            .sortedByDescending { (_, trigger) -> trigger.length }
+            .firstOrNull { (_, trigger) ->
+                text.regionMatches(cursor - trigger.length, trigger, 0, trigger.length)
+            }
+    }
+
+    private fun showVaultOverlay(
+        entryId: Long? = null,
+        anchor: SuggestionAnchor? = null,
+        insertionCursor: Int? = null,
+    ) {
+        val settings = settingsRepository.settings.value
+        val entries = vaultRepository.entries.value
+        val editor = if (anchor == null || insertionCursor == null) {
+            rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+        } else {
+            null
+        }
+        val resolvedAnchor = anchor ?: editor?.let {
+            createSuggestionAnchor(it, it.packageName?.toString().orEmpty())
+        }
+        val resolvedCursor = insertionCursor ?: editor?.let {
+            editableText(it).let { text ->
+                it.textSelectionEnd.takeIf { cursor -> cursor in 0..text.length } ?: text.length
+            }
+        }
+        @Suppress("DEPRECATION")
+        editor?.recycle()
+
+        if (entryId != null) {
+            entries.firstOrNull { it.id == entryId }?.let { entry ->
+                showVaultEntryOverlay(entry, resolvedAnchor, resolvedCursor, settings)
+            }
+            return
+        }
+
+        hideFormOverlay()
+        val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        val ui = OverlayViews(this, resolveNativeTheme(this, settings))
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(12), dp(14), dp(8))
+            addView(ui.title(localizedSelectionUi(settings, "Vault", "Bóveda")).apply {
+                setPadding(dp(6), dp(2), dp(6), dp(4))
+            })
+            addView(
+                ui.body(
+                    localizedSelectionUi(
+                        settings,
+                        "Encrypted on this device",
+                        "Cifrada en este dispositivo",
+                    ),
+                    secondary = true,
+                ).apply { setPadding(dp(6), 0, dp(6), dp(10)) },
+            )
+        }
+
+        val sorted = entries.sortedWith(
+            compareByDescending<VaultEntry> { it.favorite }
+                .thenBy(String.CASE_INSENSITIVE_ORDER) { it.title },
+        )
+        if (sorted.isEmpty()) {
+            content.addView(
+                ui.body(
+                    localizedSelectionUi(
+                        settings,
+                        "The vault is empty. Add entries from Expanda.",
+                        "La bóveda está vacía. Agrega entradas desde Expanda.",
+                    ),
+                    secondary = true,
+                ).apply { setPadding(dp(12), dp(16), dp(12), dp(16)) },
+            )
+        } else {
+            sorted.forEach { entry ->
+                val rowText = buildString {
+                    append(entry.title)
+                    if (entry.triggers.isNotEmpty()) {
+                        append("\n")
+                        append(entry.triggers.joinToString(" · "))
+                    }
+                }
+                content.addView(
+                    ui.body(rowText).apply {
+                        setPadding(dp(12), dp(12), dp(12), dp(12))
+                        minimumHeight = dp(52)
+                        background = ui.surface()
+                        isClickable = true
+                        isFocusable = true
+                        contentDescription = localizedSelectionUi(
+                            settings,
+                            "Open ${entry.title}",
+                            "Abrir ${entry.title}",
+                        )
+                        setOnClickListener {
+                            hideFormOverlay()
+                            showVaultEntryOverlay(
+                                entry = entry,
+                                anchor = resolvedAnchor,
+                                insertionCursor = resolvedCursor,
+                                settings = settings,
+                            )
+                        }
+                    },
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                    ).apply { bottomMargin = dp(6) },
+                )
+            }
+        }
+
+        val footer = overlayCancelFooter(
+            ui,
+            localizedSelectionUi(settings, "Close", "Cerrar"),
+        ) { hideFormOverlay() }
+        val bounds = displayBounds(windowManager)
+        val root = buildPickerOverlayRoot(
+            content = content,
+            footer = footer,
+            itemCount = sorted.size,
+            maxContentHeightPx = (bounds.height() * 0.58f).toInt().coerceAtLeast(dp(180)),
+            background = ui.panel(22),
+            ui = ui,
+        )
+        val params = overlayDialogParams(windowManager, softInput = false)
+        runCatching {
+            val overlayRoot = dismissibleOverlayRoot(root, windowManager)
+            windowManager.addView(overlayRoot, params)
+            formOverlay = overlayRoot
+        }
+    }
+
+    private fun showVaultEntryOverlay(
+        entry: VaultEntry,
+        anchor: SuggestionAnchor?,
+        insertionCursor: Int?,
+        settings: AppSettings,
+    ) {
+        hideFormOverlay()
+        val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        val ui = OverlayViews(this, resolveNativeTheme(this, settings))
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(12), dp(14), dp(8))
+            addView(ui.title(entry.title).apply {
+                setPadding(dp(6), dp(2), dp(6), dp(4))
+            })
+            if (entry.triggers.isNotEmpty()) {
+                addView(ui.body(entry.triggers.joinToString(" · "), secondary = true).apply {
+                    setPadding(dp(6), 0, dp(6), dp(10))
+                })
+            }
+        }
+
+        entry.fields.forEach { field ->
+            val fieldBox = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(12), dp(10), dp(12), dp(10))
+                background = ui.surface()
+            }
+            fieldBox.addView(ui.body(field.label).apply {
+                setTextColor(ui.theme.primary)
+            })
+            var revealed = !field.sensitive
+            val valueView = ui.body(if (revealed) field.value else "••••••••").apply {
+                setPadding(0, dp(4), 0, dp(6))
+                maxLines = 3
+            }
+            fieldBox.addView(valueView)
+
+            val actions = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.END or Gravity.CENTER_VERTICAL
+            }
+            if (field.sensitive) {
+                actions.addView(
+                    ui.footerButton(
+                        localizedSelectionUi(settings, "Show", "Mostrar"),
+                        primary = false,
+                    ) {
+                        revealed = !revealed
+                        valueView.text = if (revealed) field.value else "••••••••"
+                        (it as? TextView)?.text = localizedSelectionUi(
+                            settings,
+                            if (revealed) "Hide" else "Show",
+                            if (revealed) "Ocultar" else "Mostrar",
+                        )
+                    },
+                )
+            }
+            actions.addView(
+                ui.footerButton(
+                    localizedSelectionUi(settings, "Copy", "Copiar"),
+                    primary = false,
+                ) {
+                    writeVaultClipboard(field.value, field.sensitive)
+                    if (settings.hapticFeedback) vibrateTick()
+                },
+            )
+            if (anchor != null && insertionCursor != null) {
+                actions.addView(
+                    ui.footerButton(
+                        localizedSelectionUi(settings, "Insert", "Insertar"),
+                        primary = true,
+                    ) {
+                        hideFormOverlay()
+                        insertVaultValue(
+                            anchor = anchor,
+                            insertionCursor = insertionCursor,
+                            field = field,
+                            settings = settings,
+                        )
+                    },
+                )
+            }
+            actions.addView(
+                ui.footerButton(
+                    localizedSelectionUi(settings, "Update", "Actualizar"),
+                    primary = false,
+                ) {
+                    val clipboard = readClipboardTextOrNull()
+                        ?: clipboardMonitor.cachedText
+                        ?: return@footerButton
+                    scope.launch {
+                        if (vaultRepository.updateFieldFromClipboard(entry.id, field.id, clipboard)) {
+                            if (settings.hapticFeedback) vibrate()
+                            val updated = vaultRepository.entries.value.firstOrNull { it.id == entry.id }
+                            if (updated != null) {
+                                showVaultEntryOverlay(
+                                    updated,
+                                    anchor,
+                                    insertionCursor,
+                                    settings,
+                                )
+                            }
+                        }
+                    }
+                },
+            )
+            fieldBox.addView(actions)
+            content.addView(
+                fieldBox,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply { bottomMargin = dp(6) },
+            )
+        }
+
+        val footer = overlayActionFooter(
+            ui = ui,
+            primaryLabel = localizedSelectionUi(settings, "Copy all", "Copiar todo"),
+            cancelLabel = localizedSelectionUi(settings, "Close", "Cerrar"),
+            onCancel = { hideFormOverlay() },
+            onPrimary = {
+                val all = entry.fields.joinToString("\n") { "${it.label}: ${it.value}" }
+                writeVaultClipboard(all, entry.fields.any(VaultField::sensitive))
+                if (settings.hapticFeedback) vibrateTick()
+            },
+        )
+        val bounds = displayBounds(windowManager)
+        val root = buildPickerOverlayRoot(
+            content = content,
+            footer = footer,
+            itemCount = entry.fields.size,
+            maxContentHeightPx = (bounds.height() * 0.58f).toInt().coerceAtLeast(dp(180)),
+            background = ui.panel(22),
+            ui = ui,
+        )
+        val params = overlayDialogParams(windowManager, softInput = false)
+        runCatching {
+            val overlayRoot = dismissibleOverlayRoot(root, windowManager)
+            windowManager.addView(overlayRoot, params)
+            formOverlay = overlayRoot
+        }
+    }
+
+    private fun insertVaultValue(
+        anchor: SuggestionAnchor,
+        insertionCursor: Int,
+        field: VaultField,
+        settings: AppSettings,
+    ) {
+        val node = findAnchoredEditor(anchor, requireActiveWindow = false) ?: return
+        try {
+            runCatching { node.refresh() }
+            val originalText = editableText(node)
+            val cursor = insertionCursor.coerceIn(0, originalText.length)
+            val finalText = originalText.replaceRange(cursor, cursor, field.value)
+            val finalCursor = cursor + field.value.length
+            val success = if (isNativeEditText(node)) {
+                writeViaSetText(node, finalText, finalCursor, finalCursor)
+            } else {
+                if (field.sensitive) clipboardMonitor.suppressHistoryOnce(field.value)
+                pasteReplacement(node, cursor, cursor, field.value, finalCursor) ||
+                    writeViaSetText(node, finalText, finalCursor, finalCursor)
+            }
+            if (success) {
+                lastAppliedText = finalText
+                lastAppliedAt = SystemClock.elapsedRealtime()
+                if (settings.hapticFeedback) vibrate()
+            }
+        } finally {
+            @Suppress("DEPRECATION")
+            node.recycle()
+        }
+    }
+
+    private fun writeVaultClipboard(text: String, sensitive: Boolean) {
+        if (text.isEmpty()) return
+        val manager = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+        if (sensitive) clipboardMonitor.suppressHistoryOnce(text)
+        val clip = ClipData.newPlainText(
+            if (sensitive) "Expanda vault" else "Expanda note",
+            text,
+        )
+        if (sensitive) {
+            clip.description.extras = PersistableBundle().apply {
+                putBoolean("android.content.extra.IS_SENSITIVE", true)
+            }
+        }
+        manager.setPrimaryClip(clip)
+        if (sensitive) {
+            mainHandler.postDelayed({
+                if (clipboardMonitor.cachedText == text) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        manager.clearPrimaryClip()
+                    } else {
+                        manager.setPrimaryClip(ClipData.newPlainText("", ""))
+                    }
+                }
+            }, VAULT_CLIPBOARD_CLEAR_MS)
         }
     }
 
@@ -4489,6 +4863,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         private const val PROGRAMMATIC_SELECTION_GRACE_MS = 900L
         private const val SMART_CURSOR_CASE_TIMEOUT_MS = 15_000L
         private const val CLIPBOARD_RESTORE_DELAY_MS = 250L
+        private const val VAULT_CLIPBOARD_CLEAR_MS = 60_000L
         /** Two frames at 60 Hz — enough for Blink to finish applying ACTION_SET_TEXT. */
         private const val WEBVIEW_SELECTION_RETRY_DELAY_MS = 32L
         private const val MAX_SUGGESTIONS = 24
