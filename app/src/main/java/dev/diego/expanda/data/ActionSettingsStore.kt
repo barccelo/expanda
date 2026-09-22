@@ -75,11 +75,10 @@ class ActionSettingsStore(context: Context) : SharedPreferences.OnSharedPreferen
         preferences.edit().apply {
             clear()
             putStringSet(KEY_DISABLED_IDS, knownIds - enabled)
-            val restoredTriggers = if (snapshot.triggerOverrides.isNotEmpty()) {
-                snapshot.triggerOverrides
-            } else {
-                snapshot.shortcutOverrides.mapValues { (_, shortcut) -> listOf(shortcut) }
-            }
+            val restoredTriggers = snapshot.shortcutOverrides
+                .mapValues { (_, shortcut) -> listOf(shortcut) }
+                .toMutableMap()
+                .apply { putAll(snapshot.triggerOverrides) }
             restoredTriggers.forEach { (id, triggers) ->
                 val normalized = triggers.filter(String::isNotBlank).distinct()
                 if (id in knownIds && normalized.isNotEmpty()) {
