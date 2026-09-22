@@ -28,7 +28,17 @@ object SmartCursorCase {
         if (index < 0) return Context.SENTENCE_START
 
         return when (contextBeforeTrigger[index]) {
-            '.', '!', '?', '…' -> Context.SENTENCE_START
+            '…' -> Context.CONTINUATION
+            '.' -> if (
+                index >= 2 &&
+                contextBeforeTrigger[index - 1] == '.' &&
+                contextBeforeTrigger[index - 2] == '.'
+            ) {
+                Context.CONTINUATION
+            } else {
+                Context.SENTENCE_START
+            }
+            '!', '?' -> Context.SENTENCE_START
             else -> Context.CONTINUATION
         }
     }
