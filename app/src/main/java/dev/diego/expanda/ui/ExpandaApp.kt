@@ -430,11 +430,11 @@ fun ExpandaApp(
                 )
                 Destination.ACTION -> ActionCatalogScreen(
                     enabledIds = state.enabledActionIds,
-                    shortcutOverrides = state.actionShortcutOverrides,
+                    triggerOverrides = state.actionTriggerOverrides,
                     onSetEnabled = viewModel::setActionEnabled,
                     onSetAllEnabled = viewModel::setAllActionsEnabled,
-                    onSetShortcut = viewModel::setActionShortcut,
-                    onResetShortcut = viewModel::resetActionShortcut,
+                    onSetTriggers = viewModel::setActionTriggers,
+                    onResetTriggers = viewModel::resetActionTriggers,
                 )
                 Destination.SOURCE -> SnippetSourceScreen(
                     files = sourceFiles,
