@@ -354,6 +354,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 ),
                 enabledActionIds = actionSettingsStore.enabledIds.value,
                 shortcutOverrides = actionSettingsStore.shortcutOverrides.value,
+                triggerOverrides = actionSettingsStore.triggerOverrides.value,
             )
             if (action != null) {
                 suppressedExpansion = null
@@ -3259,14 +3260,14 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 .mapTo(this) { (match, trigger) -> PopupSuggestion.TextSnippet(match, trigger, typed) }
             if (settings.suggestionShowActions && !showAll) {
                 val enabledActions = actionSettingsStore.enabledIds.value
-                val shortcutOverrides = actionSettingsStore.shortcutOverrides.value
+                val triggerOverrides = actionSettingsStore.triggerOverrides.value
                 ActionEngine.definitions.asSequence()
                     .filter { it.id in enabledActions }
-                    .map { definition ->
-                        shortcutOverrides[definition.id]
-                            ?.takeIf(String::isNotBlank)
-                            ?.let { definition.copy(shortcut = it) }
-                            ?: definition
+                    .flatMap { definition ->
+                        val triggers = triggerOverrides[definition.id] ?: definition.triggers
+                        triggers.asSequence().map { trigger ->
+                            definition.copy(shortcut = trigger, aliases = emptyList())
+                        }
                     }
                     .mapNotNull { definition ->
                         actionSuggestionPrefix(
@@ -3698,11 +3699,16 @@ class ExpansionAccessibilityService : AccessibilityService() {
             if (!currentSettings.suggestionShowActions || shownDefinition.id !in enabledActions) return
 
             val baseDefinition = ActionEngine.definitions.firstOrNull { it.id == shownDefinition.id } ?: return
-            val shortcutOverrides = actionSettingsStore.shortcutOverrides.value
-            val definition = shortcutOverrides[baseDefinition.id]
-                ?.takeIf(String::isNotBlank)
-                ?.let { baseDefinition.copy(shortcut = it) }
-                ?: baseDefinition
+            val effectiveTriggers = actionSettingsStore.triggerOverrides.value[baseDefinition.id]
+                ?: baseDefinition.triggers
+            val selectedTrigger = shownDefinition.shortcut
+                .takeIf { it in effectiveTriggers }
+                ?: effectiveTriggers.firstOrNull()
+                ?: return
+            val definition = baseDefinition.copy(
+                shortcut = selectedTrigger,
+                aliases = emptyList(),
+            )
             val originalText = node.text?.toString() ?: ""
             val cursor = node.textSelectionEnd.takeIf { it in 0..originalText.length } ?: originalText.length
             val minimumCharacters = currentSettings.suggestionMinChars.coerceIn(1, MAX_SUGGESTION_LENGTH)
@@ -3741,6 +3747,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 ),
                 enabledActionIds = setOf(definition.id),
                 shortcutOverrides = mapOf(definition.id to definition.shortcut),
+                triggerOverrides = mapOf(definition.id to listOf(definition.shortcut)),
             ) ?: return
             val selectionAction = definition.category == ActionCategory.SELECTION &&
                 outcome.selectionStart != outcome.selectionEnd
