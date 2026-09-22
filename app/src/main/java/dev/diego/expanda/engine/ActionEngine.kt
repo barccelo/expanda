@@ -63,6 +63,13 @@ class ActionEngine {
         "lowercase" -> text.lowercase(Locale.getDefault())
         "sentence_case" -> sentenceCase(text)
         "title_case" -> titleCase(text)
+        "wrap_guillemets" -> wrap(text, "«", "»")
+        "wrap_parentheses" -> wrap(text, "(", ")")
+        "wrap_question" -> wrap(text, "¿", "?")
+        "wrap_exclamation" -> wrap(text, "¡", "!")
+        "wrap_brackets" -> wrap(text, "[", "]")
+        "wrap_double_asterisk" -> wrap(text, "**", "**")
+        "wrap_double_underscore" -> wrap(text, "__", "__")
         "space_underscore" -> text.replace(' ', '_')
         "space_dash" -> text.replace(' ', '-')
         "underscore_space" -> text.replace('_', ' ')
@@ -325,6 +332,9 @@ class ActionEngine {
 
         private fun reverseWords(value: String): String =
             Regex("\\S+").findAll(value).map { it.value }.toList().asReversed().joinToString(" ")
+
+        private fun wrap(value: String, prefix: String, suffix: String): String =
+            prefix + value + suffix
 
         private fun titleCase(value: String): String = buildString(value.length) {
             var boundary = true
