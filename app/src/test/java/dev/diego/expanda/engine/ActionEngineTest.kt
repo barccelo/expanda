@@ -102,6 +102,16 @@ class ActionEngineTest {
         )
     }
 
+    @Test fun `wrap actions surround selected text with configured pairs`() {
+        assertEquals("«texto»", engine.processSelectedText("wrap_guillemets", "texto"))
+        assertEquals("(texto)", engine.processSelectedText("wrap_parentheses", "texto"))
+        assertEquals("¿texto?", engine.processSelectedText("wrap_question", "texto"))
+        assertEquals("¡texto!", engine.processSelectedText("wrap_exclamation", "texto"))
+        assertEquals("[texto]", engine.processSelectedText("wrap_brackets", "texto"))
+        assertEquals("**texto**", engine.processSelectedText("wrap_double_asterisk", "texto"))
+        assertEquals("__texto__", engine.processSelectedText("wrap_double_underscore", "texto"))
+    }
+
     @Test fun `selected range transformation preserves surrounding text and selection`() {
         val result = engine.processSelectedRange(
             actionId = "lowercase",
