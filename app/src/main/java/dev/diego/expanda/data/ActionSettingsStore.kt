@@ -124,7 +124,13 @@ class ActionSettingsStore(context: Context) : SharedPreferences.OnSharedPreferen
         val currentIds = ActionEngine.definitions.mapTo(linkedSetOf()) { it.id }
 
         if (!preferences.contains(KEY_DISABLED_IDS)) {
-            preferences.edit().putStringSet(KEY_KNOWN_IDS, currentIds).apply()
+            val enabledByDefault = ActionEngine.definitions
+                .filter { it.enabledByDefault }
+                .mapTo(linkedSetOf()) { it.id }
+            preferences.edit()
+                .putStringSet(KEY_DISABLED_IDS, currentIds - enabledByDefault)
+                .putStringSet(KEY_KNOWN_IDS, currentIds)
+                .apply()
             return true
         }
 
@@ -142,8 +148,12 @@ class ActionSettingsStore(context: Context) : SharedPreferences.OnSharedPreferen
             if ("lowercase" in legacyEnabled) disabled -= "lowercase_previous_word"
             else disabled += "lowercase_previous_word"
         } else {
-            // Future actions are opt-in by default.
-            disabled += currentIds - storedKnown
+            val addedIds = currentIds - storedKnown
+            val enabledDefaults = ActionEngine.definitions
+                .filter { it.id in addedIds && it.enabledByDefault }
+                .mapTo(linkedSetOf()) { it.id }
+            disabled += addedIds - enabledDefaults
+            disabled -= enabledDefaults
         }
 
         disabled.retainAll(currentIds)
@@ -155,7 +165,11 @@ class ActionSettingsStore(context: Context) : SharedPreferences.OnSharedPreferen
     }
 
     private fun readEnabledIds(): Set<String> {
-        if (!preferences.contains(KEY_DISABLED_IDS)) return emptySet()
+        if (!preferences.contains(KEY_DISABLED_IDS)) {
+            return ActionEngine.definitions
+                .filter { it.enabledByDefault }
+                .mapTo(linkedSetOf()) { it.id }
+        }
         val disabled = preferences.getStringSet(KEY_DISABLED_IDS, emptySet()).orEmpty()
         return ActionEngine.definitions
             .asSequence()
