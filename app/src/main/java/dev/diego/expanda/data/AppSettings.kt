@@ -405,7 +405,7 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         const val MIN_SELECTION_TOOLBAR_WIDTH = 0.42f
         const val MAX_SELECTION_TOOLBAR_WIDTH = 0.98f
         const val DEFAULT_SELECTION_TOOLBAR_WIDTH = 0.60f
-        const val MIN_SELECTION_TOOLBAR_HEIGHT_DP = 44
+        const val MIN_SELECTION_TOOLBAR_HEIGHT_DP = 48
         const val MAX_SELECTION_TOOLBAR_HEIGHT_DP = 88
         const val DEFAULT_SELECTION_TOOLBAR_HEIGHT_DP = 56
         const val MAX_SELECTION_TOOLBAR_QUICK_ACTIONS = 6
