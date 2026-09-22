@@ -1771,6 +1771,7 @@ private fun SelectionActionGroupSetting(
     if (available.isEmpty()) return
 
     var workingOrder by remember(config.actionOrder) { mutableStateOf(config.actionOrder) }
+    var groupLabelDraft by remember(config.label) { mutableStateOf(config.label) }
     val reorderThresholdPx = with(LocalDensity.current) { 44.dp.toPx() }
     val es = usesSpanish(language)
 
@@ -1800,13 +1801,13 @@ private fun SelectionActionGroupSetting(
             }
 
             OutlinedTextField(
-                value = config.label,
+                value = groupLabelDraft,
                 onValueChange = { value ->
-                    onChanged(
-                        config.copy(
-                            label = value.take(SettingsRepository.MAX_SELECTION_GROUP_LABEL_LENGTH),
-                        ),
-                    )
+                    val updated = value.take(SettingsRepository.MAX_SELECTION_GROUP_LABEL_LENGTH)
+                    groupLabelDraft = updated
+                    if (updated.isNotBlank()) {
+                        onChanged(config.copy(label = updated))
+                    }
                 },
                 label = { Text(if (es) "Texto del botón principal" else "Main button label") },
                 supportingText = {
@@ -1842,45 +1843,47 @@ private fun SelectionActionGroupSetting(
                 val enabled = actionId in config.enabledActionIds
                 val displayLabel = config.actionLabels[actionId]
                     ?: defaults.actionLabels[actionId].orEmpty()
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .pointerInput(actionId, workingOrder.size) {
-                            detectDragGesturesAfterLongPress(
-                                onDragStart = { dragDistance = 0f },
-                                onDragCancel = {
-                                    dragDistance = 0f
-                                    workingOrder = config.actionOrder
-                                },
-                                onDragEnd = {
-                                    dragDistance = 0f
-                                    onChanged(config.copy(actionOrder = workingOrder))
-                                },
-                                onDrag = { _, dragAmount ->
-                                    dragDistance += dragAmount.y
-                                    val index = workingOrder.indexOf(actionId)
-                                    when {
-                                        dragDistance > reorderThresholdPx &&
-                                            index >= 0 &&
-                                            index < workingOrder.lastIndex -> {
-                                            val reordered = workingOrder.toMutableList()
-                                            reordered[index] = reordered[index + 1]
-                                            reordered[index + 1] = actionId
-                                            workingOrder = reordered
-                                            dragDistance -= reorderThresholdPx
-                                        }
-                                        dragDistance < -reorderThresholdPx && index > 0 -> {
-                                            val reordered = workingOrder.toMutableList()
-                                            reordered[index] = reordered[index - 1]
-                                            reordered[index - 1] = actionId
-                                            workingOrder = reordered
-                                            dragDistance += reorderThresholdPx
-                                        }
-                                    }
-                                },
-                            )
-                        },
+                var labelDraft by remember(actionId, displayLabel) { mutableStateOf(displayLabel) }
+                val dragHandleModifier = Modifier.pointerInput(
+                    actionId,
+                    workingOrder.size,
+                    config.actionOrder,
                 ) {
+                    detectDragGesturesAfterLongPress(
+                        onDragStart = { dragDistance = 0f },
+                        onDragCancel = {
+                            dragDistance = 0f
+                            workingOrder = config.actionOrder
+                        },
+                        onDragEnd = {
+                            dragDistance = 0f
+                            onChanged(config.copy(actionOrder = workingOrder))
+                        },
+                        onDrag = { _, dragAmount ->
+                            dragDistance += dragAmount.y
+                            val index = workingOrder.indexOf(actionId)
+                            when {
+                                dragDistance > reorderThresholdPx &&
+                                    index >= 0 &&
+                                    index < workingOrder.lastIndex -> {
+                                    val reordered = workingOrder.toMutableList()
+                                    reordered[index] = reordered[index + 1]
+                                    reordered[index + 1] = actionId
+                                    workingOrder = reordered
+                                    dragDistance -= reorderThresholdPx
+                                }
+                                dragDistance < -reorderThresholdPx && index > 0 -> {
+                                    val reordered = workingOrder.toMutableList()
+                                    reordered[index] = reordered[index - 1]
+                                    reordered[index - 1] = actionId
+                                    workingOrder = reordered
+                                    dragDistance += reorderThresholdPx
+                                }
+                            }
+                        },
+                    )
+                }
+                Column(modifier = Modifier.fillMaxWidth()) {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -1888,6 +1891,7 @@ private fun SelectionActionGroupSetting(
                     ) {
                         Text(
                             "≡",
+                            modifier = dragHandleModifier,
                             style = MaterialTheme.typography.titleLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -1912,12 +1916,15 @@ private fun SelectionActionGroupSetting(
                         )
                     }
                     OutlinedTextField(
-                        value = displayLabel,
+                        value = labelDraft,
                         onValueChange = { value ->
-                            val labels = config.actionLabels.toMutableMap()
-                            labels[actionId] =
-                                value.take(SettingsRepository.MAX_SELECTION_GROUP_LABEL_LENGTH)
-                            onChanged(config.copy(actionLabels = labels))
+                            val updated = value.take(SettingsRepository.MAX_SELECTION_GROUP_LABEL_LENGTH)
+                            labelDraft = updated
+                            if (updated.isNotBlank()) {
+                                val labels = config.actionLabels.toMutableMap()
+                                labels[actionId] = updated
+                                onChanged(config.copy(actionLabels = labels))
+                            }
                         },
                         label = { Text(if (es) "Etiqueta visible" else "Visible label") },
                         singleLine = true,
