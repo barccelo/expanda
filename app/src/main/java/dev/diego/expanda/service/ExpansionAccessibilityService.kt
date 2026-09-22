@@ -911,17 +911,12 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private fun buildSelectionToolbarActions(settings: AppSettings): List<SelectionToolbarAction> {
         val quick = settings.selectionToolbarQuickActionIds.mapNotNull { id ->
             when {
-                id == SettingsRepository.SELECTION_CASE_GROUP_ID -> {
-                    val groupConfig = settings.selectionActionGroupConfigs[id]
-                        ?: SettingsRepository.DEFAULT_SELECTION_CASE_GROUP_CONFIG
+                id in settings.selectionActionGroupConfigs -> {
+                    val groupConfig = settings.selectionActionGroupConfigs.getValue(id)
                     SelectionToolbarAction(
                         id = id,
                         label = groupConfig.label,
-                        description = localizedSelectionUi(
-                            settings,
-                            "Letter case",
-                            "Mayúsculas/minúsculas",
-                        ),
+                        description = selectionActionGroupDescription(id, settings, groupConfig.label),
                         groupActionIds = groupConfig.actionOrder.filter {
                             it in groupConfig.enabledActionIds
                         },
@@ -960,6 +955,19 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 selectionUiText(settings, "all_tools"),
             ),
         )
+    }
+
+    private fun selectionActionGroupDescription(
+        id: String,
+        settings: AppSettings,
+        fallback: String,
+    ): String = when (id) {
+        SettingsRepository.SELECTION_CASE_GROUP_ID -> localizedSelectionUi(
+            settings,
+            "Letter case",
+            "Mayúsculas/minúsculas",
+        )
+        else -> fallback
     }
 
     private fun selectionQuickLabel(id: String): String = when (id) {
