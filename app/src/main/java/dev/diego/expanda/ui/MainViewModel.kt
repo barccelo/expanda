@@ -27,6 +27,7 @@ import dev.diego.expanda.data.SnippetSortMode
 import dev.diego.expanda.data.SelectionActionGroupConfig
 import dev.diego.expanda.data.ThemeMode
 import dev.diego.expanda.data.TemplateVariable
+import dev.diego.expanda.data.VaultEntry
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -42,6 +43,7 @@ data class MainUiState(
     val matches: List<TextMatch> = emptyList(),
     val settings: AppSettings = AppSettings(),
     val clipboardEntries: List<ClipboardEntry> = emptyList(),
+    val vaultEntries: List<VaultEntry> = emptyList(),
     val enabledActionIds: Set<String> = emptySet(),
     val actionTriggerOverrides: Map<String, List<String>> = emptyMap(),
     val matchesLoaded: Boolean = false,
@@ -95,6 +97,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = app.matchRepository
     private val settingsRepository = app.settingsRepository
     private val clipboardRepository = app.clipboardRepository
+    private val vaultRepository = app.vaultRepository
     private val actionSettingsStore = app.actionSettingsStore
     private val onboardingStore = app.onboardingStore
     private val sourceRepository = app.espansoSourceRepository
@@ -112,17 +115,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         onboardingStore.state,
     ) { matches, ready, onboarding -> Triple(matches, ready, onboarding) }
 
+    private val privateContent = combine(
+        clipboardRepository.entries,
+        vaultRepository.entries,
+    ) { clipboard, vault -> clipboard to vault }
+
     val uiState: StateFlow<MainUiState> = combine(
         matchContent,
         settingsRepository.settings,
-        clipboardRepository.entries,
+        privateContent,
         actionSettings,
         filters,
-    ) { content, settings, clipboard, actions, (search, tag) ->
+    ) { content, settings, privateData, actions, (search, tag) ->
         MainUiState(
             matches = content.first,
             settings = settings,
-            clipboardEntries = clipboard,
+            clipboardEntries = privateData.first,
+            vaultEntries = privateData.second,
             enabledActionIds = actions.first,
             actionTriggerOverrides = actions.second,
             matchesLoaded = content.second,
@@ -295,6 +304,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun resetActionShortcut(id: String) = actionSettingsStore.resetShortcut(id)
     fun pauseFor(durationMillis: Long) = viewModelScope.launch { settingsRepository.pauseFor(durationMillis) }
     fun resume() = viewModelScope.launch { settingsRepository.resume() }
+    fun saveVaultEntry(
+        entry: VaultEntry,
+        onResult: (Result<Long>) -> Unit = {},
+    ) = viewModelScope.launch {
+        onResult(runCatching { vaultRepository.save(entry) })
+    }
+
+    fun deleteVaultEntry(id: Long) = viewModelScope.launch {
+        vaultRepository.delete(id)
+    }
+
+    fun updateVaultFieldFromClipboard(
+        entryId: Long,
+        fieldId: String,
+        value: String,
+        onResult: (Boolean) -> Unit = {},
+    ) = viewModelScope.launch {
+        onResult(vaultRepository.updateFieldFromClipboard(entryId, fieldId, value))
+    }
+
     fun captureClipboard(text: String) = viewModelScope.launch { clipboardRepository.add(text) }
     fun deleteClipboard(id: Long) = viewModelScope.launch { clipboardRepository.delete(id) }
     fun clearClipboard() = viewModelScope.launch { clipboardRepository.clear() }
