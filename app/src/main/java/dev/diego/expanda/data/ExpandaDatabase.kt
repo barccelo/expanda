@@ -21,6 +21,7 @@ class ExpandaDatabase(private val context: Context) :
     override fun onCreate(db: SQLiteDatabase) {
         createMatchTables(db)
         createClipboardTable(db)
+        createVaultTable(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -36,6 +37,9 @@ class ExpandaDatabase(private val context: Context) :
         if (oldVersion < 5) {
             markPendingTutorialAfterUpgrade()
             migrateLegacyMatches(db)
+        }
+        if (oldVersion < 6) {
+            createVaultTable(db)
         }
     }
 
@@ -247,6 +251,59 @@ class ExpandaDatabase(private val context: Context) :
         )
     }
 
+    data class VaultRow(
+        val id: Long,
+        val payload: String,
+        val createdAt: Long,
+        val updatedAt: Long,
+    )
+
+    fun readVaultRows(): List<VaultRow> = readableDatabase.query(
+        "vault_entries",
+        arrayOf("id", "payload", "created_at", "updated_at"),
+        null,
+        null,
+        null,
+        null,
+        "updated_at DESC",
+    ).use { cursor ->
+        buildList {
+            while (cursor.moveToNext()) {
+                add(
+                    VaultRow(
+                        id = cursor.getLong(cursor.getColumnIndexOrThrow("id")),
+                        payload = cursor.getString(cursor.getColumnIndexOrThrow("payload")),
+                        createdAt = cursor.getLong(cursor.getColumnIndexOrThrow("created_at")),
+                        updatedAt = cursor.getLong(cursor.getColumnIndexOrThrow("updated_at")),
+                    ),
+                )
+            }
+        }
+    }
+
+    fun upsertVaultRow(
+        id: Long,
+        payload: String,
+        createdAt: Long,
+        updatedAt: Long,
+    ): Long {
+        val values = ContentValues().apply {
+            put("payload", payload)
+            put("created_at", createdAt)
+            put("updated_at", updatedAt)
+        }
+        return if (id == 0L) {
+            writableDatabase.insertOrThrow("vault_entries", null, values)
+        } else {
+            writableDatabase.update("vault_entries", values, "id = ?", arrayOf(id.toString()))
+            id
+        }
+    }
+
+    fun deleteVaultEntry(id: Long) {
+        writableDatabase.delete("vault_entries", "id = ?", arrayOf(id.toString()))
+    }
+
     private fun queryMatches(db: SQLiteDatabase): List<TextMatch> = db.query(
         "matches", null, null, null, null, null, "updated_at DESC",
     ).use { cursor ->
@@ -404,7 +461,7 @@ class ExpandaDatabase(private val context: Context) :
 
     companion object {
         private const val DATABASE_NAME = "expanda.db"
-        private const val DATABASE_VERSION = 5
+        private const val DATABASE_VERSION = 6
         private const val UPGRADE_PREFS = "expanda_upgrade"
         private const val KEY_PENDING_TUTORIAL_V03 = "pending_tutorial_v03"
         private const val SEPARATOR = "\u001F"
@@ -439,6 +496,22 @@ class ExpandaDatabase(private val context: Context) :
 
         private fun createMatchIndexes(db: SQLiteDatabase) {
             db.execSQL("CREATE INDEX idx_expansion_log_time ON expansion_log(expanded_at DESC)")
+        }
+
+        private fun createVaultTable(db: SQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS vault_entries (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    payload TEXT NOT NULL,
+                    created_at INTEGER NOT NULL,
+                    updated_at INTEGER NOT NULL
+                )
+                """.trimIndent(),
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS idx_vault_updated ON vault_entries(updated_at DESC)",
+            )
         }
 
         private fun createClipboardTable(db: SQLiteDatabase) {
