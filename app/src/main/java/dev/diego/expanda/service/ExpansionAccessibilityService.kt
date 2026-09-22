@@ -1041,12 +1041,24 @@ class ExpansionAccessibilityService : AccessibilityService() {
 
         fun updateHighlight(index: Int) {
             if (index == hoveredIndex) return
+            val previousIndex = hoveredIndex
             hoveredIndex = index
             optionViews.forEachIndexed { optionIndex, option ->
+                val selected = optionIndex == hoveredIndex
                 option.background = ui.surface(
                     radiusDp = 10,
-                    emphasized = optionIndex == hoveredIndex,
+                    emphasized = selected,
                 )
+                option.alpha = if (selected) 1f else 0.82f
+                option.scaleX = if (selected) 1.06f else 1f
+                option.scaleY = if (selected) 1.06f else 1f
+            }
+            if (
+                settings.hapticFeedback &&
+                previousIndex in actionIds.indices &&
+                index in actionIds.indices
+            ) {
+                vibrate()
             }
         }
 
@@ -1159,8 +1171,11 @@ class ExpansionAccessibilityService : AccessibilityService() {
 
         fun hoverFor(rawX: Float, rawY: Float): Int {
             val bounds = menuScreenBounds ?: return -1
-            if (rawX < bounds.left || rawX >= bounds.right ||
-                rawY < bounds.top || rawY >= bounds.bottom
+            val verticalTolerance = dp(12)
+            if (
+                rawX < bounds.left || rawX >= bounds.right ||
+                rawY < bounds.top - verticalTolerance ||
+                rawY >= bounds.bottom + verticalTolerance
             ) {
                 return -1
             }
