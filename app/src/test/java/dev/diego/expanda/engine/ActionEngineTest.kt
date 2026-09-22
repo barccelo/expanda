@@ -164,8 +164,11 @@ class ActionEngineTest {
         assertEquals(" vv", result?.matchedTrigger)
     }
 
-    @Test fun `typing actions are declared opt in by default`() {
-        assertEquals(true, ActionEngine.definitions.all { !it.enabledByDefault })
+    @Test fun `only open vault is enabled by default`() {
+        assertEquals(
+            setOf("open_vault"),
+            ActionEngine.definitions.filter { it.enabledByDefault }.mapTo(linkedSetOf()) { it.id },
+        )
     }
 
     @Test fun `selected text actions reuse the canonical transformations`() {
