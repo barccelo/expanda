@@ -1549,16 +1549,7 @@ private fun SelectionToolbarSizeSetting(
     var widthDraft by remember(widthFraction) { mutableFloatStateOf(widthFraction) }
     var heightDraft by remember(heightDp) { mutableFloatStateOf(heightDp.toFloat()) }
 
-    Card(
-        Modifier
-            .fillMaxWidth()
-            .padding(
-                start = if (nested) 28.dp else 16.dp,
-                end = if (nested) 12.dp else 16.dp,
-                top = 4.dp,
-                bottom = 8.dp,
-            ),
-    ) {
+    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1850,7 +1841,16 @@ private fun SelectionActionGroupSetting(
     val reorderThresholdPx = with(LocalDensity.current) { 32.dp.toPx() }
     val es = usesSpanish(language)
 
-    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+    Card(
+        Modifier
+            .fillMaxWidth()
+            .padding(
+                start = if (nested) 28.dp else 16.dp,
+                end = if (nested) 12.dp else 16.dp,
+                top = 4.dp,
+                bottom = 8.dp,
+            ),
+    ) {
         Column(Modifier.padding(vertical = 10.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
