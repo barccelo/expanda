@@ -9,7 +9,9 @@ object BackupCodec {
 
     data class ActionSnapshot(
         val enabledIds: Set<String> = emptySet(),
+        /** Legacy single-trigger overrides retained for older backups. */
         val shortcutOverrides: Map<String, String> = emptyMap(),
+        val triggerOverrides: Map<String, List<String>> = emptyMap(),
     )
 
     data class ImportResult(
@@ -232,15 +234,31 @@ object BackupCodec {
         put("shortcutOverrides", JSONObject().apply {
             actions.shortcutOverrides.toSortedMap().forEach { (id, shortcut) -> put(id, shortcut) }
         })
+        put("triggerOverrides", JSONObject().apply {
+            actions.triggerOverrides.toSortedMap().forEach { (id, triggers) ->
+                put(id, JSONArray(triggers))
+            }
+        })
     }
 
     private fun actionsFromJson(json: JSONObject): ActionSnapshot {
         val shortcuts = json.optJSONObject("shortcutOverrides")
+        val triggers = json.optJSONObject("triggerOverrides")
         return ActionSnapshot(
             enabledIds = json.stringList("enabledIds").toSet(),
             shortcutOverrides = buildMap {
                 shortcuts?.keys()?.forEach { id ->
                     shortcuts.optString(id).takeIf(String::isNotBlank)?.let { put(id, it) }
+                }
+            },
+            triggerOverrides = buildMap {
+                triggers?.keys()?.forEach { id ->
+                    val value = triggers.optJSONArray(id) ?: return@forEach
+                    buildList {
+                        for (index in 0 until value.length()) {
+                            value.optString(index).takeIf(String::isNotBlank)?.let(::add)
+                        }
+                    }.distinct().takeIf(List<String>::isNotEmpty)?.let { put(id, it) }
                 }
             },
         )
