@@ -783,26 +783,52 @@ class ExpansionAccessibilityService : AccessibilityService() {
         val fieldText = editableText(node)
         val toolbarActions = buildSelectionToolbarActions(settings)
         toolbarActions.forEach { action ->
+            val groupHasOptions = action.isGroup && action.groupActionIds.isNotEmpty()
+            val groupHasUsefulAction = groupHasOptions && action.groupActionIds.any { actionId ->
+                actionEngine.processSelectedText(actionId, selectedText)
+                    ?.let { it != selectedText } == true
+            }
             val enabled = when {
                 action.id == SELECTION_UNDO_ID -> canUndoSelection(anchor, fieldText)
                 action.id == SELECTION_TRANSFORMS_MENU_ID || action.id == SELECTION_MORE_MENU_ID -> true
-                action.groupActionIds.isNotEmpty() -> action.groupActionIds.any { actionId ->
-                    actionEngine.processSelectedText(actionId, selectedText)
-                        ?.let { it != selectedText } == true
-                }
+                action.isGroup -> groupHasUsefulAction
                 action.id in SELECTION_INTERACTIVE_ACTION_IDS -> selectedText.isNotEmpty()
                 else -> actionEngine.processSelectedText(action.id, selectedText)
                     ?.let { it != selectedText } == true
+            }
+            val accessibleDescription = when {
+                action.isGroup && !groupHasOptions -> action.description + ". " + localizedSelectionUi(
+                    settings,
+                    "No options enabled.",
+                    "No hay opciones activas.",
+                )
+                action.isGroup && enabled -> action.description + ". " + localizedSelectionUi(
+                    settings,
+                    "Tap to open. Long press and slide for quick choice.",
+                    "Toca para abrir. Mantén pulsado y desliza para elegir rápidamente.",
+                )
+                action.isGroup -> action.description + ". " + localizedSelectionUi(
+                    settings,
+                    "No option applies to this selection.",
+                    "Ninguna opción aplica a esta selección.",
+                )
+                !enabled -> action.description + ". " + localizedSelectionUi(
+                    settings,
+                    "Unavailable for this selection.",
+                    "No disponible para esta selección.",
+                )
+                else -> action.description
             }
             val button = ui.body(action.label, sizeSp = actionTextSize).apply {
                 gravity = Gravity.CENTER
                 setPadding(dp(2), 0, dp(2), 0)
                 background = ui.surface(10)
+                isEnabled = enabled
                 isClickable = enabled
                 isFocusable = enabled
                 alpha = if (enabled) 1f else 0.36f
                 maxLines = 1
-                contentDescription = action.description
+                contentDescription = accessibleDescription
                 if (enabled) {
                     setOnClickListener {
                         when {
@@ -817,7 +843,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                                 actionIds = SELECTION_CATALOG_ACTION_IDS,
                                 showAll = true,
                             )
-                            action.groupActionIds.isNotEmpty() -> showSelectionActionMenu(
+                            action.isGroup -> showSelectionActionMenu(
                                 title = action.description,
                                 actionIds = action.groupActionIds,
                                 showAll = false,
@@ -827,7 +853,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                             else -> applySelectionToolbarAction(action.id)
                         }
                     }
-                    if (action.groupActionIds.isNotEmpty()) {
+                    if (action.isGroup) {
                         setOnTouchListener(
                             createSelectionToolbarGroupGestureListener(
                                 button = this,
@@ -919,6 +945,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                         id = id,
                         label = groupConfig.label,
                         description = selectionActionGroupDescription(id, settings, groupConfig.label),
+                        isGroup = true,
                         groupActionIds = groupConfig.actionOrder.filter {
                             it in groupConfig.enabledActionIds
                         },
@@ -1024,6 +1051,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
     ): View.OnTouchListener {
         val actionIds = action.groupActionIds.distinct()
         val touchSlop = ViewConfiguration.get(this).scaledTouchSlop
+        val longPressTimeout = ViewConfiguration.getLongPressTimeout().toLong()
         val ui = OverlayViews(this, resolveNativeTheme(this, settings))
         var downX = 0f
         var downY = 0f
@@ -1071,7 +1099,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 previousIndex in actionIds.indices &&
                 index in actionIds.indices
             ) {
-                vibrate()
+                vibrateTick()
             }
         }
 
@@ -1230,7 +1258,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 windowManager.addView(root, params)
                 selectionGroupOverlay = root
                 dragMenuActive = true
-                if (settings.hapticFeedback) vibrate()
+                if (settings.hapticFeedback) vibrateTick()
             }.onFailure {
                 Log.w(TAG, "Could not show selection group drag menu", it)
                 clearDragMenuState()
@@ -1283,7 +1311,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     cancelLongPress()
                     val task = Runnable { showDragMenu() }
                     longPressTask = task
-                    mainHandler.postDelayed(task, SELECTION_GROUP_LONG_PRESS_MS)
+                    mainHandler.postDelayed(task, longPressTimeout)
                     true
                 }
 
@@ -1384,6 +1412,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(12), dp(10), dp(12), dp(10))
+                minimumHeight = dp(48)
                 background = ui.surface()
                 isClickable = true
                 isFocusable = true
@@ -3139,15 +3168,22 @@ class ExpansionAccessibilityService : AccessibilityService() {
         pendingFormNode = null
     }
 
-    private fun vibrate() {
+    private fun vibrate(durationMs: Long = HAPTIC_CONFIRM_MS) {
         val vibrator = if (Build.VERSION.SDK_INT >= 31) {
             (getSystemService(VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
         } else {
             @Suppress("DEPRECATION")
             getSystemService(VIBRATOR_SERVICE) as Vibrator
         }
-        vibrator.vibrate(VibrationEffect.createOneShot(25, VibrationEffect.DEFAULT_AMPLITUDE))
+        vibrator.vibrate(
+            VibrationEffect.createOneShot(
+                durationMs,
+                VibrationEffect.DEFAULT_AMPLITUDE,
+            ),
+        )
     }
+
+    private fun vibrateTick() = vibrate(HAPTIC_TICK_MS)
 
     private fun setSelection(node: AccessibilityNodeInfo, start: Int, end: Int): Boolean =
         node.performAction(
@@ -4167,6 +4203,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                             resizing = true
                             container.alpha = DRAG_ALPHA
                             (handle as? TextView)?.text = "↘"
+                            if (settingsRepository.settings.value.hapticFeedback) vibrateTick()
                         }
                     }
                     longPressTask = task
@@ -4198,6 +4235,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                         cancelLongPress()
                         dragging = true
                         container.alpha = DRAG_ALPHA
+                        if (settingsRepository.settings.value.hapticFeedback) vibrateTick()
                     }
                     if (dragging) {
                         params.x = startX + deltaX.toInt()
@@ -4459,6 +4497,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
             val id: String,
             val label: String,
             val description: String,
+            val isGroup: Boolean = false,
             val groupActionIds: List<String> = emptyList(),
             val groupActionLabels: Map<String, String> = emptyMap(),
         )
@@ -4471,7 +4510,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
         private const val SELECTION_REPEAT_TEXT_ID = "repeat_text"
         private const val SELECTION_PREFIX_SUFFIX_ID = "prefix_suffix"
         private const val MAX_SELECTION_UNDO_HISTORY = 10
-        private const val SELECTION_GROUP_LONG_PRESS_MS = 320L
+        private const val HAPTIC_TICK_MS = 10L
+        private const val HAPTIC_CONFIRM_MS = 25L
 
         private val SELECTION_INTERACTIVE_ACTION_IDS = setOf(
             SELECTION_FIND_REPLACE_ID,
