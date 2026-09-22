@@ -912,7 +912,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
             when {
                 id == SettingsRepository.SELECTION_CASE_GROUP_ID -> SelectionToolbarAction(
                     id = id,
-                    label = "Aa",
+                    label = "AaA",
                     description = localizedSelectionUi(
                         settings,
                         "Letter case",
@@ -958,7 +958,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         "uppercase" -> "ABC"
         "lowercase" -> "abc"
         "sentence_case" -> "Abc."
-        "title_case" -> "Aa"
+        "title_case" -> "AaA"
         "sort_lines" -> "A↓"
         "remove_duplicate_lines" -> "≠"
         "remove_all_spaces" -> "␠×"
@@ -4263,10 +4263,10 @@ class ExpansionAccessibilityService : AccessibilityService() {
         private const val SELECTION_GROUP_LONG_PRESS_MS = 320L
 
         private val SELECTION_CASE_ACTION_IDS = listOf(
-            "title_case",
-            "uppercase",
             "lowercase",
             "sentence_case",
+            "uppercase",
+            "title_case",
         )
 
         private val SELECTION_INTERACTIVE_ACTION_IDS = setOf(
