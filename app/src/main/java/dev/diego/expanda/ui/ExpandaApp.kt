@@ -58,6 +58,7 @@ import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.ImportExport
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PauseCircle
 import androidx.compose.material.icons.filled.QueryStats
@@ -198,6 +199,7 @@ private enum class Destination(val label: String, val icon: ImageVector) {
     TEXT("Snippets", Icons.Default.TextFields),
     TEST("Playground", Icons.Default.EditNote),
     ACTION("Actions", Icons.Default.Bolt),
+    VAULT("Vault", Icons.Default.Lock),
     SOURCE("Source", Icons.Default.Code),
     SETTINGS("Settings", Icons.Default.Settings),
 }
@@ -439,6 +441,25 @@ fun ExpandaApp(
                     onSetAllEnabled = viewModel::setAllActionsEnabled,
                     onSetTriggers = viewModel::setActionTriggers,
                     onResetTriggers = viewModel::resetActionTriggers,
+                )
+                Destination.VAULT -> VaultScreen(
+                    entries = state.vaultEntries,
+                    onSave = { entry ->
+                        viewModel.saveVaultEntry(entry) { result ->
+                            result.exceptionOrNull()?.let { error ->
+                                scope.launch {
+                                    snackbarHostState.showSnackbar(
+                                        error.message ?: tr("Could not save vault entry", "No se pudo guardar la entrada"),
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    onDelete = viewModel::deleteVaultEntry,
+                    onCopy = viewModel::copyVaultValue,
+                    onUpdateFromClipboard = { entryId, fieldId, value ->
+                        viewModel.updateVaultFieldFromClipboard(entryId, fieldId, value)
+                    },
                 )
                 Destination.SOURCE -> SnippetSourceScreen(
                     files = sourceFiles,
