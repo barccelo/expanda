@@ -24,6 +24,8 @@ class ClipboardMonitor(
 
     @Volatile private var cachedAt: Long = 0L
     @Volatile private var changeDetectedAt: Long = 0L
+    @Volatile private var suppressHistoryText: String? = null
+    @Volatile private var suppressHistoryUntil: Long = 0L
 
     private var listener: ClipboardManager.OnPrimaryClipChangedListener? = null
 
@@ -46,6 +48,11 @@ class ClipboardMonitor(
     }
 
     /** Attempt a live read and cache the result. Returns the text or null. */
+    fun suppressHistoryOnce(text: String) {
+        suppressHistoryText = text
+        suppressHistoryUntil = System.currentTimeMillis() + SENSITIVE_SUPPRESSION_WINDOW_MS
+    }
+
     fun capture(manager: ClipboardManager = clipboardManager()): String? {
         val result = tryRead(manager)
         Log.d(TAG, "capture: ${result?.let { "${it.length} chars" } ?: "null"}")
@@ -81,8 +88,15 @@ class ClipboardMonitor(
         if (text.isBlank()) return null
         cachedText = text
         cachedAt = System.currentTimeMillis()
-        runCatching { historyWriter(text) }
-            .onFailure { Log.w(TAG, "Failed to persist clipboard history", it) }
+        val suppress = text == suppressHistoryText &&
+            System.currentTimeMillis() <= suppressHistoryUntil
+        if (suppress) {
+            suppressHistoryText = null
+            suppressHistoryUntil = 0L
+        } else {
+            runCatching { historyWriter(text) }
+                .onFailure { Log.w(TAG, "Failed to persist clipboard history", it) }
+        }
         return text
     }
 
@@ -104,5 +118,6 @@ class ClipboardMonitor(
     companion object {
         private const val TAG = "ClipboardMonitor"
         private const val FRESH_CACHE_WINDOW_MS = 5_000L
+        private const val SENSITIVE_SUPPRESSION_WINDOW_MS = 5_000L
     }
 }
