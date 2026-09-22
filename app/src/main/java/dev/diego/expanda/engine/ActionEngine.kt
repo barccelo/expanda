@@ -8,6 +8,8 @@ import java.util.UUID
 
 enum class ActionCategory { NUMBER, TEXT, SELECTION, DELETION, CURSOR, CLIPBOARD, ANDROID, EXPANDA }
 
+enum class ActionScope { DEFAULT, PREVIOUS_WORD }
+
 data class ActionDefinition(
     val id: String,
     val shortcut: String,
@@ -19,6 +21,8 @@ data class ActionDefinition(
     val supportsSelectedText: Boolean = false,
     /** Additional literal triggers for the same action. The primary shortcut remains first. */
     val aliases: List<String> = emptyList(),
+    /** Text target used by typing actions whose behavior is narrower than the whole field. */
+    val scope: ActionScope = ActionScope.DEFAULT,
 ) {
     val triggers: List<String>
         get() = (listOf(shortcut) + aliases)
@@ -67,8 +71,8 @@ class ActionEngine {
         "number_period" -> formatNumbers(text, '.', ',')
         "number_comma" -> formatNumbers(text, ',', '.')
         "remove_diacritics" -> removeDiacritics(text)
-        "uppercase" -> text.uppercase(Locale.getDefault())
-        "lowercase" -> text.lowercase(Locale.getDefault())
+        "uppercase", "uppercase_previous_word" -> text.uppercase(Locale.getDefault())
+        "lowercase", "lowercase_previous_word" -> text.lowercase(Locale.getDefault())
         "sentence_case" -> sentenceCase(text)
         "title_case" -> titleCase(text)
         "wrap_guillemets" -> wrap(text, "«", "»")
@@ -196,21 +200,15 @@ class ActionEngine {
             return outcome(transformed, newCursor)
         }
 
+        if (definition.scope == ActionScope.PREVIOUS_WORD) {
+            return replacePreviousWord { processSelectedText(definition.id, it) ?: it }
+        }
+
         return when (definition.id) {
             "math_replace", "math_append" -> processSelectedText(definition.id, withoutCommand)
                 ?.let { outcome(it, it.length) }
-            "uppercase" -> if (matchedTrigger == " my") {
-                replacePreviousWord { it.uppercase(Locale.getDefault()) }
-            } else {
-                replaceAll { processSelectedText(definition.id, it) ?: it }
-            }
-            "lowercase" -> if (matchedTrigger == " mn") {
-                replacePreviousWord { it.lowercase(Locale.getDefault()) }
-            } else {
-                replaceAll { processSelectedText(definition.id, it) ?: it }
-            }
             "number_space", "number_period", "number_comma", "remove_diacritics",
-            "sentence_case", "title_case",
+            "uppercase", "lowercase", "sentence_case", "title_case",
             "space_underscore", "space_dash", "underscore_space", "dash_space" ->
                 replaceAll { processSelectedText(definition.id, it) ?: it }
             "select_all" -> outcome(start = 0, end = withoutCommand.length)
@@ -308,23 +306,23 @@ class ActionEngine {
             ActionDefinition("number_period", ",nfp", "Period thousands", ActionCategory.NUMBER, "12.345,67", supportsSelectedText = true),
             ActionDefinition("number_comma", ",nfc", "Comma thousands", ActionCategory.NUMBER, "12,345.67", supportsSelectedText = true),
             ActionDefinition("remove_diacritics", ",rd", "Remove diacritics", ActionCategory.TEXT, "Convert áéñ to aen", supportsSelectedText = true),
+            ActionDefinition("uppercase", ",uu", "Uppercase", ActionCategory.TEXT, "Convert all text to uppercase", supportsSelectedText = true),
+            ActionDefinition("lowercase", ",ll", "Lowercase", ActionCategory.TEXT, "Convert all text to lowercase", supportsSelectedText = true),
             ActionDefinition(
-                "uppercase",
-                ",uu",
-                "Uppercase",
+                "uppercase_previous_word",
+                " my",
+                "Uppercase previous word",
                 ActionCategory.TEXT,
-                "Convert all text to uppercase",
-                supportsSelectedText = true,
-                aliases = listOf(" my"),
+                "Convert only the previous word to uppercase",
+                scope = ActionScope.PREVIOUS_WORD,
             ),
             ActionDefinition(
-                "lowercase",
-                ",ll",
-                "Lowercase",
+                "lowercase_previous_word",
+                " mn",
+                "Lowercase previous word",
                 ActionCategory.TEXT,
-                "Convert all text to lowercase",
-                supportsSelectedText = true,
-                aliases = listOf(" mn"),
+                "Convert only the previous word to lowercase",
+                scope = ActionScope.PREVIOUS_WORD,
             ),
             ActionDefinition("sentence_case", ",ss", "Sentence case", ActionCategory.TEXT, "Capitalize each sentence", supportsSelectedText = true),
             ActionDefinition("title_case", ",ww", "Capitalize words", ActionCategory.TEXT, "Capitalize the first letter of every word", supportsSelectedText = true),
