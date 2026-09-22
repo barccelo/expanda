@@ -17,7 +17,14 @@ data class ActionDefinition(
     val enabledByDefault: Boolean = false,
     /** Can run from Android's PROCESS_TEXT menu with only the selected text. */
     val supportsSelectedText: Boolean = false,
-)
+    /** Additional literal triggers for the same action. The primary shortcut remains first. */
+    val aliases: List<String> = emptyList(),
+) {
+    val triggers: List<String>
+        get() = (listOf(shortcut) + aliases)
+            .filter(String::isNotBlank)
+            .distinct()
+}
 
 data class ActionContext(
     val text: String,
@@ -40,6 +47,7 @@ data class ActionOutcome(
     val selectionStart: Int,
     val selectionEnd: Int,
     val request: ActionRequest? = null,
+    val matchedTrigger: String = definition.shortcut,
 )
 
 data class SelectedTextOutcome(
@@ -112,22 +120,47 @@ class ActionEngine {
         context: ActionContext,
         enabledActionIds: Set<String> = definitions.mapTo(linkedSetOf()) { it.id },
         shortcutOverrides: Map<String, String> = emptyMap(),
+        triggerOverrides: Map<String, List<String>> = emptyMap(),
     ): ActionOutcome? {
         if (context.cursor !in 0..context.text.length) return null
-        val definition = definitions
+
+        data class TriggerCandidate(
+            val definition: ActionDefinition,
+            val trigger: String,
+        )
+
+        val candidate = definitions
             .asSequence()
             .filter { it.id in enabledActionIds }
-            .map { definition ->
-                shortcutOverrides[definition.id]
-                    ?.takeIf(String::isNotBlank)
-                    ?.let { definition.copy(shortcut = it) }
-                    ?: definition
+            .flatMap { definition ->
+                val triggers = triggerOverrides[definition.id]
+                    ?.filter(String::isNotBlank)
+                    ?.distinct()
+                    ?.takeIf(List<String>::isNotEmpty)
+                    ?: shortcutOverrides[definition.id]
+                        ?.takeIf(String::isNotBlank)
+                        ?.let(::listOf)
+                    ?: definition.triggers
+                triggers.asSequence().map { TriggerCandidate(definition, it) }
             }
-            .sortedByDescending { it.shortcut.length }
-            .firstOrNull { context.text.regionMatches(context.cursor - it.shortcut.length, it.shortcut, 0, it.shortcut.length) }
+            .sortedByDescending { it.trigger.length }
+            .firstOrNull { candidate ->
+                val start = context.cursor - candidate.trigger.length
+                start >= 0 && context.text.regionMatches(
+                    start,
+                    candidate.trigger,
+                    0,
+                    candidate.trigger.length,
+                )
+            }
             ?: return null
-        val commandStart = context.cursor - definition.shortcut.length
-        if (commandStart < 0) return null
+
+        val matchedTrigger = candidate.trigger
+        val definition = candidate.definition.copy(
+            shortcut = matchedTrigger,
+            aliases = emptyList(),
+        )
+        val commandStart = context.cursor - matchedTrigger.length
         val withoutCommand = context.text.removeRange(commandStart, context.cursor)
         val baseCursor = commandStart
 
@@ -136,7 +169,14 @@ class ActionEngine {
             start: Int = baseCursor.coerceIn(0, text.length),
             end: Int = start,
             request: ActionRequest? = null,
-        ) = ActionOutcome(definition, text, start.coerceIn(0, text.length), end.coerceIn(0, text.length), request)
+        ) = ActionOutcome(
+            definition = definition,
+            text = text,
+            selectionStart = start.coerceIn(0, text.length),
+            selectionEnd = end.coerceIn(0, text.length),
+            request = request,
+            matchedTrigger = matchedTrigger,
+        )
 
         fun replaceAll(transform: (String) -> String): ActionOutcome {
             val transformed = transform(withoutCommand)
