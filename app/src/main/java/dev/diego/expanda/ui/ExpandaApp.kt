@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.width
@@ -128,6 +129,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.window.Dialog
@@ -1810,24 +1812,35 @@ private fun SelectionToolbarQuickActionsSetting(
                 workingOrder.forEach { id ->
                     key(id) {
                         var dragDistance by remember(id) { mutableFloatStateOf(0f) }
+                        var dragDirection by remember(id) { mutableStateOf(0) }
                         val isDragging = draggingId == id
-                        val dragHandleModifier = Modifier.pointerInput(id, workingOrder.size) {
+                        val dragHandleModifier = Modifier
+                            .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                            .pointerInput(id, workingOrder.size) {
                             detectDragGesturesAfterLongPress(
                                 onDragStart = {
                                     dragDistance = 0f
+                                    dragDirection = 0
                                     draggingId = id
                                 },
                                 onDragCancel = {
                                     dragDistance = 0f
+                                    dragDirection = 0
                                     onChanged(workingOrder)
                                     draggingId = null
                                 },
                                 onDragEnd = {
                                     dragDistance = 0f
+                                    dragDirection = 0
                                     onChanged(workingOrder)
                                     draggingId = null
                                 },
                                 onDrag = { _, dragAmount ->
+                                    dragDirection = when {
+                                        dragAmount.y > 0f -> 1
+                                        dragAmount.y < 0f -> -1
+                                        else -> dragDirection
+                                    }
                                     dragDistance += dragAmount.y
                                     val index = workingOrder.indexOf(id)
                                     when {
@@ -1854,25 +1867,29 @@ private fun SelectionToolbarQuickActionsSetting(
                                 },
                             )
                         }
-                        if (isDragging) {
+                        if (isDragging && dragDirection < 0) {
                             HorizontalDivider(
                                 modifier = Modifier.padding(horizontal = 12.dp),
-                                thickness = 2.dp,
+                                thickness = 3.dp,
                                 color = MaterialTheme.colorScheme.primary,
                             )
                         }
                         ListItem(
                             leadingContent = {
-                                Text(
-                                    "≡",
+                                Box(
                                     modifier = dragHandleModifier,
-                                    style = MaterialTheme.typography.titleLarge,
-                                    color = if (isDragging) {
-                                        MaterialTheme.colorScheme.primary
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                    },
-                                )
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        "≡",
+                                        style = MaterialTheme.typography.titleLarge,
+                                        color = if (isDragging) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        },
+                                    )
+                                }
                             },
                             headlineContent = { Text(toolbarQuickActionLabel(id, language, groupConfigs)) },
                             supportingContent = {
@@ -1895,12 +1912,15 @@ private fun SelectionToolbarQuickActionsSetting(
                             ),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = if (isDragging) 6.dp else 0.dp),
+                                .padding(horizontal = if (isDragging) 6.dp else 0.dp)
+                                .graphicsLayer {
+                                    translationY = if (isDragging) dragDistance else 0f
+                                },
                         )
-                        if (isDragging) {
+                        if (isDragging && dragDirection > 0) {
                             HorizontalDivider(
                                 modifier = Modifier.padding(horizontal = 12.dp),
-                                thickness = 2.dp,
+                                thickness = 3.dp,
                                 color = MaterialTheme.colorScheme.primary,
                             )
                         }
@@ -2053,31 +2073,42 @@ private fun SelectionActionGroupSetting(
             workingOrder.forEach { actionId ->
                 key(actionId) {
                     var dragDistance by remember(actionId) { mutableFloatStateOf(0f) }
+                    var dragDirection by remember(actionId) { mutableStateOf(0) }
                     val enabled = actionId in config.enabledActionIds
                     val displayLabel = config.actionLabels[actionId]
                         ?: defaults.actionLabels[actionId].orEmpty()
                     var labelDraft by remember(actionId, displayLabel) { mutableStateOf(displayLabel) }
                     val isDragging = draggingActionId == actionId
-                    val dragHandleModifier = Modifier.pointerInput(
-                        actionId,
-                        workingOrder.size,
-                    ) {
+                    val dragHandleModifier = Modifier
+                        .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                        .pointerInput(
+                            actionId,
+                            workingOrder.size,
+                        ) {
                         detectDragGesturesAfterLongPress(
                             onDragStart = {
                                 dragDistance = 0f
+                                dragDirection = 0
                                 draggingActionId = actionId
                             },
                             onDragCancel = {
                                 dragDistance = 0f
+                                dragDirection = 0
                                 onChanged(config.copy(actionOrder = workingOrder))
                                 draggingActionId = null
                             },
                             onDragEnd = {
                                 dragDistance = 0f
+                                dragDirection = 0
                                 onChanged(config.copy(actionOrder = workingOrder))
                                 draggingActionId = null
                             },
                             onDrag = { _, dragAmount ->
+                                dragDirection = when {
+                                    dragAmount.y > 0f -> 1
+                                    dragAmount.y < 0f -> -1
+                                    else -> dragDirection
+                                }
                                 dragDistance += dragAmount.y
                                 val index = workingOrder.indexOf(actionId)
                                 when {
@@ -2101,17 +2132,20 @@ private fun SelectionActionGroupSetting(
                             },
                         )
                     }
-                    if (isDragging) {
+                    if (isDragging && dragDirection < 0) {
                         HorizontalDivider(
                             modifier = Modifier.padding(horizontal = 12.dp),
-                            thickness = 2.dp,
+                            thickness = 3.dp,
                             color = MaterialTheme.colorScheme.primary,
                         )
                     }
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = if (isDragging) 6.dp else 0.dp),
+                            .padding(horizontal = if (isDragging) 6.dp else 0.dp)
+                            .graphicsLayer {
+                                translationY = if (isDragging) dragDistance else 0f
+                            },
                     ) {
                         ListItem(
                             headlineContent = {
@@ -2133,16 +2167,20 @@ private fun SelectionActionGroupSetting(
                                 }
                             },
                             leadingContent = {
-                                Text(
-                                    "≡",
+                                Box(
                                     modifier = dragHandleModifier,
-                                    style = MaterialTheme.typography.titleLarge,
-                                    color = if (isDragging) {
-                                        MaterialTheme.colorScheme.primary
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                    },
-                                )
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        "≡",
+                                        style = MaterialTheme.typography.titleLarge,
+                                        color = if (isDragging) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        },
+                                    )
+                                }
                             },
                             trailingContent = {
                                 Switch(
@@ -2181,10 +2219,10 @@ private fun SelectionActionGroupSetting(
                                 .padding(start = 52.dp, end = 16.dp, bottom = 8.dp),
                         )
                     }
-                    if (isDragging) {
+                    if (isDragging && dragDirection > 0) {
                         HorizontalDivider(
                             modifier = Modifier.padding(horizontal = 12.dp),
-                            thickness = 2.dp,
+                            thickness = 3.dp,
                             color = MaterialTheme.colorScheme.primary,
                         )
                     }
