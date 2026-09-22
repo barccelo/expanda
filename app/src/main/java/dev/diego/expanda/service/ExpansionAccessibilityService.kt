@@ -967,6 +967,11 @@ class ExpansionAccessibilityService : AccessibilityService() {
             "Letter case",
             "Mayúsculas/minúsculas",
         )
+        SettingsRepository.SELECTION_WRAP_GROUP_ID -> localizedSelectionUi(
+            settings,
+            "Wrap",
+            "Envolver",
+        )
         else -> fallback
     }
 
@@ -975,6 +980,13 @@ class ExpansionAccessibilityService : AccessibilityService() {
         "lowercase" -> "abc"
         "sentence_case" -> "Abc."
         "title_case" -> "AaA"
+        "wrap_guillemets" -> "« »"
+        "wrap_parentheses" -> "( )"
+        "wrap_question" -> "¿ ?"
+        "wrap_exclamation" -> "¡ !"
+        "wrap_brackets" -> "[ ]"
+        "wrap_double_asterisk" -> "** **"
+        "wrap_double_underscore" -> "__ __"
         "sort_lines" -> "A↓"
         "remove_duplicate_lines" -> "≠"
         "remove_all_spaces" -> "␠×"
@@ -1667,6 +1679,13 @@ class ExpansionAccessibilityService : AccessibilityService() {
     ): String {
         if (!selectionUsesSpanish(settings)) {
             return when (id) {
+                "wrap_guillemets" -> "Guillemets"
+                "wrap_parentheses" -> "Parentheses"
+                "wrap_question" -> "Question marks"
+                "wrap_exclamation" -> "Exclamation marks"
+                "wrap_brackets" -> "Brackets"
+                "wrap_double_asterisk" -> "Double asterisk"
+                "wrap_double_underscore" -> "Double underscore"
                 SELECTION_FIND_REPLACE_ID -> "Find & replace"
                 SELECTION_TEXT_COUNTER_ID -> "Text counter"
                 SELECTION_REPEAT_TEXT_ID -> "Repeat text"
@@ -1679,6 +1698,13 @@ class ExpansionAccessibilityService : AccessibilityService() {
             "lowercase" -> "Minúsculas"
             "sentence_case" -> "Tipo oración"
             "title_case" -> "Capitalizar palabras"
+            "wrap_guillemets" -> "Comillas angulares"
+            "wrap_parentheses" -> "Paréntesis"
+            "wrap_question" -> "Interrogación"
+            "wrap_exclamation" -> "Exclamación"
+            "wrap_brackets" -> "Corchetes"
+            "wrap_double_asterisk" -> "Doble asterisco"
+            "wrap_double_underscore" -> "Doble guion bajo"
             "remove_diacritics" -> "Quitar diacríticos"
             "space_underscore" -> "Espacios a guiones bajos"
             "space_dash" -> "Espacios a guiones"
@@ -1714,6 +1740,13 @@ class ExpansionAccessibilityService : AccessibilityService() {
         fallback: String,
     ): String {
         if (!selectionUsesSpanish(settings)) return when (id) {
+            "wrap_guillemets" -> "Wrap the selection in guillemets"
+            "wrap_parentheses" -> "Wrap the selection in parentheses"
+            "wrap_question" -> "Wrap the selection in Spanish question marks"
+            "wrap_exclamation" -> "Wrap the selection in Spanish exclamation marks"
+            "wrap_brackets" -> "Wrap the selection in brackets"
+            "wrap_double_asterisk" -> "Wrap the selection in double asterisks"
+            "wrap_double_underscore" -> "Wrap the selection in double underscores"
             SELECTION_FIND_REPLACE_ID -> "Replace occurrences only inside the selected text"
             SELECTION_TEXT_COUNTER_ID -> "Count characters, words and lines"
             SELECTION_REPEAT_TEXT_ID -> "Repeat the selected text a chosen number of times"
@@ -1725,6 +1758,13 @@ class ExpansionAccessibilityService : AccessibilityService() {
             "lowercase" -> "Convertir la selección a minúsculas"
             "sentence_case" -> "Aplicar mayúscula al inicio de cada oración"
             "title_case" -> "Capitalizar la primera letra de cada palabra"
+            "wrap_guillemets" -> "Envolver la selección entre « y »"
+            "wrap_parentheses" -> "Envolver la selección entre paréntesis"
+            "wrap_question" -> "Envolver la selección entre ¿ y ?"
+            "wrap_exclamation" -> "Envolver la selección entre ¡ y !"
+            "wrap_brackets" -> "Envolver la selección entre corchetes"
+            "wrap_double_asterisk" -> "Envolver la selección entre dobles asteriscos"
+            "wrap_double_underscore" -> "Envolver la selección entre dobles guiones bajos"
             "remove_diacritics" -> "Convertir á, é, ñ, etc. a caracteres simples"
             "trim_spaces" -> "Eliminar espacios al inicio y al final"
             "remove_all_spaces" -> "Eliminar todos los espacios y caracteres en blanco"
