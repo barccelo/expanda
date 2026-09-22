@@ -48,6 +48,7 @@ class BackupCodecTest {
         val actions = BackupCodec.ActionSnapshot(
             enabledIds = setOf("uppercase"),
             shortcutOverrides = mapOf("uppercase" to ",up"),
+            triggerOverrides = mapOf("uppercase" to listOf(",up", " up")),
         )
         val sources = listOf(
             EspansoSourceFile("base.yml", "# exact comment\nmatches:\n  - trigger: /multi\n    replace: one\n"),
