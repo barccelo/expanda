@@ -49,11 +49,11 @@ import dev.diego.expanda.engine.ActionEngine
 @Composable
 fun ActionCatalogScreen(
     enabledIds: Set<String>,
-    shortcutOverrides: Map<String, String>,
+    triggerOverrides: Map<String, List<String>>,
     onSetEnabled: (String, Boolean) -> Unit,
     onSetAllEnabled: (Boolean) -> Unit,
-    onSetShortcut: (String, String) -> Unit,
-    onResetShortcut: (String) -> Unit,
+    onSetTriggers: (String, List<String>) -> Unit,
+    onResetTriggers: (String) -> Unit,
 ) {
     val groups = ActionEngine.definitions.groupBy(ActionDefinition::category)
     var expandedCategories by remember { mutableStateOf(setOf(ActionCategory.NUMBER)) }
@@ -94,7 +94,7 @@ fun ActionCatalogScreen(
                             if (index > 0) HorizontalDivider()
                             ActionRow(
                                 definition = definition,
-                                shortcut = shortcutOverrides[definition.id] ?: definition.shortcut,
+                                triggers = triggerOverrides[definition.id] ?: definition.triggers,
                                 enabled = definition.id in enabledIds,
                                 onSetEnabled = { onSetEnabled(definition.id, it) },
                                 onEdit = { editingAction = definition },
@@ -107,19 +107,19 @@ fun ActionCatalogScreen(
     }
 
     editingAction?.let { definition ->
-        ShortcutEditorDialog(
+        TriggerEditorDialog(
             definition = definition,
-            currentShortcut = shortcutOverrides[definition.id] ?: definition.shortcut,
-            allShortcuts = ActionEngine.definitions.associate { candidate ->
-                candidate.id to (shortcutOverrides[candidate.id] ?: candidate.shortcut)
+            currentTriggers = triggerOverrides[definition.id] ?: definition.triggers,
+            allTriggers = ActionEngine.definitions.associate { candidate ->
+                candidate.id to (triggerOverrides[candidate.id] ?: candidate.triggers)
             },
             onDismiss = { editingAction = null },
             onSave = {
-                onSetShortcut(definition.id, it)
+                onSetTriggers(definition.id, it)
                 editingAction = null
             },
             onReset = {
-                onResetShortcut(definition.id)
+                onResetTriggers(definition.id)
                 editingAction = null
             },
         )
@@ -129,13 +129,18 @@ fun ActionCatalogScreen(
 @Composable
 private fun ActionRow(
     definition: ActionDefinition,
-    shortcut: String,
+    triggers: List<String>,
     enabled: Boolean,
     onSetEnabled: (Boolean) -> Unit,
     onEdit: () -> Unit,
 ) {
     ListItem(
-        overlineContent = { Text(shortcut, fontFamily = FontFamily.Monospace) },
+        overlineContent = {
+            Text(
+                triggers.joinToString("  ·  "),
+                fontFamily = FontFamily.Monospace,
+            )
+        },
         headlineContent = { Text(tr(definition.title)) },
         supportingContent = {
             Column {
@@ -159,50 +164,117 @@ private fun ActionRow(
 }
 
 @Composable
-private fun ShortcutEditorDialog(
+private fun TriggerEditorDialog(
     definition: ActionDefinition,
-    currentShortcut: String,
-    allShortcuts: Map<String, String>,
+    currentTriggers: List<String>,
+    allTriggers: Map<String, List<String>>,
     onDismiss: () -> Unit,
-    onSave: (String) -> Unit,
+    onSave: (List<String>) -> Unit,
     onReset: () -> Unit,
 ) {
-    var value by remember(definition.id, currentShortcut) { mutableStateOf(currentShortcut) }
-    val normalized = value.trim()
-    val duplicate = allShortcuts.any { (id, shortcut) -> id != definition.id && shortcut == normalized }
+    var values by remember(definition.id, currentTriggers) {
+        mutableStateOf(currentTriggers.ifEmpty { definition.triggers })
+    }
+    val nonBlank = values.filter(String::isNotBlank)
+    val duplicateInside = nonBlank.size != nonBlank.distinct().size
+    val usedElsewhere = allTriggers
+        .filterKeys { it != definition.id }
+        .values
+        .flatten()
+        .toSet()
+    val duplicateElsewhere = nonBlank.firstOrNull { it in usedElsewhere }
     val error = when {
-        normalized.isEmpty() -> tr("The shortcut cannot be empty")
-        duplicate -> tr("Another action already uses this shortcut")
+        values.isEmpty() || values.any(String::isBlank) -> tr(
+            "Each action needs at least one non-empty trigger",
+            "Cada acción necesita al menos un trigger no vacío",
+        )
+        duplicateInside -> tr(
+            "The same trigger appears more than once",
+            "El mismo trigger aparece más de una vez",
+        )
+        duplicateElsewhere != null -> tr(
+            "Another action already uses “$duplicateElsewhere”",
+            "Otra acción ya usa “$duplicateElsewhere”",
+        )
         else -> null
     }
+
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(tr("Edit action shortcut")) },
+        title = { Text(tr("Edit action triggers", "Editar triggers de la acción")) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(tr(definition.title))
-                OutlinedTextField(
-                    value = value,
-                    onValueChange = { value = it },
-                    label = { Text(tr("Shortcut")) },
-                    supportingText = { Text(error ?: tr("Default: ${definition.shortcut}", "Predeterminado: ${definition.shortcut}")) },
-                    isError = error != null,
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                TextButton(onClick = onReset, enabled = currentShortcut != definition.shortcut) {
+                values.forEachIndexed { index, value ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        OutlinedTextField(
+                            value = value,
+                            onValueChange = { updated ->
+                                values = values.toMutableList().also { it[index] = updated }
+                            },
+                            label = {
+                                Text(
+                                    if (index == 0) tr("Primary trigger", "Trigger principal")
+                                    else tr("Alias ${index + 1}", "Alias ${index + 1}"),
+                                )
+                            },
+                            isError = error != null,
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                        )
+                        if (values.size > 1) {
+                            TextButton(
+                                onClick = {
+                                    values = values.toMutableList().also { it.removeAt(index) }
+                                },
+                            ) {
+                                Text("×")
+                            }
+                        }
+                    }
+                }
+                TextButton(onClick = { values = values + "" }) {
+                    Text(tr("+ Add trigger", "+ Agregar trigger"))
+                }
+                if (error != null) {
+                    Text(
+                        error,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                } else {
+                    Text(
+                        tr(
+                            "Spaces at the beginning or end are preserved.",
+                            "Los espacios al inicio o al final se conservan.",
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                TextButton(
+                    onClick = onReset,
+                    enabled = currentTriggers != definition.triggers,
+                ) {
                     Icon(Icons.Default.RestartAlt, null)
-                    Text(tr("Restore default"))
+                    Text(tr("Restore defaults", "Restablecer predeterminados"))
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSave(normalized) }, enabled = error == null) { Text(tr("Save")) }
+            TextButton(
+                onClick = { onSave(values.filter(String::isNotBlank).distinct()) },
+                enabled = error == null,
+            ) {
+                Text(tr("Save"))
+            }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(tr("Cancel")) } },
     )
 }
-
 @Composable
 private fun ActionCategory.displayName(): String = when (this) {
     ActionCategory.NUMBER -> tr("Numbers and calculations")
