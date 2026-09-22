@@ -3572,20 +3572,20 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 gravity = Gravity.END or Gravity.CENTER_VERTICAL
             }
             if (field.sensitive) {
-                actions.addView(
-                    ui.footerButton(
-                        localizedSelectionUi(settings, "Show", "Mostrar"),
-                        primary = false,
-                    ) {
-                        revealed = !revealed
-                        valueView.text = if (revealed) field.value else "••••••••"
-                        (it as? TextView)?.text = localizedSelectionUi(
-                            settings,
-                            if (revealed) "Hide" else "Show",
-                            if (revealed) "Ocultar" else "Mostrar",
-                        )
-                    },
-                )
+                lateinit var revealButton: TextView
+                revealButton = ui.footerButton(
+                    localizedSelectionUi(settings, "Show", "Mostrar"),
+                    primary = false,
+                ) {
+                    revealed = !revealed
+                    valueView.text = if (revealed) field.value else "••••••••"
+                    revealButton.text = localizedSelectionUi(
+                        settings,
+                        if (revealed) "Hide" else "Show",
+                        if (revealed) "Ocultar" else "Mostrar",
+                    )
+                }
+                actions.addView(revealButton)
             }
             actions.addView(
                 ui.footerButton(
