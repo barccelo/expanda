@@ -1425,8 +1425,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
         )
         val params = overlayDialogParams(windowManager, softInput = false)
         runCatching {
-            windowManager.addView(root, params)
-            formOverlay = root
+            val overlayRoot = dismissibleOverlayRoot(root, windowManager)
+            windowManager.addView(overlayRoot, params)
+            formOverlay = overlayRoot
         }.onFailure {
             Log.w(TAG, "Could not show selection action menu", it)
             formOverlay = null
@@ -1595,8 +1596,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
         val root = buildOverlayRoot(panel, footer, ui.panel(22), ui)
         val params = overlayDialogParams(windowManager, softInput = true)
         runCatching {
-            windowManager.addView(root, params)
-            formOverlay = root
+            val overlayRoot = dismissibleOverlayRoot(root, windowManager)
+            windowManager.addView(overlayRoot, params)
+            formOverlay = overlayRoot
             findInput.requestFocus()
             findInput.postDelayed({
                 (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager)
@@ -1636,8 +1638,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
         val root = buildOverlayRoot(panel, footer, ui.panel(22), ui)
         val params = overlayDialogParams(windowManager, softInput = true)
         runCatching {
-            windowManager.addView(root, params)
-            formOverlay = root
+            val overlayRoot = dismissibleOverlayRoot(root, windowManager)
+            windowManager.addView(overlayRoot, params)
+            formOverlay = overlayRoot
             prefix.requestFocus()
             prefix.postDelayed({
                 (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager)
@@ -1685,8 +1688,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
         val root = buildOverlayRoot(panel, footer, ui.panel(22), ui)
         val params = overlayDialogParams(windowManager, softInput = true)
         runCatching {
-            windowManager.addView(root, params)
-            formOverlay = root
+            val overlayRoot = dismissibleOverlayRoot(root, windowManager)
+            windowManager.addView(overlayRoot, params)
+            formOverlay = overlayRoot
             count.requestFocus()
             count.selectAll()
         }.onFailure { formOverlay = null }
@@ -1721,8 +1725,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
         val root = buildOverlayRoot(content, footer, ui.panel(22), ui)
         val params = overlayDialogParams(windowManager, softInput = false)
         runCatching {
-            windowManager.addView(root, params)
-            formOverlay = root
+            val overlayRoot = dismissibleOverlayRoot(root, windowManager)
+            windowManager.addView(overlayRoot, params)
+            formOverlay = overlayRoot
         }.onFailure { formOverlay = null }
     }
 
@@ -2520,8 +2525,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
         val root = buildPickerOverlayRoot(content, footer, candidates.size, maxContentHeight, ui.panel(22), ui)
         val params = overlayDialogParams(windowManager, softInput = false)
         runCatching {
-            windowManager.addView(root, params)
-            formOverlay = root
+            val overlayRoot = dismissibleOverlayRoot(root, windowManager)
+            windowManager.addView(overlayRoot, params)
+            formOverlay = overlayRoot
         }.onFailure {
             pendingFormNode = null
             @Suppress("DEPRECATION")
@@ -2607,8 +2613,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
         val root = buildPickerOverlayRoot(list, footer, match.match.replacements.size, maxContentHeight, ui.panel(22), ui)
         val params = overlayDialogParams(windowManager, softInput = false)
         runCatching {
-            windowManager.addView(root, params)
-            formOverlay = root
+            val overlayRoot = dismissibleOverlayRoot(root, windowManager)
+            windowManager.addView(overlayRoot, params)
+            formOverlay = overlayRoot
         }.onFailure {
             pendingFormNode = null
             @Suppress("DEPRECATION")
@@ -2704,8 +2711,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
         val root = buildFormOverlayRoot(panel, footer, formScroll, ui.panel(), ui)
         val params = overlayDialogParams(windowManager, softInput = true)
         runCatching {
-            windowManager.addView(root, params)
-            formOverlay = root
+            val overlayRoot = dismissibleOverlayRoot(root, windowManager)
+            windowManager.addView(overlayRoot, params)
+            formOverlay = overlayRoot
             firstTextInput?.let { first ->
                 first.requestFocus()
                 first.setSelection(first.text.length)
@@ -2765,8 +2773,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
         val root = buildPickerOverlayRoot(panel, footer, field.options.size, maxContentHeight, ui.panel(), ui)
         val params = overlayDialogParams(windowManager, softInput = false)
         runCatching {
-            windowManager.addView(root, params)
-            formOverlay = root
+            val overlayRoot = dismissibleOverlayRoot(root, windowManager)
+            windowManager.addView(overlayRoot, params)
+            formOverlay = overlayRoot
         }.onFailure {
             pendingFormNode = null
             @Suppress("DEPRECATION")
@@ -2776,19 +2785,56 @@ class ExpansionAccessibilityService : AccessibilityService() {
 
     private fun overlayDialogParams(windowManager: WindowManager, softInput: Boolean): WindowManager.LayoutParams =
         WindowManager.LayoutParams(
-            (displayBounds(windowManager).width() * 0.9f).toInt(),
-            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
             WindowManager.LayoutParams.FLAG_DIM_BEHIND,
             PixelFormat.TRANSLUCENT,
         ).apply {
-            gravity = Gravity.CENTER
+            gravity = Gravity.TOP or Gravity.START
             dimAmount = 0.35f
             if (softInput) {
                 @Suppress("DEPRECATION")
                 softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
             }
         }
+
+    private fun dismissibleOverlayRoot(
+        card: View,
+        windowManager: WindowManager,
+        onDismiss: () -> Unit = { hideFormOverlay() },
+    ): FrameLayout {
+        val screenWidth = displayBounds(windowManager).width()
+        val cardWidth = (screenWidth * 0.9f).toInt()
+        val backdrop = View(this).apply {
+            isClickable = true
+            isFocusable = true
+            contentDescription = localizedSelectionUi(
+                settingsRepository.settings.value,
+                "Close dialog",
+                "Cerrar ventana",
+            )
+            setOnClickListener { onDismiss() }
+        }
+        card.isClickable = true
+        return FrameLayout(this).apply {
+            addView(
+                backdrop,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                ),
+            )
+            addView(
+                card,
+                FrameLayout.LayoutParams(
+                    cardWidth,
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    Gravity.CENTER,
+                ),
+            )
+        }
+    }
 
     private fun overlayCancelFooter(
         ui: OverlayViews,
