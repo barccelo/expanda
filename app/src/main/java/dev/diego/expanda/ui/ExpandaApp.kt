@@ -240,6 +240,7 @@ fun ExpandaApp(
     var sourceInitialMatchIndex by remember { mutableStateOf<Int?>(null) }
     var sourceReturnPage by remember { mutableStateOf<Int?>(null) }
     val scope = rememberCoroutineScope()
+    val vaultSaveErrorText = tr("Could not save vault entry", "No se pudo guardar la entrada")
     val rootFocusManager = LocalFocusManager.current
     val rootKeyboardController = LocalSoftwareKeyboardController.current
     var disclosureOverride by remember { mutableStateOf<Boolean?>(null) }
@@ -449,7 +450,7 @@ fun ExpandaApp(
                             result.exceptionOrNull()?.let { error ->
                                 scope.launch {
                                     snackbarHostState.showSnackbar(
-                                        error.message ?: tr("Could not save vault entry", "No se pudo guardar la entrada"),
+                                        error.message ?: vaultSaveErrorText,
                                     )
                                 }
                             }
