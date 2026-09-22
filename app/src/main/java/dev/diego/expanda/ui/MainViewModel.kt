@@ -1,6 +1,9 @@
 package dev.diego.expanda.ui
 
 import android.app.Application
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.os.PersistableBundle
 import android.os.Build
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
@@ -36,6 +39,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import dev.diego.expanda.data.sortedForDisplay
 
@@ -304,6 +308,32 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun resetActionShortcut(id: String) = actionSettingsStore.resetShortcut(id)
     fun pauseFor(durationMillis: Long) = viewModelScope.launch { settingsRepository.pauseFor(durationMillis) }
     fun resume() = viewModelScope.launch { settingsRepository.resume() }
+    fun copyVaultValue(text: String, sensitive: Boolean) {
+        if (text.isEmpty()) return
+        val manager = getApplication<Application>()
+            .getSystemService(android.content.Context.CLIPBOARD_SERVICE) as ClipboardManager
+        if (sensitive) app.clipboardMonitor.suppressHistoryOnce(text)
+        val clip = ClipData.newPlainText(if (sensitive) "Expanda vault" else "Expanda note", text)
+        if (sensitive) {
+            clip.description.extras = PersistableBundle().apply {
+                putBoolean("android.content.extra.IS_SENSITIVE", true)
+            }
+        }
+        manager.setPrimaryClip(clip)
+        if (sensitive) {
+            viewModelScope.launch {
+                delay(60_000L)
+                val current = runCatching {
+                    manager.primaryClip?.getItemAt(0)?.coerceToText(getApplication())?.toString()
+                }.getOrNull()
+                if (current == text) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) manager.clearPrimaryClip()
+                    else manager.setPrimaryClip(ClipData.newPlainText("", ""))
+                }
+            }
+        }
+    }
+
     fun saveVaultEntry(
         entry: VaultEntry,
         onResult: (Result<Long>) -> Unit = {},
