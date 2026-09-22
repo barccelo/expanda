@@ -138,11 +138,14 @@ object BackupCodec {
             SettingsRepository.MIN_SELECTION_TOOLBAR_HEIGHT_DP,
             SettingsRepository.MAX_SELECTION_TOOLBAR_HEIGHT_DP,
         ),
-        selectionToolbarQuickActionIds = json.stringList("selectionToolbarQuickActionIds")
-            .filter { it in SettingsRepository.AVAILABLE_SELECTION_TOOLBAR_QUICK_ACTIONS }
-            .distinct()
-            .take(SettingsRepository.MAX_SELECTION_TOOLBAR_QUICK_ACTIONS)
-            .ifEmpty { SettingsRepository.DEFAULT_SELECTION_TOOLBAR_QUICK_ACTIONS },
+        selectionToolbarQuickActionIds = if (json.has("selectionToolbarQuickActionIds")) {
+            json.stringList("selectionToolbarQuickActionIds")
+                .filter { it in SettingsRepository.AVAILABLE_SELECTION_TOOLBAR_QUICK_ACTIONS }
+                .distinct()
+                .take(SettingsRepository.MAX_SELECTION_TOOLBAR_QUICK_ACTIONS)
+        } else {
+            SettingsRepository.DEFAULT_SELECTION_TOOLBAR_QUICK_ACTIONS
+        },
         selectionActionGroupConfigs = selectionActionGroupConfigsFromJson(
             json.optJSONObject("selectionActionGroupConfigs"),
         ),
