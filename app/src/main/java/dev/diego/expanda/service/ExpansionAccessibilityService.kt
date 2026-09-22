@@ -1107,16 +1107,19 @@ class ExpansionAccessibilityService : AccessibilityService() {
         }
 
         fun hoverFor(rawX: Float, rawY: Float): Int {
-            val params = menuParams ?: return -1
-            if (rawX < params.x || rawX >= params.x + params.width ||
-                rawY < params.y || rawY >= params.y + params.height
+            val overlay = selectionGroupOverlay ?: return -1
+            val actualBounds = Rect()
+            if (!overlay.getGlobalVisibleRect(actualBounds) ||
+                actualBounds.width() <= 0 ||
+                actualBounds.height() <= 0
             ) {
                 return -1
             }
-            val innerLeft = params.x + dp(4)
-            val innerWidth = (params.width - dp(8)).coerceAtLeast(1)
-            if (rawX < innerLeft || rawX >= innerLeft + innerWidth) return -1
-            return (((rawX - innerLeft) / innerWidth) * actionIds.size)
+            if (!actualBounds.contains(rawX.toInt(), rawY.toInt())) return -1
+
+            val relativeX = (rawX - actualBounds.left)
+                .coerceIn(0f, actualBounds.width().toFloat().coerceAtLeast(1f) - 1f)
+            return ((relativeX / actualBounds.width().coerceAtLeast(1)) * actionIds.size)
                 .toInt()
                 .coerceIn(0, actionIds.lastIndex)
         }
