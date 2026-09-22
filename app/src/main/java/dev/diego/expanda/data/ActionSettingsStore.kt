@@ -14,6 +14,8 @@ import org.json.JSONArray
  */
 class ActionSettingsStore(context: Context) : SharedPreferences.OnSharedPreferenceChangeListener {
     private val preferences = context.getSharedPreferences(FILE_NAME, Context.MODE_PRIVATE)
+    @Suppress("unused")
+    private val actionIdMigration = migrateKnownActionIds()
     private val mutableEnabledIds = MutableStateFlow(readEnabledIds())
     val enabledIds: StateFlow<Set<String>> = mutableEnabledIds.asStateFlow()
     private val mutableTriggerOverrides = MutableStateFlow(readTriggerOverrides())
@@ -30,13 +32,21 @@ class ActionSettingsStore(context: Context) : SharedPreferences.OnSharedPreferen
         val enabledIds = readEnabledIds().toMutableSet().also {
             if (enabled) it.add(id) else it.remove(id)
         }
-        val disabled = ActionEngine.definitions.mapTo(linkedSetOf()) { it.id }.apply { removeAll(enabledIds) }
-        preferences.edit().putStringSet(KEY_DISABLED_IDS, disabled).apply()
+        val knownIds = ActionEngine.definitions.mapTo(linkedSetOf()) { it.id }
+        val disabled = knownIds.toMutableSet().apply { removeAll(enabledIds) }
+        preferences.edit()
+            .putStringSet(KEY_DISABLED_IDS, disabled)
+            .putStringSet(KEY_KNOWN_IDS, knownIds)
+            .apply()
     }
 
     fun setAllEnabled(enabled: Boolean) {
-        val disabled = if (enabled) emptySet() else ActionEngine.definitions.mapTo(linkedSetOf()) { it.id }
-        preferences.edit().putStringSet(KEY_DISABLED_IDS, disabled).apply()
+        val knownIds = ActionEngine.definitions.mapTo(linkedSetOf()) { it.id }
+        val disabled = if (enabled) emptySet() else knownIds
+        preferences.edit()
+            .putStringSet(KEY_DISABLED_IDS, disabled)
+            .putStringSet(KEY_KNOWN_IDS, knownIds)
+            .apply()
     }
 
     fun setTriggers(id: String, triggers: List<String>) {
@@ -75,6 +85,7 @@ class ActionSettingsStore(context: Context) : SharedPreferences.OnSharedPreferen
         preferences.edit().apply {
             clear()
             putStringSet(KEY_DISABLED_IDS, knownIds - enabled)
+            putStringSet(KEY_KNOWN_IDS, knownIds)
             val restoredTriggers = snapshot.shortcutOverrides
                 .mapValues { (_, shortcut) -> listOf(shortcut) }
                 .toMutableMap()
@@ -107,6 +118,40 @@ class ActionSettingsStore(context: Context) : SharedPreferences.OnSharedPreferen
             mutableTriggerOverrides.value = readTriggerOverrides()
             mutableShortcutOverrides.value = readShortcutOverrides()
         }
+    }
+
+    private fun migrateKnownActionIds(): Boolean {
+        val currentIds = ActionEngine.definitions.mapTo(linkedSetOf()) { it.id }
+
+        if (!preferences.contains(KEY_DISABLED_IDS)) {
+            preferences.edit().putStringSet(KEY_KNOWN_IDS, currentIds).apply()
+            return true
+        }
+
+        val storedKnown = preferences.getStringSet(KEY_KNOWN_IDS, null)
+        val disabled = preferences.getStringSet(KEY_DISABLED_IDS, emptySet()).orEmpty().toMutableSet()
+
+        if (storedKnown == null) {
+            // Legacy installs stored only the disabled set. These two scoped actions
+            // are new in this version, so inherit the enabled state of their parent
+            // case action instead of becoming enabled accidentally.
+            val legacyKnown = currentIds - PREVIOUS_WORD_CASE_ACTION_IDS
+            val legacyEnabled = legacyKnown - disabled
+            if ("uppercase" in legacyEnabled) disabled -= "uppercase_previous_word"
+            else disabled += "uppercase_previous_word"
+            if ("lowercase" in legacyEnabled) disabled -= "lowercase_previous_word"
+            else disabled += "lowercase_previous_word"
+        } else {
+            // Future actions are opt-in by default.
+            disabled += currentIds - storedKnown
+        }
+
+        disabled.retainAll(currentIds)
+        preferences.edit()
+            .putStringSet(KEY_DISABLED_IDS, disabled)
+            .putStringSet(KEY_KNOWN_IDS, currentIds)
+            .apply()
+        return true
     }
 
     private fun readEnabledIds(): Set<String> {
@@ -154,7 +199,12 @@ class ActionSettingsStore(context: Context) : SharedPreferences.OnSharedPreferen
     companion object {
         private const val FILE_NAME = "action_settings"
         private const val KEY_DISABLED_IDS = "disabled_action_ids"
+        private const val KEY_KNOWN_IDS = "known_action_ids"
         private const val KEY_SHORTCUT_PREFIX = "action_shortcut_"
         private const val KEY_TRIGGERS_PREFIX = "action_triggers_"
+        private val PREVIOUS_WORD_CASE_ACTION_IDS = setOf(
+            "uppercase_previous_word",
+            "lowercase_previous_word",
+        )
     }
 }
