@@ -1106,7 +1106,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 maxOf(dp(200), desiredWidth),
             )
             val innerWidth = (menuWidth - outerPadding * 2).coerceAtLeast(menuColumns)
-            val optionWidth = (innerWidth / menuColumns).coerceAtLeast(1)
+            val cellGap = dp(2)
+            val totalGaps = cellGap * (menuColumns - 1).coerceAtLeast(0)
+            val optionWidth = ((innerWidth - totalGaps) / menuColumns).coerceAtLeast(1)
             val menuHeight = menuRows * menuRowHeight + outerPadding * 2
 
             val root = LinearLayout(this).apply {
@@ -1157,7 +1159,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                             optionWidth,
                             LinearLayout.LayoutParams.MATCH_PARENT,
                         ).apply {
-                            if (columnIndex < rowActionIds.lastIndex) marginEnd = dp(2)
+                            if (columnIndex < rowActionIds.lastIndex) marginEnd = cellGap
                         },
                     )
                 }
