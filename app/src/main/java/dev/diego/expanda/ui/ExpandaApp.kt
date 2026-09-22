@@ -86,6 +86,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -1628,6 +1629,7 @@ private fun SelectionToolbarQuickActionsSetting(
     onChanged: (List<String>) -> Unit,
 ) {
     var workingOrder by remember(actionIds) { mutableStateOf(actionIds) }
+    var draggingId by remember { mutableStateOf<String?>(null) }
     val reorderThresholdPx = with(LocalDensity.current) { 32.dp.toPx() }
     val es = usesSpanish(language)
 
@@ -1664,16 +1666,22 @@ private fun SelectionToolbarQuickActionsSetting(
                 workingOrder.forEach { id ->
                     key(id) {
                         var dragDistance by remember(id) { mutableFloatStateOf(0f) }
+                        val isDragging = draggingId == id
                         val dragHandleModifier = Modifier.pointerInput(id, workingOrder.size) {
                             detectDragGesturesAfterLongPress(
-                                onDragStart = { dragDistance = 0f },
+                                onDragStart = {
+                                    dragDistance = 0f
+                                    draggingId = id
+                                },
                                 onDragCancel = {
                                     dragDistance = 0f
                                     onChanged(workingOrder)
+                                    draggingId = null
                                 },
                                 onDragEnd = {
                                     dragDistance = 0f
                                     onChanged(workingOrder)
+                                    draggingId = null
                                 },
                                 onDrag = { _, dragAmount ->
                                     dragDistance += dragAmount.y
@@ -1702,24 +1710,56 @@ private fun SelectionToolbarQuickActionsSetting(
                                 },
                             )
                         }
+                        if (isDragging) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(horizontal = 12.dp),
+                                thickness = 2.dp,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
                         ListItem(
                             leadingContent = {
                                 Text(
                                     "≡",
                                     modifier = dragHandleModifier,
                                     style = MaterialTheme.typography.titleLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    color = if (isDragging) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
                                 )
                             },
                             headlineContent = { Text(toolbarQuickActionLabel(id, language, groupConfigs)) },
                             supportingContent = {
                                 Text(
-                                    if (es) "Mantén pulsado ≡ y arrastra"
-                                    else "Long-press ≡ and drag",
+                                    if (isDragging) {
+                                        if (es) "Moviendo… suelta para colocar"
+                                        else "Moving… release to place"
+                                    } else {
+                                        if (es) "Mantén pulsado ≡ y arrastra"
+                                        else "Long-press ≡ and drag"
+                                    },
                                 )
                             },
-                            modifier = Modifier.fillMaxWidth(),
+                            colors = ListItemDefaults.colors(
+                                containerColor = if (isDragging) {
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+                                } else {
+                                    MaterialTheme.colorScheme.surface
+                                },
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = if (isDragging) 6.dp else 0.dp),
                         )
+                        if (isDragging) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(horizontal = 12.dp),
+                                thickness = 2.dp,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
                     }
                 }
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
@@ -1775,7 +1815,8 @@ private fun SelectionActionGroupSetting(
 
     var workingOrder by remember(config.actionOrder) { mutableStateOf(config.actionOrder) }
     var groupLabelDraft by remember(config.label) { mutableStateOf(config.label) }
-    val reorderThresholdPx = with(LocalDensity.current) { 44.dp.toPx() }
+    var draggingActionId by remember { mutableStateOf<String?>(null) }
+    val reorderThresholdPx = with(LocalDensity.current) { 32.dp.toPx() }
     val es = usesSpanish(language)
 
     Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
@@ -1842,99 +1883,143 @@ private fun SelectionActionGroupSetting(
             )
 
             workingOrder.forEach { actionId ->
-                var dragDistance by remember(actionId) { mutableFloatStateOf(0f) }
-                val enabled = actionId in config.enabledActionIds
-                val displayLabel = config.actionLabels[actionId]
-                    ?: defaults.actionLabels[actionId].orEmpty()
-                var labelDraft by remember(actionId, displayLabel) { mutableStateOf(displayLabel) }
-                val dragHandleModifier = Modifier.pointerInput(
-                    actionId,
-                    workingOrder.size,
-                    config.actionOrder,
-                ) {
-                    detectDragGesturesAfterLongPress(
-                        onDragStart = { dragDistance = 0f },
-                        onDragCancel = {
-                            dragDistance = 0f
-                            workingOrder = config.actionOrder
-                        },
-                        onDragEnd = {
-                            dragDistance = 0f
-                            onChanged(config.copy(actionOrder = workingOrder))
-                        },
-                        onDrag = { _, dragAmount ->
-                            dragDistance += dragAmount.y
-                            val index = workingOrder.indexOf(actionId)
-                            when {
-                                dragDistance > reorderThresholdPx &&
-                                    index >= 0 &&
-                                    index < workingOrder.lastIndex -> {
-                                    val reordered = workingOrder.toMutableList()
-                                    reordered[index] = reordered[index + 1]
-                                    reordered[index + 1] = actionId
-                                    workingOrder = reordered
-                                    dragDistance -= reorderThresholdPx
-                                }
-                                dragDistance < -reorderThresholdPx && index > 0 -> {
-                                    val reordered = workingOrder.toMutableList()
-                                    reordered[index] = reordered[index - 1]
-                                    reordered[index - 1] = actionId
-                                    workingOrder = reordered
-                                    dragDistance += reorderThresholdPx
-                                }
-                            }
-                        },
-                    )
-                }
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                key(actionId) {
+                    var dragDistance by remember(actionId) { mutableFloatStateOf(0f) }
+                    val enabled = actionId in config.enabledActionIds
+                    val displayLabel = config.actionLabels[actionId]
+                        ?: defaults.actionLabels[actionId].orEmpty()
+                    var labelDraft by remember(actionId, displayLabel) { mutableStateOf(displayLabel) }
+                    val isDragging = draggingActionId == actionId
+                    val dragHandleModifier = Modifier.pointerInput(
+                        actionId,
+                        workingOrder.size,
                     ) {
-                        Text(
-                            "≡",
-                            modifier = dragHandleModifier,
-                            style = MaterialTheme.typography.titleLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                toolbarQuickActionLabel(actionId, language),
-                                style = MaterialTheme.typography.labelLarge,
-                            )
-                            Text(
-                                toolbarQuickActionDescription(actionId, language),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        Switch(
-                            checked = enabled,
-                            onCheckedChange = { checked ->
-                                val enabledIds = config.enabledActionIds.toMutableSet()
-                                if (checked) enabledIds += actionId else enabledIds -= actionId
-                                onChanged(config.copy(enabledActionIds = enabledIds))
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = {
+                                dragDistance = 0f
+                                draggingActionId = actionId
+                            },
+                            onDragCancel = {
+                                dragDistance = 0f
+                                onChanged(config.copy(actionOrder = workingOrder))
+                                draggingActionId = null
+                            },
+                            onDragEnd = {
+                                dragDistance = 0f
+                                onChanged(config.copy(actionOrder = workingOrder))
+                                draggingActionId = null
+                            },
+                            onDrag = { _, dragAmount ->
+                                dragDistance += dragAmount.y
+                                val index = workingOrder.indexOf(actionId)
+                                when {
+                                    dragDistance > reorderThresholdPx &&
+                                        index >= 0 &&
+                                        index < workingOrder.lastIndex -> {
+                                        val reordered = workingOrder.toMutableList()
+                                        reordered[index] = reordered[index + 1]
+                                        reordered[index + 1] = actionId
+                                        workingOrder = reordered
+                                        dragDistance -= reorderThresholdPx
+                                    }
+                                    dragDistance < -reorderThresholdPx && index > 0 -> {
+                                        val reordered = workingOrder.toMutableList()
+                                        reordered[index] = reordered[index - 1]
+                                        reordered[index - 1] = actionId
+                                        workingOrder = reordered
+                                        dragDistance += reorderThresholdPx
+                                    }
+                                }
                             },
                         )
                     }
-                    OutlinedTextField(
-                        value = labelDraft,
-                        onValueChange = { value ->
-                            val updated = value.take(SettingsRepository.MAX_SELECTION_GROUP_LABEL_LENGTH)
-                            labelDraft = updated
-                            if (updated.isNotBlank()) {
-                                val labels = config.actionLabels.toMutableMap()
-                                labels[actionId] = updated
-                                onChanged(config.copy(actionLabels = labels))
-                            }
-                        },
-                        label = { Text(if (es) "Etiqueta visible" else "Visible label") },
-                        singleLine = true,
+                    if (isDragging) {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 12.dp),
+                            thickness = 2.dp,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = 52.dp, end = 16.dp, bottom = 8.dp),
-                    )
+                            .padding(horizontal = if (isDragging) 6.dp else 0.dp),
+                    ) {
+                        ListItem(
+                            headlineContent = {
+                                Column {
+                                    Text(
+                                        toolbarQuickActionLabel(actionId, language),
+                                        style = MaterialTheme.typography.labelLarge,
+                                    )
+                                    Text(
+                                        if (isDragging) {
+                                            if (es) "Moviendo… suelta para colocar"
+                                            else "Moving… release to place"
+                                        } else {
+                                            toolbarQuickActionDescription(actionId, language)
+                                        },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            },
+                            leadingContent = {
+                                Text(
+                                    "≡",
+                                    modifier = dragHandleModifier,
+                                    style = MaterialTheme.typography.titleLarge,
+                                    color = if (isDragging) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
+                                )
+                            },
+                            trailingContent = {
+                                Switch(
+                                    checked = enabled,
+                                    onCheckedChange = { checked ->
+                                        val enabledIds = config.enabledActionIds.toMutableSet()
+                                        if (checked) enabledIds += actionId else enabledIds -= actionId
+                                        onChanged(config.copy(enabledActionIds = enabledIds))
+                                    },
+                                )
+                            },
+                            colors = ListItemDefaults.colors(
+                                containerColor = if (isDragging) {
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+                                } else {
+                                    MaterialTheme.colorScheme.surface
+                                },
+                            ),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        OutlinedTextField(
+                            value = labelDraft,
+                            onValueChange = { value ->
+                                val updated = value.take(SettingsRepository.MAX_SELECTION_GROUP_LABEL_LENGTH)
+                                labelDraft = updated
+                                if (updated.isNotBlank()) {
+                                    val labels = config.actionLabels.toMutableMap()
+                                    labels[actionId] = updated
+                                    onChanged(config.copy(actionLabels = labels))
+                                }
+                            },
+                            label = { Text(if (es) "Etiqueta visible" else "Visible label") },
+                            singleLine = true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 52.dp, end = 16.dp, bottom = 8.dp),
+                        )
+                    }
+                    if (isDragging) {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 12.dp),
+                            thickness = 2.dp,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                 }
             }
         }
