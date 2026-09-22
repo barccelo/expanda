@@ -187,11 +187,30 @@ class ActionEngine {
             return outcome(transformed, transformedPrefix.length)
         }
 
+        fun replacePreviousWord(transform: (String) -> String): ActionOutcome {
+            val beforeCursor = withoutCommand.substring(0, baseCursor)
+            val match = PREVIOUS_WORD.find(beforeCursor) ?: return outcome()
+            val replacement = transform(match.value)
+            val transformed = withoutCommand.replaceRange(match.range, replacement)
+            val newCursor = baseCursor + (replacement.length - match.value.length)
+            return outcome(transformed, newCursor)
+        }
+
         return when (definition.id) {
             "math_replace", "math_append" -> processSelectedText(definition.id, withoutCommand)
                 ?.let { outcome(it, it.length) }
+            "uppercase" -> if (matchedTrigger == " my") {
+                replacePreviousWord { it.uppercase(Locale.getDefault()) }
+            } else {
+                replaceAll { processSelectedText(definition.id, it) ?: it }
+            }
+            "lowercase" -> if (matchedTrigger == " mn") {
+                replacePreviousWord { it.lowercase(Locale.getDefault()) }
+            } else {
+                replaceAll { processSelectedText(definition.id, it) ?: it }
+            }
             "number_space", "number_period", "number_comma", "remove_diacritics",
-            "uppercase", "lowercase", "sentence_case", "title_case",
+            "sentence_case", "title_case",
             "space_underscore", "space_dash", "underscore_space", "dash_space" ->
                 replaceAll { processSelectedText(definition.id, it) ?: it }
             "select_all" -> outcome(start = 0, end = withoutCommand.length)
@@ -289,8 +308,24 @@ class ActionEngine {
             ActionDefinition("number_period", ",nfp", "Period thousands", ActionCategory.NUMBER, "12.345,67", supportsSelectedText = true),
             ActionDefinition("number_comma", ",nfc", "Comma thousands", ActionCategory.NUMBER, "12,345.67", supportsSelectedText = true),
             ActionDefinition("remove_diacritics", ",rd", "Remove diacritics", ActionCategory.TEXT, "Convert áéñ to aen", supportsSelectedText = true),
-            ActionDefinition("uppercase", ",uu", "Uppercase", ActionCategory.TEXT, "Convert all text to uppercase", supportsSelectedText = true),
-            ActionDefinition("lowercase", ",ll", "Lowercase", ActionCategory.TEXT, "Convert all text to lowercase", supportsSelectedText = true),
+            ActionDefinition(
+                "uppercase",
+                ",uu",
+                "Uppercase",
+                ActionCategory.TEXT,
+                "Convert all text to uppercase",
+                supportsSelectedText = true,
+                aliases = listOf(" my"),
+            ),
+            ActionDefinition(
+                "lowercase",
+                ",ll",
+                "Lowercase",
+                ActionCategory.TEXT,
+                "Convert all text to lowercase",
+                supportsSelectedText = true,
+                aliases = listOf(" mn"),
+            ),
             ActionDefinition("sentence_case", ",ss", "Sentence case", ActionCategory.TEXT, "Capitalize each sentence", supportsSelectedText = true),
             ActionDefinition("title_case", ",ww", "Capitalize words", ActionCategory.TEXT, "Capitalize the first letter of every word", supportsSelectedText = true),
             ActionDefinition("space_underscore", ",su", "Spaces to underscores", ActionCategory.TEXT, "Replace spaces with underscores", supportsSelectedText = true),
@@ -333,6 +368,7 @@ class ActionEngine {
 
         private val MATH_AT_END = Regex("""[-+]?\s*(?:\d+(?:\.\d+)?|\([^\n]+\))(?:\s*[-+*/%^]\s*(?:\d+(?:\.\d+)?|\([^\n]+\)))+\s*$""")
         private val NUMBER = Regex("""(?<![\p{L}\d])[-+]?\d[\d.,]*(?![\p{L}\d])""")
+        private val PREVIOUS_WORD = Regex("""[\p{L}\p{N}_]+(?=[^\p{L}\p{N}_]*$)""")
 
         private fun formatResult(value: Double): String =
             if (value % 1.0 == 0.0) value.toLong().toString() else BigDecimal.valueOf(value).stripTrailingZeros().toPlainString()
