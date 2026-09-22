@@ -306,10 +306,11 @@ private fun VaultEditorDialog(
         mutableStateOf(initial?.tags?.joinToString(", ").orEmpty())
     }
     var favorite by remember(initial?.id) { mutableStateOf(initial?.favorite ?: false) }
-    var fields by remember(initial?.id) {
+    val defaultValueLabel = tr("Value", "Valor")
+    var fields by remember(initial?.id, defaultValueLabel) {
         mutableStateOf(
             initial?.fields?.takeIf { it.isNotEmpty() }
-                ?: listOf(VaultField(label = tr("Value", "Valor"), value = "")),
+                ?: listOf(VaultField(label = defaultValueLabel, value = "")),
         )
     }
 
@@ -436,7 +437,7 @@ private fun VaultEditorDialog(
                     TextButton(
                         onClick = {
                             fields = fields + VaultField(
-                                label = tr("Value", "Valor"),
+                                label = defaultValueLabel,
                                 value = "",
                             )
                         },
