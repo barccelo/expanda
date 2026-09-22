@@ -1056,10 +1056,12 @@ class ExpansionAccessibilityService : AccessibilityService() {
             val bounds = displayBounds(windowManager)
             val menuHeight = dp(52)
             val horizontalMargin = dp(8)
-            val menuWidth = minOf(
+            val availableWidth = (bounds.width() - horizontalMargin * 2).coerceAtLeast(dp(160))
+            val desiredWidth = maxOf(
                 dp(248),
-                (bounds.width() - horizontalMargin * 2).coerceAtLeast(dp(160)),
+                dp(52) * actionIds.size + dp(8),
             )
+            val menuWidth = minOf(desiredWidth, availableWidth)
             val optionWidth = (menuWidth - dp(8)) / actionIds.size.coerceAtLeast(1)
             val root = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
