@@ -30,6 +30,46 @@ class SmartCursorCaseTest {
     }
 
     @Test
+    fun `three dots context is continuation`() {
+        assertEquals(
+            SmartCursorCase.Context.CONTINUATION,
+            SmartCursorCase.classify("Bueno... "),
+        )
+    }
+
+    @Test
+    fun `ellipsis character context is continuation`() {
+        assertEquals(
+            SmartCursorCase.Context.CONTINUATION,
+            SmartCursorCase.classify("Bueno… "),
+        )
+    }
+
+    @Test
+    fun `ellipsis before closing quote is continuation`() {
+        assertEquals(
+            SmartCursorCase.Context.CONTINUATION,
+            SmartCursorCase.classify("Dijo «bueno...» "),
+        )
+        assertEquals(
+            SmartCursorCase.Context.CONTINUATION,
+            SmartCursorCase.classify("Dijo «bueno…» "),
+        )
+    }
+
+    @Test
+    fun `question and exclamation contexts remain sentence starts`() {
+        assertEquals(
+            SmartCursorCase.Context.SENTENCE_START,
+            SmartCursorCase.classify("¿Vienes? "),
+        )
+        assertEquals(
+            SmartCursorCase.Context.SENTENCE_START,
+            SmartCursorCase.classify("¡Vamos! "),
+        )
+    }
+
+    @Test
     fun `newline context is sentence start`() {
         assertEquals(
             SmartCursorCase.Context.SENTENCE_START,
