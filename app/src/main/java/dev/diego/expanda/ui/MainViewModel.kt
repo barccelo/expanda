@@ -24,6 +24,7 @@ import dev.diego.expanda.data.OnboardingStatus
 import dev.diego.expanda.data.shouldShowTutorial
 import dev.diego.expanda.data.TextMatch
 import dev.diego.expanda.data.SnippetSortMode
+import dev.diego.expanda.data.SelectionActionGroupConfig
 import dev.diego.expanda.data.ThemeMode
 import dev.diego.expanda.data.TemplateVariable
 import kotlinx.coroutines.flow.SharingStarted
@@ -258,6 +259,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
     fun setSelectionToolbarQuickActionIds(ids: List<String>) = viewModelScope.launch {
         settingsRepository.setSelectionToolbarQuickActionIds(ids)
+    }
+    fun setSelectionActionGroupConfig(groupId: String, config: SelectionActionGroupConfig) =
+        viewModelScope.launch {
+            settingsRepository.setSelectionActionGroupConfig(groupId, config)
+        }
+    fun resetSelectionActionGroupConfig(groupId: String) = viewModelScope.launch {
+        settingsRepository.resetSelectionActionGroupConfig(groupId)
     }
     fun setDisplayLanguage(language: DisplayLanguage) = viewModelScope.launch {
         settingsRepository.setDisplayLanguage(language)
