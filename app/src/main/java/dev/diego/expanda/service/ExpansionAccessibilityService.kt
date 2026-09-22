@@ -819,6 +819,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                                 title = action.description,
                                 actionIds = action.groupActionIds,
                                 showAll = false,
+                                actionLabels = action.groupActionLabels,
                             )
                             action.id in SELECTION_INTERACTIVE_ACTION_IDS -> runSelectionTool(action.id)
                             else -> applySelectionToolbarAction(action.id)
@@ -910,16 +911,23 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private fun buildSelectionToolbarActions(settings: AppSettings): List<SelectionToolbarAction> {
         val quick = settings.selectionToolbarQuickActionIds.mapNotNull { id ->
             when {
-                id == SettingsRepository.SELECTION_CASE_GROUP_ID -> SelectionToolbarAction(
-                    id = id,
-                    label = "AaA",
-                    description = localizedSelectionUi(
-                        settings,
-                        "Letter case",
-                        "Mayúsculas/minúsculas",
-                    ),
-                    groupActionIds = SELECTION_CASE_ACTION_IDS,
-                )
+                id == SettingsRepository.SELECTION_CASE_GROUP_ID -> {
+                    val groupConfig = settings.selectionActionGroupConfigs[id]
+                        ?: SettingsRepository.DEFAULT_SELECTION_CASE_GROUP_CONFIG
+                    SelectionToolbarAction(
+                        id = id,
+                        label = groupConfig.label,
+                        description = localizedSelectionUi(
+                            settings,
+                            "Letter case",
+                            "Mayúsculas/minúsculas",
+                        ),
+                        groupActionIds = groupConfig.actionOrder.filter {
+                            it in groupConfig.enabledActionIds
+                        },
+                        groupActionLabels = groupConfig.actionLabels,
+                    )
+                }
                 id in SELECTION_INTERACTIVE_ACTION_IDS -> SelectionToolbarAction(
                     id = id,
                     label = selectionQuickLabel(id),
@@ -1041,7 +1049,10 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 elevation = dp(10).toFloat()
             }
             optionViews = actionIds.map { actionId ->
-                ui.body(selectionQuickLabel(actionId), sizeSp = 14f).apply {
+                ui.body(
+                    action.groupActionLabels[actionId] ?: selectionQuickLabel(actionId),
+                    sizeSp = 14f,
+                ).apply {
                     gravity = Gravity.CENTER
                     maxLines = 1
                     background = ui.surface(10)
@@ -1209,6 +1220,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         title: String,
         actionIds: List<String>,
         showAll: Boolean,
+        actionLabels: Map<String, String> = emptyMap(),
     ) {
         val state = selectionToolbarState ?: return
         val settings = settingsRepository.settings.value
@@ -1249,7 +1261,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 }
             }
             val definition = ActionEngine.definitions.firstOrNull { it.id == actionId }
-            val titleText = selectionActionTitle(actionId, settings, definition?.title.orEmpty())
+            val titleText = actionLabels[actionId]
+                ?.takeIf(String::isNotBlank)
+                ?: selectionActionTitle(actionId, settings, definition?.title.orEmpty())
             val descriptionText = selectionActionDescription(actionId, settings, definition?.description.orEmpty())
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
@@ -4250,6 +4264,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
             val label: String,
             val description: String,
             val groupActionIds: List<String> = emptyList(),
+            val groupActionLabels: Map<String, String> = emptyMap(),
         )
 
         private const val SELECTION_UNDO_ID = "__selection_undo__"
@@ -4261,13 +4276,6 @@ class ExpansionAccessibilityService : AccessibilityService() {
         private const val SELECTION_PREFIX_SUFFIX_ID = "prefix_suffix"
         private const val MAX_SELECTION_UNDO_HISTORY = 10
         private const val SELECTION_GROUP_LONG_PRESS_MS = 320L
-
-        private val SELECTION_CASE_ACTION_IDS = listOf(
-            "lowercase",
-            "sentence_case",
-            "uppercase",
-            "title_case",
-        )
 
         private val SELECTION_INTERACTIVE_ACTION_IDS = setOf(
             SELECTION_FIND_REPLACE_ID,
