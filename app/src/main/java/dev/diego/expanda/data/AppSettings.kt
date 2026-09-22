@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -95,6 +96,30 @@ private val Context.settingsDataStore by preferencesDataStore("settings")
 class SettingsRepository(context: Context, scope: CoroutineScope) {
     private val store = context.settingsDataStore
     private val loaded = MutableStateFlow(false)
+
+    init {
+        scope.launch {
+            store.edit { values ->
+                if (values[Keys.SELECTION_WRAP_GROUP_MIGRATED] != true) {
+                    val current = values[Keys.SELECTION_TOOLBAR_QUICK_ACTIONS]
+                        ?.split(SEPARATOR)
+                        ?.let(::normalizeToolbarQuickActions)
+                        ?: DEFAULT_SELECTION_TOOLBAR_QUICK_ACTIONS
+                    val migrated = if (
+                        SELECTION_WRAP_GROUP_ID !in current &&
+                        current.size < MAX_SELECTION_TOOLBAR_QUICK_ACTIONS
+                    ) {
+                        current + SELECTION_WRAP_GROUP_ID
+                    } else {
+                        current
+                    }
+                    values[Keys.SELECTION_TOOLBAR_QUICK_ACTIONS] =
+                        normalizeToolbarQuickActions(migrated).joinToString(SEPARATOR)
+                    values[Keys.SELECTION_WRAP_GROUP_MIGRATED] = true
+                }
+            }
+        }
+    }
 
     val settings: StateFlow<AppSettings> = store.data.map { values ->
         AppSettings(
@@ -314,6 +339,7 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         val SELECTION_TOOLBAR_HEIGHT_DP = intPreferencesKey("selection_toolbar_height_dp")
         val SELECTION_TOOLBAR_QUICK_ACTIONS = stringPreferencesKey("selection_toolbar_quick_actions")
         val SELECTION_ACTION_GROUP_CONFIGS = stringPreferencesKey("selection_action_group_configs")
+        val SELECTION_WRAP_GROUP_MIGRATED = booleanPreferencesKey("selection_wrap_group_migrated")
         val DISPLAY_LANGUAGE = stringPreferencesKey("display_language")
         val SUGGESTION_SHOW_ACTIONS = booleanPreferencesKey("suggestion_show_actions")
         val MATCH_BEGINNING = booleanPreferencesKey("match_beginning")
@@ -385,6 +411,7 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         const val MAX_SELECTION_TOOLBAR_QUICK_ACTIONS = 6
         const val MAX_SELECTION_GROUP_LABEL_LENGTH = 12
         const val SELECTION_CASE_GROUP_ID = "case_group"
+        const val SELECTION_WRAP_GROUP_ID = "wrap_group"
         val DEFAULT_SELECTION_CASE_GROUP_CONFIG = SelectionActionGroupConfig(
             label = "AaA",
             actionOrder = listOf(
@@ -406,11 +433,43 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
                 "title_case" to "AaA",
             ),
         )
+        val DEFAULT_SELECTION_WRAP_GROUP_CONFIG = SelectionActionGroupConfig(
+            label = "«»",
+            actionOrder = listOf(
+                "wrap_guillemets",
+                "wrap_parentheses",
+                "wrap_question",
+                "wrap_exclamation",
+                "wrap_brackets",
+                "wrap_double_asterisk",
+                "wrap_double_underscore",
+            ),
+            enabledActionIds = setOf(
+                "wrap_guillemets",
+                "wrap_parentheses",
+                "wrap_question",
+                "wrap_exclamation",
+                "wrap_brackets",
+                "wrap_double_asterisk",
+                "wrap_double_underscore",
+            ),
+            actionLabels = mapOf(
+                "wrap_guillemets" to "« »",
+                "wrap_parentheses" to "( )",
+                "wrap_question" to "¿ ?",
+                "wrap_exclamation" to "¡ !",
+                "wrap_brackets" to "[ ]",
+                "wrap_double_asterisk" to "** **",
+                "wrap_double_underscore" to "__ __",
+            ),
+        )
         val DEFAULT_SELECTION_ACTION_GROUP_CONFIGS = mapOf(
             SELECTION_CASE_GROUP_ID to DEFAULT_SELECTION_CASE_GROUP_CONFIG,
+            SELECTION_WRAP_GROUP_ID to DEFAULT_SELECTION_WRAP_GROUP_CONFIG,
         )
         val AVAILABLE_SELECTION_ACTION_GROUP_ACTIONS = mapOf(
             SELECTION_CASE_GROUP_ID to DEFAULT_SELECTION_CASE_GROUP_CONFIG.actionOrder,
+            SELECTION_WRAP_GROUP_ID to DEFAULT_SELECTION_WRAP_GROUP_CONFIG.actionOrder,
         )
         private val LEGACY_SELECTION_CASE_ACTION_IDS = setOf(
             "uppercase",
@@ -419,9 +478,10 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
             "title_case",
         )
         val DEFAULT_SELECTION_TOOLBAR_QUICK_ACTIONS =
-            listOf(SELECTION_CASE_GROUP_ID)
+            listOf(SELECTION_CASE_GROUP_ID, SELECTION_WRAP_GROUP_ID)
         val AVAILABLE_SELECTION_TOOLBAR_QUICK_ACTIONS = listOf(
             SELECTION_CASE_GROUP_ID,
+            SELECTION_WRAP_GROUP_ID,
             "find_replace",
             "sort_lines",
             "text_counter",
