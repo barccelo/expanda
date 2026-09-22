@@ -2,6 +2,7 @@ package dev.diego.expanda.ui
 
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.view.HapticFeedbackConstants
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -122,6 +123,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.geometry.Offset
@@ -1656,6 +1658,7 @@ private fun SelectionToolbarSettingsDialog(
                                     actionIds = settings.selectionToolbarQuickActionIds,
                                     groupConfigs = settings.selectionActionGroupConfigs,
                                     language = settings.displayLanguage,
+                                    hapticEnabled = settings.hapticFeedback,
                                     onChanged = onQuickActionsChanged,
                                     onOpenGroup = { groupId ->
                                         page = SelectionToolbarSettingsPage.Group(groupId)
@@ -1679,6 +1682,7 @@ private fun SelectionToolbarSettingsDialog(
                                         groupId = current.id,
                                         config = groupConfig,
                                         language = settings.displayLanguage,
+                                        hapticEnabled = settings.hapticFeedback,
                                         onChanged = { updated ->
                                             onGroupConfigChanged(current.id, updated)
                                         },
@@ -1771,12 +1775,14 @@ private fun SelectionToolbarQuickActionsSetting(
     actionIds: List<String>,
     groupConfigs: Map<String, SelectionActionGroupConfig>,
     language: DisplayLanguage,
+    hapticEnabled: Boolean,
     onChanged: (List<String>) -> Unit,
     onOpenGroup: (String) -> Unit,
 ) {
     var workingOrder by remember(actionIds) { mutableStateOf(actionIds) }
     var draggingId by remember { mutableStateOf<String?>(null) }
     val reorderThresholdPx = with(LocalDensity.current) { 32.dp.toPx() }
+    val localView = LocalView.current
     val es = usesSpanish(language)
 
     Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
@@ -1814,14 +1820,25 @@ private fun SelectionToolbarQuickActionsSetting(
                         var dragDistance by remember(id) { mutableFloatStateOf(0f) }
                         var dragDirection by remember(id) { mutableStateOf(0) }
                         val isDragging = draggingId == id
+                        val actionLabel = toolbarQuickActionLabel(id, language, groupConfigs)
                         val dragHandleModifier = Modifier
                             .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                            .semantics {
+                                contentDescription = if (es) {
+                                    "Reordenar $actionLabel"
+                                } else {
+                                    "Reorder $actionLabel"
+                                }
+                            }
                             .pointerInput(id, workingOrder.size) {
                             detectDragGesturesAfterLongPress(
                                 onDragStart = {
                                     dragDistance = 0f
                                     dragDirection = 0
                                     draggingId = id
+                                    if (hapticEnabled) {
+                                        localView.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                                    }
                                 },
                                 onDragCancel = {
                                     dragDistance = 0f
@@ -1852,6 +1869,9 @@ private fun SelectionToolbarQuickActionsSetting(
                                             reordered[index + 1] = id
                                             reordered[index] = next
                                             workingOrder = reordered
+                                            if (hapticEnabled) {
+                                                localView.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                                            }
                                             dragDistance -= reorderThresholdPx
                                         }
 
@@ -1861,6 +1881,9 @@ private fun SelectionToolbarQuickActionsSetting(
                                             reordered[index - 1] = id
                                             reordered[index] = previous
                                             workingOrder = reordered
+                                            if (hapticEnabled) {
+                                                localView.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                                            }
                                             dragDistance += reorderThresholdPx
                                         }
                                     }
@@ -1942,7 +1965,20 @@ private fun SelectionToolbarQuickActionsSetting(
                 ListItem(
                     headlineContent = { Text(toolbarQuickActionLabel(id, language, groupConfigs)) },
                     supportingContent = {
-                        Text(toolbarQuickActionDescription(id, language))
+                        val description = toolbarQuickActionDescription(id, language)
+                        if (groupConfig == null) {
+                            Text(description)
+                        } else {
+                            val total = groupConfig.actionOrder.size
+                            val active = groupConfig.enabledActionIds.size
+                            Text(
+                                description + " · " + if (es) {
+                                    "$active/$total activas"
+                                } else {
+                                    "$active/$total active"
+                                },
+                            )
+                        }
                     },
                     trailingContent = {
                         Row(
@@ -1984,6 +2020,7 @@ private fun SelectionActionGroupSetting(
     groupId: String,
     config: SelectionActionGroupConfig,
     language: DisplayLanguage,
+    hapticEnabled: Boolean,
     onChanged: (SelectionActionGroupConfig) -> Unit,
     onReset: () -> Unit,
     nested: Boolean = false,
@@ -1996,6 +2033,7 @@ private fun SelectionActionGroupSetting(
     var groupLabelDraft by remember(config.label) { mutableStateOf(config.label) }
     var draggingActionId by remember { mutableStateOf<String?>(null) }
     val reorderThresholdPx = with(LocalDensity.current) { 32.dp.toPx() }
+    val localView = LocalView.current
     val es = usesSpanish(language)
 
     Card(
@@ -2069,6 +2107,18 @@ private fun SelectionActionGroupSetting(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
             )
+            if (config.enabledActionIds.isEmpty()) {
+                Text(
+                    if (es)
+                        "No hay opciones activas. El botón del grupo aparecerá deshabilitado en la barra."
+                    else
+                        "No options are active. The group button will appear disabled in the toolbar.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.tertiary,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                )
+            }
 
             workingOrder.forEach { actionId ->
                 key(actionId) {
@@ -2079,8 +2129,16 @@ private fun SelectionActionGroupSetting(
                         ?: defaults.actionLabels[actionId].orEmpty()
                     var labelDraft by remember(actionId, displayLabel) { mutableStateOf(displayLabel) }
                     val isDragging = draggingActionId == actionId
+                    val actionTitle = toolbarQuickActionLabel(actionId, language)
                     val dragHandleModifier = Modifier
                         .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                        .semantics {
+                            contentDescription = if (es) {
+                                "Reordenar $actionTitle"
+                            } else {
+                                "Reorder $actionTitle"
+                            }
+                        }
                         .pointerInput(
                             actionId,
                             workingOrder.size,
@@ -2090,6 +2148,9 @@ private fun SelectionActionGroupSetting(
                                 dragDistance = 0f
                                 dragDirection = 0
                                 draggingActionId = actionId
+                                if (hapticEnabled) {
+                                    localView.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                                }
                             },
                             onDragCancel = {
                                 dragDistance = 0f
@@ -2119,6 +2180,9 @@ private fun SelectionActionGroupSetting(
                                         reordered[index] = reordered[index + 1]
                                         reordered[index + 1] = actionId
                                         workingOrder = reordered
+                                        if (hapticEnabled) {
+                                            localView.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                                        }
                                         dragDistance -= reorderThresholdPx
                                     }
                                     dragDistance < -reorderThresholdPx && index > 0 -> {
@@ -2126,6 +2190,9 @@ private fun SelectionActionGroupSetting(
                                         reordered[index] = reordered[index - 1]
                                         reordered[index - 1] = actionId
                                         workingOrder = reordered
+                                        if (hapticEnabled) {
+                                            localView.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                                        }
                                         dragDistance += reorderThresholdPx
                                     }
                                 }
