@@ -17,10 +17,20 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
+import org.json.JSONArray
+import org.json.JSONObject
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK, AMOLED }
 enum class ColorSchemeMode { WALLPAPER, DEFAULT, CUSTOM }
 enum class DisplayLanguage { SYSTEM, ENGLISH, SPANISH }
+
+data class SelectionActionGroupConfig(
+    val label: String,
+    val actionOrder: List<String>,
+    val enabledActionIds: Set<String>,
+    val actionLabels: Map<String, String>,
+)
+
 data class AppSettings(
     val expansionEnabled: Boolean = true,
     val consentAccepted: Boolean = false,
@@ -52,6 +62,9 @@ data class AppSettings(
     val selectionToolbarHeightDp: Int = SettingsRepository.DEFAULT_SELECTION_TOOLBAR_HEIGHT_DP,
     /** Ordered quick actions shown directly between Undo and the two menu buttons. */
     val selectionToolbarQuickActionIds: List<String> = SettingsRepository.DEFAULT_SELECTION_TOOLBAR_QUICK_ACTIONS,
+    /** Configurable action groups used by compact toolbar buttons such as Case. */
+    val selectionActionGroupConfigs: Map<String, SelectionActionGroupConfig> =
+        SettingsRepository.DEFAULT_SELECTION_ACTION_GROUP_CONFIGS,
     /** Display language for Expanda Personal surfaces that support localization. */
     val displayLanguage: DisplayLanguage = DisplayLanguage.SYSTEM,
     val suggestionShowActions: Boolean = true,
@@ -120,6 +133,9 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
             ).coerceIn(MIN_SELECTION_TOOLBAR_HEIGHT_DP, MAX_SELECTION_TOOLBAR_HEIGHT_DP),
             selectionToolbarQuickActionIds = decodeToolbarQuickActions(
                 values[Keys.SELECTION_TOOLBAR_QUICK_ACTIONS],
+            ),
+            selectionActionGroupConfigs = decodeSelectionActionGroupConfigs(
+                values[Keys.SELECTION_ACTION_GROUP_CONFIGS],
             ),
             displayLanguage = values[Keys.DISPLAY_LANGUAGE]?.let {
                 runCatching { DisplayLanguage.valueOf(it) }.getOrNull()
@@ -205,6 +221,23 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         val normalized = normalizeToolbarQuickActions(ids)
         it[Keys.SELECTION_TOOLBAR_QUICK_ACTIONS] = normalized.joinToString(SEPARATOR)
     }
+    suspend fun setSelectionActionGroupConfig(
+        groupId: String,
+        config: SelectionActionGroupConfig,
+    ) = store.edit { values ->
+        val normalized = normalizeSelectionActionGroupConfig(groupId, config) ?: return@edit
+        val groups = decodeSelectionActionGroupConfigs(values[Keys.SELECTION_ACTION_GROUP_CONFIGS])
+            .toMutableMap()
+        groups[groupId] = normalized
+        values[Keys.SELECTION_ACTION_GROUP_CONFIGS] = encodeSelectionActionGroupConfigs(groups)
+    }
+    suspend fun resetSelectionActionGroupConfig(groupId: String) = store.edit { values ->
+        val defaultConfig = DEFAULT_SELECTION_ACTION_GROUP_CONFIGS[groupId] ?: return@edit
+        val groups = decodeSelectionActionGroupConfigs(values[Keys.SELECTION_ACTION_GROUP_CONFIGS])
+            .toMutableMap()
+        groups[groupId] = defaultConfig
+        values[Keys.SELECTION_ACTION_GROUP_CONFIGS] = encodeSelectionActionGroupConfigs(groups)
+    }
     suspend fun setDisplayLanguage(language: DisplayLanguage) = store.edit {
         it[Keys.DISPLAY_LANGUAGE] = language.name
     }
@@ -280,6 +313,7 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         val SELECTION_TOOLBAR_WIDTH = floatPreferencesKey("selection_toolbar_width_fraction")
         val SELECTION_TOOLBAR_HEIGHT_DP = intPreferencesKey("selection_toolbar_height_dp")
         val SELECTION_TOOLBAR_QUICK_ACTIONS = stringPreferencesKey("selection_toolbar_quick_actions")
+        val SELECTION_ACTION_GROUP_CONFIGS = stringPreferencesKey("selection_action_group_configs")
         val DISPLAY_LANGUAGE = stringPreferencesKey("display_language")
         val SUGGESTION_SHOW_ACTIONS = booleanPreferencesKey("suggestion_show_actions")
         val MATCH_BEGINNING = booleanPreferencesKey("match_beginning")
@@ -318,6 +352,8 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         values[Keys.SELECTION_TOOLBAR_QUICK_ACTIONS] =
             normalizeToolbarQuickActions(snapshot.selectionToolbarQuickActionIds)
                 .joinToString(SEPARATOR)
+        values[Keys.SELECTION_ACTION_GROUP_CONFIGS] =
+            encodeSelectionActionGroupConfigs(snapshot.selectionActionGroupConfigs)
         values[Keys.DISPLAY_LANGUAGE] = snapshot.displayLanguage.name
         values[Keys.SUGGESTION_SHOW_ACTIONS] = snapshot.suggestionShowActions
         values[Keys.MATCH_BEGINNING] = snapshot.matchFromBeginning
@@ -347,7 +383,35 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         const val MAX_SELECTION_TOOLBAR_HEIGHT_DP = 88
         const val DEFAULT_SELECTION_TOOLBAR_HEIGHT_DP = 56
         const val MAX_SELECTION_TOOLBAR_QUICK_ACTIONS = 6
+        const val MAX_SELECTION_GROUP_LABEL_LENGTH = 12
         const val SELECTION_CASE_GROUP_ID = "case_group"
+        val DEFAULT_SELECTION_CASE_GROUP_CONFIG = SelectionActionGroupConfig(
+            label = "AaA",
+            actionOrder = listOf(
+                "lowercase",
+                "sentence_case",
+                "uppercase",
+                "title_case",
+            ),
+            enabledActionIds = setOf(
+                "lowercase",
+                "sentence_case",
+                "uppercase",
+                "title_case",
+            ),
+            actionLabels = mapOf(
+                "lowercase" to "abc",
+                "sentence_case" to "Abc.",
+                "uppercase" to "ABC",
+                "title_case" to "AaA",
+            ),
+        )
+        val DEFAULT_SELECTION_ACTION_GROUP_CONFIGS = mapOf(
+            SELECTION_CASE_GROUP_ID to DEFAULT_SELECTION_CASE_GROUP_CONFIG,
+        )
+        val AVAILABLE_SELECTION_ACTION_GROUP_ACTIONS = mapOf(
+            SELECTION_CASE_GROUP_ID to DEFAULT_SELECTION_CASE_GROUP_CONFIG.actionOrder,
+        )
         private val LEGACY_SELECTION_CASE_ACTION_IDS = setOf(
             "uppercase",
             "lowercase",
@@ -394,6 +458,102 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         private fun decodeToolbarQuickActions(raw: String?): List<String> {
             if (raw == null) return DEFAULT_SELECTION_TOOLBAR_QUICK_ACTIONS
             return normalizeToolbarQuickActions(raw.split(SEPARATOR))
+        }
+
+        private fun encodeSelectionActionGroupConfigs(
+            configs: Map<String, SelectionActionGroupConfig>,
+        ): String = JSONObject().apply {
+            DEFAULT_SELECTION_ACTION_GROUP_CONFIGS.keys.forEach { groupId ->
+                val config = normalizeSelectionActionGroupConfig(
+                    groupId,
+                    configs[groupId] ?: DEFAULT_SELECTION_ACTION_GROUP_CONFIGS.getValue(groupId),
+                ) ?: return@forEach
+                put(groupId, JSONObject().apply {
+                    put("label", config.label)
+                    put("actionOrder", JSONArray(config.actionOrder))
+                    put("enabledActionIds", JSONArray(config.enabledActionIds.toList()))
+                    put("actionLabels", JSONObject().apply {
+                        config.actionLabels.forEach { (actionId, label) -> put(actionId, label) }
+                    })
+                })
+            }
+        }.toString()
+
+        private fun decodeSelectionActionGroupConfigs(
+            raw: String?,
+        ): Map<String, SelectionActionGroupConfig> {
+            val root = raw?.takeIf(String::isNotBlank)
+                ?.let { runCatching { JSONObject(it) }.getOrNull() }
+            return DEFAULT_SELECTION_ACTION_GROUP_CONFIGS.mapValues { (groupId, defaultConfig) ->
+                val json = root?.optJSONObject(groupId) ?: return@mapValues defaultConfig
+                val orderArray = json.optJSONArray("actionOrder")
+                val enabledArray = json.optJSONArray("enabledActionIds")
+                val labelsJson = json.optJSONObject("actionLabels")
+                val order = if (orderArray == null) {
+                    defaultConfig.actionOrder
+                } else {
+                    buildList {
+                        for (index in 0 until orderArray.length()) {
+                            orderArray.optString(index).takeIf(String::isNotBlank)?.let(::add)
+                        }
+                    }
+                }
+                val enabled = if (enabledArray == null) {
+                    defaultConfig.enabledActionIds
+                } else {
+                    buildSet {
+                        for (index in 0 until enabledArray.length()) {
+                            enabledArray.optString(index).takeIf(String::isNotBlank)?.let(::add)
+                        }
+                    }
+                }
+                val labels = buildMap {
+                    defaultConfig.actionLabels.forEach(::put)
+                    labelsJson?.keys()?.forEach { actionId ->
+                        labelsJson.optString(actionId).takeIf(String::isNotBlank)?.let { put(actionId, it) }
+                    }
+                }
+                normalizeSelectionActionGroupConfig(
+                    groupId,
+                    SelectionActionGroupConfig(
+                        label = json.optString("label", defaultConfig.label),
+                        actionOrder = order,
+                        enabledActionIds = enabled,
+                        actionLabels = labels,
+                    ),
+                ) ?: defaultConfig
+            }
+        }
+
+        fun normalizeSelectionActionGroupConfig(
+            groupId: String,
+            config: SelectionActionGroupConfig,
+        ): SelectionActionGroupConfig? {
+            val available = AVAILABLE_SELECTION_ACTION_GROUP_ACTIONS[groupId] ?: return null
+            val defaultConfig = DEFAULT_SELECTION_ACTION_GROUP_CONFIGS[groupId] ?: return null
+            val order = buildList {
+                config.actionOrder.forEach { id ->
+                    if (id in available && id !in this) add(id)
+                }
+                available.forEach { id -> if (id !in this) add(id) }
+            }
+            val enabled = config.enabledActionIds.filterTo(linkedSetOf()) { it in available }
+            val labels = available.associateWith { actionId ->
+                config.actionLabels[actionId]
+                    ?.take(MAX_SELECTION_GROUP_LABEL_LENGTH)
+                    ?.takeIf(String::isNotBlank)
+                    ?: defaultConfig.actionLabels.getValue(actionId)
+            }
+            val label = config.label
+                .take(MAX_SELECTION_GROUP_LABEL_LENGTH)
+                .takeIf(String::isNotBlank)
+                ?: defaultConfig.label
+            return SelectionActionGroupConfig(
+                label = label,
+                actionOrder = order,
+                enabledActionIds = enabled,
+                actionLabels = labels,
+            )
         }
 
         private fun normalizeToolbarQuickActions(ids: List<String>): List<String> {
