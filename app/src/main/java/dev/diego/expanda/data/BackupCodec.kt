@@ -94,6 +94,10 @@ object BackupCodec {
         put("selectionToolbarWidthFraction", settings.selectionToolbarWidthFraction.toDouble())
         put("selectionToolbarHeightDp", settings.selectionToolbarHeightDp)
         put("selectionToolbarQuickActionIds", JSONArray(settings.selectionToolbarQuickActionIds))
+        put(
+            "selectionActionGroupConfigs",
+            selectionActionGroupConfigsToJson(settings.selectionActionGroupConfigs),
+        )
         put("displayLanguage", settings.displayLanguage.name)
         put("suggestionShowActions", settings.suggestionShowActions)
         put("matchFromBeginning", settings.matchFromBeginning)
@@ -139,6 +143,9 @@ object BackupCodec {
             .distinct()
             .take(SettingsRepository.MAX_SELECTION_TOOLBAR_QUICK_ACTIONS)
             .ifEmpty { SettingsRepository.DEFAULT_SELECTION_TOOLBAR_QUICK_ACTIONS },
+        selectionActionGroupConfigs = selectionActionGroupConfigsFromJson(
+            json.optJSONObject("selectionActionGroupConfigs"),
+        ),
         displayLanguage = enumOrDefault(
             json.optString("displayLanguage"),
             dev.diego.expanda.data.DisplayLanguage.SYSTEM,
@@ -160,6 +167,62 @@ object BackupCodec {
         ).toFloat().coerceIn(SettingsRepository.MIN_SUGGESTION_WIDTH, SettingsRepository.MAX_SUGGESTION_WIDTH),
         suggestionResizeHandleEnabled = json.optBoolean("suggestionResizeHandleEnabled", true),
     )
+
+    private fun selectionActionGroupConfigsToJson(
+        configs: Map<String, SelectionActionGroupConfig>,
+    ): JSONObject = JSONObject().apply {
+        SettingsRepository.DEFAULT_SELECTION_ACTION_GROUP_CONFIGS.keys.forEach { groupId ->
+            val config = SettingsRepository.normalizeSelectionActionGroupConfig(
+                groupId,
+                configs[groupId]
+                    ?: SettingsRepository.DEFAULT_SELECTION_ACTION_GROUP_CONFIGS.getValue(groupId),
+            ) ?: return@forEach
+            put(groupId, JSONObject().apply {
+                put("label", config.label)
+                put("actionOrder", JSONArray(config.actionOrder))
+                put("enabledActionIds", JSONArray(config.enabledActionIds.toList()))
+                put("actionLabels", JSONObject().apply {
+                    config.actionLabels.forEach { (actionId, label) -> put(actionId, label) }
+                })
+            })
+        }
+    }
+
+    private fun selectionActionGroupConfigsFromJson(
+        json: JSONObject?,
+    ): Map<String, SelectionActionGroupConfig> =
+        SettingsRepository.DEFAULT_SELECTION_ACTION_GROUP_CONFIGS.mapValues { (groupId, defaults) ->
+            val groupJson = json?.optJSONObject(groupId) ?: return@mapValues defaults
+            val orderArray = groupJson.optJSONArray("actionOrder")
+            val enabledArray = groupJson.optJSONArray("enabledActionIds")
+            val labelsJson = groupJson.optJSONObject("actionLabels")
+            val order = if (orderArray == null) defaults.actionOrder else buildList {
+                for (index in 0 until orderArray.length()) {
+                    orderArray.optString(index).takeIf(String::isNotBlank)?.let(::add)
+                }
+            }
+            val enabled = if (enabledArray == null) defaults.enabledActionIds else buildSet {
+                for (index in 0 until enabledArray.length()) {
+                    enabledArray.optString(index).takeIf(String::isNotBlank)?.let(::add)
+                }
+            }
+            val labels = defaults.actionLabels.toMutableMap().apply {
+                labelsJson?.keys()?.forEach { actionId ->
+                    labelsJson.optString(actionId).takeIf(String::isNotBlank)?.let {
+                        put(actionId, it)
+                    }
+                }
+            }
+            SettingsRepository.normalizeSelectionActionGroupConfig(
+                groupId,
+                SelectionActionGroupConfig(
+                    label = groupJson.optString("label", defaults.label),
+                    actionOrder = order,
+                    enabledActionIds = enabled,
+                    actionLabels = labels,
+                ),
+            ) ?: defaults
+        }
 
     private fun actionsToJson(actions: ActionSnapshot): JSONObject = JSONObject().apply {
         put("enabledIds", JSONArray(actions.enabledIds.sorted()))
