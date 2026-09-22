@@ -1439,6 +1439,13 @@ private fun <T> CompactChoiceSetting(
     }
 }
 
+private sealed interface SelectionToolbarSettingsPage {
+    data object Overview : SelectionToolbarSettingsPage
+    data object Size : SelectionToolbarSettingsPage
+    data object QuickActions : SelectionToolbarSettingsPage
+    data class Group(val id: String) : SelectionToolbarSettingsPage
+}
+
 @Composable
 private fun SelectionToolbarSettingsDialog(
     settings: AppSettings,
@@ -1451,6 +1458,44 @@ private fun SelectionToolbarSettingsDialog(
     onGroupConfigChanged: (String, SelectionActionGroupConfig) -> Unit,
     onResetGroupConfig: (String) -> Unit,
 ) {
+    var page by remember {
+        mutableStateOf<SelectionToolbarSettingsPage>(SelectionToolbarSettingsPage.Overview)
+    }
+    val es = usesSpanish(settings.displayLanguage)
+
+    fun goBack() {
+        page = when (page) {
+            is SelectionToolbarSettingsPage.Group -> SelectionToolbarSettingsPage.QuickActions
+            SelectionToolbarSettingsPage.Overview -> SelectionToolbarSettingsPage.Overview
+            else -> SelectionToolbarSettingsPage.Overview
+        }
+    }
+
+    BackHandler {
+        if (page == SelectionToolbarSettingsPage.Overview) onDismiss() else goBack()
+    }
+
+    val title = when (val current = page) {
+        SelectionToolbarSettingsPage.Overview ->
+            if (es) "Barra de selección" else "Selection toolbar"
+        SelectionToolbarSettingsPage.Size ->
+            if (es) "Tamaño y posición" else "Size and position"
+        SelectionToolbarSettingsPage.QuickActions ->
+            if (es) "Accesos rápidos" else "Quick actions"
+        is SelectionToolbarSettingsPage.Group ->
+            selectionActionGroupSettingsTitle(current.id, settings.displayLanguage)
+    }
+    val subtitle = when (page) {
+        SelectionToolbarSettingsPage.Overview ->
+            if (es) "Configura visibilidad y comportamiento." else "Configure visibility and behavior."
+        SelectionToolbarSettingsPage.Size ->
+            if (es) "Ajusta las dimensiones de la barra." else "Adjust the toolbar dimensions."
+        SelectionToolbarSettingsPage.QuickActions ->
+            if (es) "Elige, ordena y configura las herramientas." else "Choose, reorder and configure tools."
+        is SelectionToolbarSettingsPage.Group ->
+            if (es) "Personaliza este grupo y sus opciones." else "Customize this group and its options."
+    }
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
@@ -1467,20 +1512,24 @@ private fun SelectionToolbarSettingsDialog(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 20.dp, top = 12.dp, end = 8.dp, bottom = 8.dp),
+                        .padding(start = 8.dp, top = 12.dp, end = 8.dp, bottom = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    if (page != SelectionToolbarSettingsPage.Overview) {
+                        IconButton(onClick = ::goBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back"))
+                        }
+                    } else {
+                        Spacer(Modifier.width(12.dp))
+                    }
                     Column(Modifier.weight(1f)) {
                         Text(
-                            tr("Selection toolbar"),
+                            title,
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.SemiBold,
                         )
                         Text(
-                            tr(
-                                "Configure visibility, size and quick actions.",
-                                "Configura visibilidad, tamaño y accesos rápidos.",
-                            ),
+                            subtitle,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -1490,46 +1539,151 @@ private fun SelectionToolbarSettingsDialog(
                     }
                 }
                 HorizontalDivider()
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 680.dp),
-                    contentPadding = PaddingValues(bottom = 16.dp),
-                ) {
-                    item {
-                        ListItem(
-                            headlineContent = { Text(tr("Selection toolbar")) },
-                            supportingContent = {
-                                Text(tr("Show quick text transformations when you select editable text"))
-                            },
-                            leadingContent = { Icon(Icons.Default.TextFields, null) },
-                            trailingContent = {
-                                Switch(
-                                    checked = settings.selectionToolbarEnabled,
-                                    onCheckedChange = onEnabledChanged,
+
+                when (val current = page) {
+                    SelectionToolbarSettingsPage.Overview -> {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 680.dp),
+                            contentPadding = PaddingValues(bottom = 12.dp),
+                        ) {
+                            item {
+                                ListItem(
+                                    headlineContent = { Text(tr("Selection toolbar")) },
+                                    supportingContent = {
+                                        Text(tr("Show quick text transformations when you select editable text"))
+                                    },
+                                    leadingContent = { Icon(Icons.Default.TextFields, null) },
+                                    trailingContent = {
+                                        Switch(
+                                            checked = settings.selectionToolbarEnabled,
+                                            onCheckedChange = onEnabledChanged,
+                                        )
+                                    },
                                 )
-                            },
-                        )
-                    }
-                    if (settings.selectionToolbarEnabled) {
-                        item {
-                            SelectionToolbarSizeSetting(
-                                widthFraction = settings.selectionToolbarWidthFraction,
-                                heightDp = settings.selectionToolbarHeightDp,
-                                onWidthChanged = onWidthChanged,
-                                onHeightChanged = onHeightChanged,
-                                onReset = onResetLayout,
-                            )
+                            }
+                            if (settings.selectionToolbarEnabled) {
+                                item { HorizontalDivider() }
+                                item {
+                                    ListItem(
+                                        headlineContent = {
+                                            Text(if (es) "Tamaño y posición" else "Size and position")
+                                        },
+                                        supportingContent = {
+                                            Text(
+                                                "${(settings.selectionToolbarWidthFraction * 100).roundToInt()}% · " +
+                                                    "${settings.selectionToolbarHeightDp} dp",
+                                            )
+                                        },
+                                        leadingContent = { Icon(Icons.Default.Tune, null) },
+                                        trailingContent = {
+                                            Text(
+                                                "›",
+                                                style = MaterialTheme.typography.headlineSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        },
+                                        modifier = Modifier.clickable {
+                                            page = SelectionToolbarSettingsPage.Size
+                                        },
+                                    )
+                                }
+                                item {
+                                    val summary = settings.selectionToolbarQuickActionIds
+                                        .joinToString(" · ") { id ->
+                                            toolbarQuickActionLabel(
+                                                id,
+                                                settings.displayLanguage,
+                                                settings.selectionActionGroupConfigs,
+                                            )
+                                        }
+                                        .ifBlank {
+                                            if (es) "Sin accesos rápidos" else "No quick actions"
+                                        }
+                                    ListItem(
+                                        headlineContent = {
+                                            Text(if (es) "Accesos rápidos" else "Quick actions")
+                                        },
+                                        supportingContent = { Text(summary) },
+                                        leadingContent = { Icon(Icons.Default.Settings, null) },
+                                        trailingContent = {
+                                            Text(
+                                                "›",
+                                                style = MaterialTheme.typography.headlineSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        },
+                                        modifier = Modifier.clickable {
+                                            page = SelectionToolbarSettingsPage.QuickActions
+                                        },
+                                    )
+                                }
+                            }
                         }
-                        item {
-                            SelectionToolbarQuickActionsSetting(
-                                actionIds = settings.selectionToolbarQuickActionIds,
-                                groupConfigs = settings.selectionActionGroupConfigs,
-                                language = settings.displayLanguage,
-                                onChanged = onQuickActionsChanged,
-                                onGroupConfigChanged = onGroupConfigChanged,
-                                onResetGroupConfig = onResetGroupConfig,
-                            )
+                    }
+
+                    SelectionToolbarSettingsPage.Size -> {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 680.dp),
+                            contentPadding = PaddingValues(vertical = 12.dp),
+                        ) {
+                            item {
+                                SelectionToolbarSizeSetting(
+                                    widthFraction = settings.selectionToolbarWidthFraction,
+                                    heightDp = settings.selectionToolbarHeightDp,
+                                    onWidthChanged = onWidthChanged,
+                                    onHeightChanged = onHeightChanged,
+                                    onReset = onResetLayout,
+                                )
+                            }
+                        }
+                    }
+
+                    SelectionToolbarSettingsPage.QuickActions -> {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 680.dp),
+                            contentPadding = PaddingValues(vertical = 12.dp),
+                        ) {
+                            item {
+                                SelectionToolbarQuickActionsSetting(
+                                    actionIds = settings.selectionToolbarQuickActionIds,
+                                    groupConfigs = settings.selectionActionGroupConfigs,
+                                    language = settings.displayLanguage,
+                                    onChanged = onQuickActionsChanged,
+                                    onOpenGroup = { groupId ->
+                                        page = SelectionToolbarSettingsPage.Group(groupId)
+                                    },
+                                )
+                            }
+                        }
+                    }
+
+                    is SelectionToolbarSettingsPage.Group -> {
+                        val groupConfig = settings.selectionActionGroupConfigs[current.id]
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 680.dp),
+                            contentPadding = PaddingValues(vertical = 12.dp),
+                        ) {
+                            if (groupConfig != null) {
+                                item {
+                                    SelectionActionGroupSetting(
+                                        groupId = current.id,
+                                        config = groupConfig,
+                                        language = settings.displayLanguage,
+                                        onChanged = { updated ->
+                                            onGroupConfigChanged(current.id, updated)
+                                        },
+                                        onReset = { onResetGroupConfig(current.id) },
+                                    )
+                                }
+                            }
                         }
                     }
                 }
