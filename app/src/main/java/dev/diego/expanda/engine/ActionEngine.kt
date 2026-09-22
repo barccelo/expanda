@@ -329,7 +329,11 @@ class ActionEngine {
         private fun titleCase(value: String): String = buildString(value.length) {
             var boundary = true
             value.forEach { char ->
-                append(if (boundary && char.isLetter()) char.titlecaseChar() else char)
+                if (char.isLetter()) {
+                    append(if (boundary) char.titlecaseChar() else char.lowercaseChar())
+                } else {
+                    append(char)
+                }
                 boundary = !char.isLetterOrDigit()
             }
         }
