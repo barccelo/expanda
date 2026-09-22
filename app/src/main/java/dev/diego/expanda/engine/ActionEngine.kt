@@ -43,6 +43,7 @@ sealed interface ActionRequest {
     data class Share(val text: String) : ActionRequest
     data object ToggleSuggestions : ActionRequest
     data object OpenNewSnippet : ActionRequest
+    data object OpenVault : ActionRequest
 }
 
 data class ActionOutcome(
@@ -257,6 +258,7 @@ class ActionEngine {
             "share" -> outcome(request = ActionRequest.Share(withoutCommand))
             "toggle_suggestions" -> outcome(request = ActionRequest.ToggleSuggestions)
             "new_snippet" -> outcome(request = ActionRequest.OpenNewSnippet)
+            "open_vault" -> outcome(request = ActionRequest.OpenVault)
             else -> null
         }
     }
@@ -360,6 +362,14 @@ class ActionEngine {
             ActionDefinition("cut_after", ",xa", "Cut after cursor", ActionCategory.CLIPBOARD, "Cut from cursor to end"),
             ActionDefinition("share", ",sh", "Share", ActionCategory.ANDROID, "Open Android's share sheet"),
             ActionDefinition("new_snippet", ",ns", "New snippet", ActionCategory.EXPANDA, "Open Expanda's new snippet editor"),
+            ActionDefinition(
+                "open_vault",
+                " vv",
+                "Open vault",
+                ActionCategory.EXPANDA,
+                "Open the encrypted Expanda vault",
+                enabledByDefault = true,
+            ),
             ActionDefinition("clipboard_history", ",ch", "Insert clipboard", ActionCategory.EXPANDA, "Insert the latest copied text"),
             ActionDefinition("toggle_suggestions", ",sg", "Toggle suggestions", ActionCategory.EXPANDA, "Enable or disable the suggestion overlay"),
         )
