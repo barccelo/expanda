@@ -21,6 +21,7 @@ import android.graphics.Rect
 import android.text.InputType
 import android.text.SpannableString
 import android.text.Spanned
+import android.text.TextUtils
 import android.text.style.ForegroundColorSpan
 import android.text.style.BackgroundColorSpan
 import android.util.Log
@@ -1021,7 +1022,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         action: SelectionToolbarAction,
         settings: AppSettings,
     ): View.OnTouchListener {
-        val actionIds = action.groupActionIds
+        val actionIds = action.groupActionIds.distinct()
         val touchSlop = ViewConfiguration.get(this).scaledTouchSlop
         val ui = OverlayViews(this, resolveNativeTheme(this, settings))
         var downX = 0f
@@ -1029,14 +1030,26 @@ class ExpansionAccessibilityService : AccessibilityService() {
         var moved = false
         var dragMenuActive = false
         var longPressTask: Runnable? = null
-        var menuParams: WindowManager.LayoutParams? = null
         var menuScreenBounds: Rect? = null
         var optionViews: List<TextView> = emptyList()
         var hoveredIndex = -1
+        var menuColumns = 1
+        var menuRows = 1
+        var menuRowHeight = dp(48)
 
         fun cancelLongPress() {
             longPressTask?.let(mainHandler::removeCallbacks)
             longPressTask = null
+        }
+
+        fun clearDragMenuState() {
+            hideSelectionGroupOverlay()
+            dragMenuActive = false
+            menuScreenBounds = null
+            optionViews = emptyList()
+            hoveredIndex = -1
+            menuColumns = 1
+            menuRows = 1
         }
 
         fun updateHighlight(index: Int) {
@@ -1063,68 +1076,133 @@ class ExpansionAccessibilityService : AccessibilityService() {
         }
 
         fun showDragMenu() {
+            val toolbarView = selectionToolbar ?: return
+            val toolbarParams = selectionToolbarWindowParams ?: return
             if (actionIds.isEmpty() || selectionToolbarState == null) return
+
             hideSelectionGroupOverlay()
             val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
             val bounds = displayBounds(windowManager)
-            val menuHeight = dp(52)
             val horizontalMargin = dp(8)
-            val availableWidth = (bounds.width() - horizontalMargin * 2).coerceAtLeast(dp(160))
-            val desiredWidth = maxOf(
-                dp(248),
-                dp(52) * actionIds.size + dp(8),
+            val outerPadding = dp(4)
+            val targetCellWidth = dp(56)
+            val minimumCellWidth = dp(48)
+            menuRowHeight = dp(48)
+
+            val availableWidth = (bounds.width() - horizontalMargin * 2)
+                .coerceAtLeast(minimumCellWidth + outerPadding * 2)
+            val maxColumns = ((availableWidth - outerPadding * 2) / minimumCellWidth)
+                .coerceAtLeast(1)
+            val balancedRows = ((actionIds.size + maxColumns - 1) / maxColumns)
+                .coerceAtLeast(1)
+            menuColumns = ((actionIds.size + balancedRows - 1) / balancedRows)
+                .coerceAtLeast(1)
+            menuRows = ((actionIds.size + menuColumns - 1) / menuColumns)
+                .coerceAtLeast(1)
+
+            val desiredWidth = menuColumns * targetCellWidth + outerPadding * 2
+            val menuWidth = minOf(
+                availableWidth,
+                maxOf(dp(200), desiredWidth),
             )
-            val menuWidth = minOf(desiredWidth, availableWidth)
-            val optionWidth = (menuWidth - dp(8)) / actionIds.size.coerceAtLeast(1)
+            val innerWidth = (menuWidth - outerPadding * 2).coerceAtLeast(menuColumns)
+            val optionWidth = (innerWidth / menuColumns).coerceAtLeast(1)
+            val menuHeight = menuRows * menuRowHeight + outerPadding * 2
+
             val root = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
+                orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
-                setPadding(dp(4), dp(4), dp(4), dp(4))
+                setPadding(outerPadding, outerPadding, outerPadding, outerPadding)
                 background = ui.panel(14)
                 elevation = dp(10).toFloat()
             }
-            optionViews = actionIds.map { actionId ->
-                ui.body(
-                    action.groupActionLabels[actionId] ?: selectionQuickLabel(actionId),
-                    sizeSp = 14f,
-                ).apply {
-                    gravity = Gravity.CENTER
-                    maxLines = 1
-                    background = ui.surface(10)
-                    contentDescription = selectionActionTitle(
-                        actionId,
-                        settings,
-                        ActionEngine.definitions.firstOrNull { it.id == actionId }?.title.orEmpty(),
-                    )
-                    root.addView(
-                        this,
+
+            val builtViews = mutableListOf<TextView>()
+            actionIds.chunked(menuColumns).forEach { rowActionIds ->
+                val row = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                }
+                root.addView(
+                    row,
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        menuRowHeight,
+                    ),
+                )
+                rowActionIds.forEachIndexed { columnIndex, actionId ->
+                    val option = ui.body(
+                        action.groupActionLabels[actionId] ?: selectionQuickLabel(actionId),
+                        sizeSp = when {
+                            optionWidth < dp(44) -> 11.5f
+                            optionWidth < dp(52) -> 12.5f
+                            else -> 14f
+                        },
+                    ).apply {
+                        gravity = Gravity.CENTER
+                        maxLines = 1
+                        ellipsize = TextUtils.TruncateAt.END
+                        alpha = 0.82f
+                        background = ui.surface(10)
+                        contentDescription = selectionActionTitle(
+                            actionId,
+                            settings,
+                            ActionEngine.definitions.firstOrNull { it.id == actionId }?.title.orEmpty(),
+                        )
+                    }
+                    builtViews += option
+                    row.addView(
+                        option,
                         LinearLayout.LayoutParams(
                             optionWidth,
                             LinearLayout.LayoutParams.MATCH_PARENT,
-                        ).apply { marginEnd = dp(2) },
+                        ).apply {
+                            if (columnIndex < rowActionIds.lastIndex) marginEnd = dp(2)
+                        },
                     )
                 }
             }
+            optionViews = builtViews
 
-            val toolbarParams = selectionToolbarWindowParams ?: return
-            val toolbarView = selectionToolbar ?: return
-            val centerX = toolbarParams.x + button.left + button.width / 2
-            val x = (centerX - menuWidth / 2).coerceIn(
+            // Convert the button's real screen center back into accessibility-overlay
+            // coordinates. This stays correct even if the toolbar layout becomes nested.
+            val toolbarScreenLocation = IntArray(2)
+            val buttonScreenLocation = IntArray(2)
+            toolbarView.getLocationOnScreen(toolbarScreenLocation)
+            button.getLocationOnScreen(buttonScreenLocation)
+            val screenOffsetX = toolbarScreenLocation[0] - toolbarParams.x
+            val screenOffsetY = toolbarScreenLocation[1] - toolbarParams.y
+            val buttonCenterOverlayX =
+                buttonScreenLocation[0] + button.width / 2 - screenOffsetX
+
+            val x = (buttonCenterOverlayX - menuWidth / 2).coerceIn(
                 horizontalMargin,
                 (bounds.width() - menuWidth - horizontalMargin).coerceAtLeast(horizontalMargin),
             )
+
             val top = safeTop()
             val bottom = safeBottom(bounds)
             val edgeGap = dp(2)
             val toolbarTop = toolbarParams.y
-            val toolbarBottom = toolbarParams.y + toolbarView.height.coerceAtLeast(toolbarParams.height)
-            val aboveY = toolbarTop - menuHeight - edgeGap
-            val belowY = toolbarBottom + edgeGap
-            val y = if (aboveY >= top) {
-                aboveY
-            } else {
-                belowY.coerceAtMost((bottom - menuHeight).coerceAtLeast(top))
+            val toolbarBottom = toolbarParams.y +
+                toolbarView.height.coerceAtLeast(toolbarParams.height)
+            val roomAbove = (toolbarTop - edgeGap - top).coerceAtLeast(0)
+            val roomBelow = (bottom - toolbarBottom - edgeGap).coerceAtLeast(0)
+            val placeAbove = when {
+                roomAbove >= menuHeight -> true
+                roomBelow >= menuHeight -> false
+                else -> roomAbove >= roomBelow
             }
+            val unclampedY = if (placeAbove) {
+                toolbarTop - menuHeight - edgeGap
+            } else {
+                toolbarBottom + edgeGap
+            }
+            val y = unclampedY.coerceIn(
+                top,
+                (bottom - menuHeight).coerceAtLeast(top),
+            )
+
             val params = WindowManager.LayoutParams(
                 menuWidth,
                 menuHeight,
@@ -1139,13 +1217,6 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 this.y = y
             }
 
-            // WindowManager overlay coordinates can be offset from MotionEvent.rawX/rawY
-            // by system bars. Calibrate against the already-visible selection toolbar,
-            // which lives in the same overlay coordinate space.
-            val toolbarScreenLocation = IntArray(2)
-            toolbarView.getLocationOnScreen(toolbarScreenLocation)
-            val screenOffsetX = toolbarScreenLocation[0] - toolbarParams.x
-            val screenOffsetY = toolbarScreenLocation[1] - toolbarParams.y
             menuScreenBounds = Rect(
                 x + screenOffsetX,
                 y + screenOffsetY,
@@ -1156,16 +1227,11 @@ class ExpansionAccessibilityService : AccessibilityService() {
             runCatching {
                 windowManager.addView(root, params)
                 selectionGroupOverlay = root
-                menuParams = params
                 dragMenuActive = true
                 if (settings.hapticFeedback) vibrate()
             }.onFailure {
                 Log.w(TAG, "Could not show selection group drag menu", it)
-                selectionGroupOverlay = null
-                menuParams = null
-                menuScreenBounds = null
-                optionViews = emptyList()
-                dragMenuActive = false
+                clearDragMenuState()
             }
         }
 
@@ -1180,15 +1246,29 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 return -1
             }
 
-            val innerLeft = bounds.left + dp(4)
-            val innerRight = bounds.right - dp(4)
-            val innerWidth = (innerRight - innerLeft).coerceAtLeast(1)
-            if (rawX < innerLeft || rawX >= innerRight) return -1
+            val outerPadding = dp(4)
+            val innerLeft = bounds.left + outerPadding
+            val innerRight = bounds.right - outerPadding
+            val innerTop = bounds.top + outerPadding
+            val innerBottom = bounds.bottom - outerPadding
+            if (rawX < innerLeft || rawX >= innerRight || innerBottom <= innerTop) return -1
 
+            val innerWidth = (innerRight - innerLeft).coerceAtLeast(1)
             val relativeX = rawX - innerLeft
-            return ((relativeX / innerWidth) * actionIds.size)
+            val column = ((relativeX / innerWidth) * menuColumns)
                 .toInt()
-                .coerceIn(0, actionIds.lastIndex)
+                .coerceIn(0, menuColumns - 1)
+
+            val clampedY = rawY.coerceIn(
+                innerTop.toFloat(),
+                (innerBottom - 1).coerceAtLeast(innerTop).toFloat(),
+            )
+            val row = ((clampedY - innerTop) / menuRowHeight)
+                .toInt()
+                .coerceIn(0, menuRows - 1)
+
+            val index = row * menuColumns + column
+            return index.takeIf { it in actionIds.indices } ?: -1
         }
 
         return View.OnTouchListener { _, event ->
@@ -1197,8 +1277,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     downX = event.rawX
                     downY = event.rawY
                     moved = false
-                    dragMenuActive = false
-                    hoveredIndex = -1
+                    clearDragMenuState()
                     cancelLongPress()
                     val task = Runnable { showDragMenu() }
                     longPressTask = task
@@ -1208,7 +1287,11 @@ class ExpansionAccessibilityService : AccessibilityService() {
 
                 MotionEvent.ACTION_MOVE -> {
                     if (dragMenuActive) {
-                        updateHighlight(hoverFor(event.rawX, event.rawY))
+                        if (selectionToolbarState == null || selectionGroupOverlay == null) {
+                            clearDragMenuState()
+                        } else {
+                            updateHighlight(hoverFor(event.rawX, event.rawY))
+                        }
                     } else if (!moved &&
                         (kotlin.math.abs(event.rawX - downX) > touchSlop ||
                             kotlin.math.abs(event.rawY - downY) > touchSlop)
@@ -1223,12 +1306,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     cancelLongPress()
                     if (dragMenuActive) {
                         val index = hoverFor(event.rawX, event.rawY)
-                        hideSelectionGroupOverlay()
-                        dragMenuActive = false
-                        menuParams = null
-                        menuScreenBounds = null
-                        optionViews = emptyList()
-                        hoveredIndex = -1
+                        clearDragMenuState()
                         if (index in actionIds.indices) {
                             runSelectionTool(actionIds[index])
                         }
@@ -1238,14 +1316,12 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     true
                 }
 
-                MotionEvent.ACTION_CANCEL -> {
+                MotionEvent.ACTION_CANCEL,
+                MotionEvent.ACTION_OUTSIDE,
+                MotionEvent.ACTION_POINTER_DOWN -> {
                     cancelLongPress()
-                    hideSelectionGroupOverlay()
-                    dragMenuActive = false
-                    menuParams = null
-                    menuScreenBounds = null
-                    optionViews = emptyList()
-                    hoveredIndex = -1
+                    moved = true
+                    clearDragMenuState()
                     true
                 }
 
