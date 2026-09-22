@@ -62,6 +62,37 @@ class ActionEngineTest {
         assertEquals("HELLO", engine.execute(ActionContext("hello;up", 8), enabled, overrides)?.text)
     }
 
+    @Test fun `actions accept multiple trigger aliases and prefer the longest match`() {
+        val enabled = setOf("uppercase")
+        val triggers = mapOf("uppercase" to listOf(",uu", ";up", " up"))
+
+        assertEquals(
+            "HELLO",
+            engine.execute(
+                ActionContext("hello;up", "hello;up".length),
+                enabledActionIds = enabled,
+                triggerOverrides = triggers,
+            )?.text,
+        )
+        assertEquals(
+            "HELLO",
+            engine.execute(
+                ActionContext("hello up", "hello up".length),
+                enabledActionIds = enabled,
+                triggerOverrides = triggers,
+            )?.text,
+        )
+
+        val overlapping = mapOf("uppercase" to listOf("up", ";up"))
+        val result = engine.execute(
+            ActionContext("hello;up", "hello;up".length),
+            enabledActionIds = enabled,
+            triggerOverrides = overlapping,
+        )
+        assertEquals("HELLO", result?.text)
+        assertEquals(";up", result?.matchedTrigger)
+    }
+
     @Test fun `typing actions are declared opt in by default`() {
         assertEquals(true, ActionEngine.definitions.all { !it.enabledByDefault })
     }
