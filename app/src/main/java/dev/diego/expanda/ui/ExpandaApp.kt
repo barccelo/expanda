@@ -172,6 +172,7 @@ import dev.diego.expanda.data.ThemeMode
 import dev.diego.expanda.data.ColorSchemeMode
 import dev.diego.expanda.data.DisplayLanguage
 import dev.diego.expanda.data.SettingsRepository
+import dev.diego.expanda.data.SelectionActionGroupConfig
 import dev.diego.expanda.data.SnippetSortMode
 import dev.diego.expanda.data.TemplateSelectionMode
 import dev.diego.expanda.data.TemplateVariable
@@ -1317,6 +1318,8 @@ private fun SettingsScreen(
                 onHeightChanged = viewModel::setSelectionToolbarHeightDp,
                 onResetLayout = viewModel::resetSelectionToolbarLayout,
                 onQuickActionsChanged = viewModel::setSelectionToolbarQuickActionIds,
+                onGroupConfigChanged = viewModel::setSelectionActionGroupConfig,
+                onResetGroupConfig = viewModel::resetSelectionActionGroupConfig,
             )
         }
         if (showGlobalAppPicker) AppExclusionPicker(
@@ -1443,6 +1446,8 @@ private fun SelectionToolbarSettingsDialog(
     onHeightChanged: (Int) -> Unit,
     onResetLayout: () -> Unit,
     onQuickActionsChanged: (List<String>) -> Unit,
+    onGroupConfigChanged: (String, SelectionActionGroupConfig) -> Unit,
+    onResetGroupConfig: (String) -> Unit,
 ) {
     Dialog(
         onDismissRequest = onDismiss,
@@ -1517,9 +1522,30 @@ private fun SelectionToolbarSettingsDialog(
                         item {
                             SelectionToolbarQuickActionsSetting(
                                 actionIds = settings.selectionToolbarQuickActionIds,
+                                groupConfigs = settings.selectionActionGroupConfigs,
                                 language = settings.displayLanguage,
                                 onChanged = onQuickActionsChanged,
                             )
+                        }
+                        settings.selectionActionGroupConfigs[
+                            SettingsRepository.SELECTION_CASE_GROUP_ID
+                        ]?.let { caseConfig ->
+                            item {
+                                SelectionActionGroupSetting(
+                                    groupId = SettingsRepository.SELECTION_CASE_GROUP_ID,
+                                    config = caseConfig,
+                                    language = settings.displayLanguage,
+                                    onChanged = { updated ->
+                                        onGroupConfigChanged(
+                                            SettingsRepository.SELECTION_CASE_GROUP_ID,
+                                            updated,
+                                        )
+                                    },
+                                    onReset = {
+                                        onResetGroupConfig(SettingsRepository.SELECTION_CASE_GROUP_ID)
+                                    },
+                                )
+                            }
                         }
                     }
                 }
@@ -1603,6 +1629,7 @@ private fun SelectionToolbarSizeSetting(
 @Composable
 private fun SelectionToolbarQuickActionsSetting(
     actionIds: List<String>,
+    groupConfigs: Map<String, SelectionActionGroupConfig>,
     language: DisplayLanguage,
     onChanged: (List<String>) -> Unit,
 ) {
@@ -1650,7 +1677,7 @@ private fun SelectionToolbarQuickActionsSetting(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         },
-                        headlineContent = { Text(toolbarQuickActionLabel(id, language)) },
+                        headlineContent = { Text(toolbarQuickActionLabel(id, language, groupConfigs)) },
                         supportingContent = {
                             Text(
                                 if (es) "Arrastra para cambiar la posición"
@@ -1712,7 +1739,7 @@ private fun SelectionToolbarQuickActionsSetting(
                 val canEnable = checked ||
                     workingOrder.size < SettingsRepository.MAX_SELECTION_TOOLBAR_QUICK_ACTIONS
                 ListItem(
-                    headlineContent = { Text(toolbarQuickActionLabel(id, language)) },
+                    headlineContent = { Text(toolbarQuickActionLabel(id, language, groupConfigs)) },
                     supportingContent = {
                         Text(toolbarQuickActionDescription(id, language))
                     },
@@ -1738,10 +1765,188 @@ private fun SelectionToolbarQuickActionsSetting(
     }
 }
 
-private fun toolbarQuickActionLabel(id: String, language: DisplayLanguage): String {
+@Composable
+private fun SelectionActionGroupSetting(
+    groupId: String,
+    config: SelectionActionGroupConfig,
+    language: DisplayLanguage,
+    onChanged: (SelectionActionGroupConfig) -> Unit,
+    onReset: () -> Unit,
+) {
+    val defaults = SettingsRepository.DEFAULT_SELECTION_ACTION_GROUP_CONFIGS[groupId] ?: return
+    val available = SettingsRepository.AVAILABLE_SELECTION_ACTION_GROUP_ACTIONS[groupId].orEmpty()
+    if (available.isEmpty()) return
+
+    var workingOrder by remember(config.actionOrder) { mutableStateOf(config.actionOrder) }
+    val reorderThresholdPx = with(LocalDensity.current) { 44.dp.toPx() }
+    val es = usesSpanish(language)
+
+    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+        Column(Modifier.padding(vertical = 10.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        if (es) "Grupo Case" else "Case group",
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    Text(
+                        if (es)
+                            "Personaliza el botón, el orden, los nombres y qué opciones aparecen."
+                        else
+                            "Customize the button, order, labels and which options appear.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                TextButton(onClick = onReset) {
+                    Text(if (es) "Restablecer" else "Reset")
+                }
+            }
+
+            OutlinedTextField(
+                value = config.label,
+                onValueChange = { value ->
+                    onChanged(
+                        config.copy(
+                            label = value.take(SettingsRepository.MAX_SELECTION_GROUP_LABEL_LENGTH),
+                        ),
+                    )
+                },
+                label = { Text(if (es) "Texto del botón principal" else "Main button label") },
+                supportingText = {
+                    Text(
+                        if (es)
+                            "Puede ser texto, un carácter o un símbolo."
+                        else
+                            "Use text, a character or a symbol.",
+                    )
+                },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+            )
+
+            HorizontalDivider(Modifier.padding(vertical = 6.dp))
+            Text(
+                if (es) "Elementos del submenú" else "Submenu items",
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            )
+            Text(
+                if (es)
+                    "Mantén pulsado y arrastra para reordenar. Puedes ocultar o renombrar cada acción."
+                else
+                    "Long-press and drag to reorder. Each action can be hidden or renamed.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
+            )
+
+            workingOrder.forEach { actionId ->
+                var dragDistance by remember(actionId) { mutableFloatStateOf(0f) }
+                val enabled = actionId in config.enabledActionIds
+                val displayLabel = config.actionLabels[actionId]
+                    ?: defaults.actionLabels[actionId].orEmpty()
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .pointerInput(actionId, workingOrder.size) {
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = { dragDistance = 0f },
+                                onDragCancel = {
+                                    dragDistance = 0f
+                                    workingOrder = config.actionOrder
+                                },
+                                onDragEnd = {
+                                    dragDistance = 0f
+                                    onChanged(config.copy(actionOrder = workingOrder))
+                                },
+                                onDrag = { _, dragAmount ->
+                                    dragDistance += dragAmount.y
+                                    val index = workingOrder.indexOf(actionId)
+                                    when {
+                                        dragDistance > reorderThresholdPx &&
+                                            index >= 0 &&
+                                            index < workingOrder.lastIndex -> {
+                                            val reordered = workingOrder.toMutableList()
+                                            reordered[index] = reordered[index + 1]
+                                            reordered[index + 1] = actionId
+                                            workingOrder = reordered
+                                            dragDistance -= reorderThresholdPx
+                                        }
+                                        dragDistance < -reorderThresholdPx && index > 0 -> {
+                                            val reordered = workingOrder.toMutableList()
+                                            reordered[index] = reordered[index - 1]
+                                            reordered[index - 1] = actionId
+                                            workingOrder = reordered
+                                            dragDistance += reorderThresholdPx
+                                        }
+                                    }
+                                },
+                            )
+                        },
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Text(
+                            "≡",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                toolbarQuickActionLabel(actionId, language),
+                                style = MaterialTheme.typography.labelLarge,
+                            )
+                            Text(
+                                toolbarQuickActionDescription(actionId, language),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Switch(
+                            checked = enabled,
+                            onCheckedChange = { checked ->
+                                val enabledIds = config.enabledActionIds.toMutableSet()
+                                if (checked) enabledIds += actionId else enabledIds -= actionId
+                                onChanged(config.copy(enabledActionIds = enabledIds))
+                            },
+                        )
+                    }
+                    OutlinedTextField(
+                        value = displayLabel,
+                        onValueChange = { value ->
+                            val labels = config.actionLabels.toMutableMap()
+                            labels[actionId] =
+                                value.take(SettingsRepository.MAX_SELECTION_GROUP_LABEL_LENGTH)
+                            onChanged(config.copy(actionLabels = labels))
+                        },
+                        label = { Text(if (es) "Etiqueta visible" else "Visible label") },
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 52.dp, end = 16.dp, bottom = 8.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun toolbarQuickActionLabel(
+    id: String,
+    language: DisplayLanguage,
+    groupConfigs: Map<String, SelectionActionGroupConfig> = emptyMap(),
+): String {
     val es = usesSpanish(language)
     return when (id) {
-        SettingsRepository.SELECTION_CASE_GROUP_ID -> if (es) "Mayúsculas/minúsculas" else "Letter case"
+        SettingsRepository.SELECTION_CASE_GROUP_ID ->
+            groupConfigs[id]?.label ?: if (es) "Mayúsculas/minúsculas" else "Letter case"
         "uppercase" -> if (es) "Mayúsculas" else "Uppercase"
         "lowercase" -> if (es) "Minúsculas" else "Lowercase"
         "sentence_case" -> if (es) "Tipo oración" else "Sentence case"
