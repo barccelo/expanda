@@ -43,7 +43,7 @@ data class MainUiState(
     val settings: AppSettings = AppSettings(),
     val clipboardEntries: List<ClipboardEntry> = emptyList(),
     val enabledActionIds: Set<String> = emptySet(),
-    val actionShortcutOverrides: Map<String, String> = emptyMap(),
+    val actionTriggerOverrides: Map<String, List<String>> = emptyMap(),
     val matchesLoaded: Boolean = false,
     val onboarding: OnboardingState = OnboardingState(),
     val search: String = "",
@@ -103,8 +103,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val actionSettings = combine(
         actionSettingsStore.enabledIds,
-        actionSettingsStore.shortcutOverrides,
-    ) { enabledIds, shortcutOverrides -> enabledIds to shortcutOverrides }
+        actionSettingsStore.triggerOverrides,
+    ) { enabledIds, triggerOverrides -> enabledIds to triggerOverrides }
 
     private val matchContent = combine(
         repository.matches,
@@ -124,7 +124,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             settings = settings,
             clipboardEntries = clipboard,
             enabledActionIds = actions.first,
-            actionShortcutOverrides = actions.second,
+            actionTriggerOverrides = actions.second,
             matchesLoaded = content.second,
             onboarding = content.third,
             search = search,
@@ -289,6 +289,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
     fun setActionEnabled(id: String, enabled: Boolean) = actionSettingsStore.setEnabled(id, enabled)
     fun setAllActionsEnabled(enabled: Boolean) = actionSettingsStore.setAllEnabled(enabled)
+    fun setActionTriggers(id: String, triggers: List<String>) = actionSettingsStore.setTriggers(id, triggers)
+    fun resetActionTriggers(id: String) = actionSettingsStore.resetTriggers(id)
     fun setActionShortcut(id: String, shortcut: String) = actionSettingsStore.setShortcut(id, shortcut)
     fun resetActionShortcut(id: String) = actionSettingsStore.resetShortcut(id)
     fun pauseFor(durationMillis: Long) = viewModelScope.launch { settingsRepository.pauseFor(durationMillis) }
@@ -320,6 +322,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         BackupCodec.ActionSnapshot(
             enabledIds = actionSettingsStore.enabledIds.value,
             shortcutOverrides = actionSettingsStore.shortcutOverrides.value,
+            triggerOverrides = actionSettingsStore.triggerOverrides.value,
         ),
         sourceRepository.files.value,
     )
