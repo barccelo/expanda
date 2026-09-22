@@ -1527,23 +1527,16 @@ private fun SelectionToolbarSettingsDialog(
                                 onChanged = onQuickActionsChanged,
                             )
                         }
-                        settings.selectionActionGroupConfigs[
-                            SettingsRepository.SELECTION_CASE_GROUP_ID
-                        ]?.let { caseConfig ->
+                        settings.selectionActionGroupConfigs.forEach { (groupId, groupConfig) ->
                             item {
                                 SelectionActionGroupSetting(
-                                    groupId = SettingsRepository.SELECTION_CASE_GROUP_ID,
-                                    config = caseConfig,
+                                    groupId = groupId,
+                                    config = groupConfig,
                                     language = settings.displayLanguage,
                                     onChanged = { updated ->
-                                        onGroupConfigChanged(
-                                            SettingsRepository.SELECTION_CASE_GROUP_ID,
-                                            updated,
-                                        )
+                                        onGroupConfigChanged(groupId, updated)
                                     },
-                                    onReset = {
-                                        onResetGroupConfig(SettingsRepository.SELECTION_CASE_GROUP_ID)
-                                    },
+                                    onReset = { onResetGroupConfig(groupId) },
                                 )
                             }
                         }
@@ -1789,7 +1782,7 @@ private fun SelectionActionGroupSetting(
             ) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        if (es) "Grupo Case" else "Case group",
+                        selectionActionGroupSettingsTitle(groupId, language),
                         style = MaterialTheme.typography.titleSmall,
                     )
                     Text(
@@ -1935,6 +1928,17 @@ private fun SelectionActionGroupSetting(
                 }
             }
         }
+    }
+}
+
+private fun selectionActionGroupSettingsTitle(
+    groupId: String,
+    language: DisplayLanguage,
+): String {
+    val es = usesSpanish(language)
+    return when (groupId) {
+        SettingsRepository.SELECTION_CASE_GROUP_ID -> if (es) "Grupo Case" else "Case group"
+        else -> if (es) "Grupo de acciones" else "Action group"
     }
 }
 
