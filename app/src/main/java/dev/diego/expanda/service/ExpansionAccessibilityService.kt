@@ -129,6 +129,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private var selectionToolbarValidation: Runnable? = null
     private var pendingSelectionToolbar: PendingSelectionToolbar? = null
     private var selectionToolbarShowTask: Runnable? = null
+    private var selectionGroupOverlay: View? = null
     private var suppressSelectionToolbarUntil = 0L
     private var programmaticSelectionUntil = 0L
     private val selectionUndoHistory = ArrayDeque<SelectionUndoEntry>()
@@ -780,10 +781,14 @@ class ExpansionAccessibilityService : AccessibilityService() {
         val fieldText = editableText(node)
         val toolbarActions = buildSelectionToolbarActions(settings)
         toolbarActions.forEach { action ->
-            val enabled = when (action.id) {
-                SELECTION_UNDO_ID -> canUndoSelection(anchor, fieldText)
-                SELECTION_TRANSFORMS_MENU_ID, SELECTION_MORE_MENU_ID -> true
-                in SELECTION_INTERACTIVE_ACTION_IDS -> selectedText.isNotEmpty()
+            val enabled = when {
+                action.id == SELECTION_UNDO_ID -> canUndoSelection(anchor, fieldText)
+                action.id == SELECTION_TRANSFORMS_MENU_ID || action.id == SELECTION_MORE_MENU_ID -> true
+                action.groupActionIds.isNotEmpty() -> action.groupActionIds.any { actionId ->
+                    actionEngine.processSelectedText(actionId, selectedText)
+                        ?.let { it != selectedText } == true
+                }
+                action.id in SELECTION_INTERACTIVE_ACTION_IDS -> selectedText.isNotEmpty()
                 else -> actionEngine.processSelectedText(action.id, selectedText)
                     ?.let { it != selectedText } == true
             }
@@ -798,21 +803,35 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 contentDescription = action.description
                 if (enabled) {
                     setOnClickListener {
-                        when (action.id) {
-                            SELECTION_UNDO_ID -> undoSelectionToolbarAction()
-                            SELECTION_TRANSFORMS_MENU_ID -> showSelectionActionMenu(
+                        when {
+                            action.id == SELECTION_UNDO_ID -> undoSelectionToolbarAction()
+                            action.id == SELECTION_TRANSFORMS_MENU_ID -> showSelectionActionMenu(
                                 title = selectionUiText(settings, "suggested"),
                                 actionIds = SELECTION_CONTEXT_ACTION_IDS,
                                 showAll = false,
                             )
-                            SELECTION_MORE_MENU_ID -> showSelectionActionMenu(
+                            action.id == SELECTION_MORE_MENU_ID -> showSelectionActionMenu(
                                 title = selectionUiText(settings, "all_tools"),
                                 actionIds = SELECTION_CATALOG_ACTION_IDS,
                                 showAll = true,
                             )
-                            in SELECTION_INTERACTIVE_ACTION_IDS -> runSelectionTool(action.id)
+                            action.groupActionIds.isNotEmpty() -> showSelectionActionMenu(
+                                title = action.description,
+                                actionIds = action.groupActionIds,
+                                showAll = false,
+                            )
+                            action.id in SELECTION_INTERACTIVE_ACTION_IDS -> runSelectionTool(action.id)
                             else -> applySelectionToolbarAction(action.id)
                         }
+                    }
+                    if (action.groupActionIds.isNotEmpty()) {
+                        setOnTouchListener(
+                            createSelectionToolbarGroupGestureListener(
+                                button = this,
+                                action = action,
+                                settings = settings,
+                            ),
+                        )
                     }
                 }
             }
@@ -890,14 +909,23 @@ class ExpansionAccessibilityService : AccessibilityService() {
 
     private fun buildSelectionToolbarActions(settings: AppSettings): List<SelectionToolbarAction> {
         val quick = settings.selectionToolbarQuickActionIds.mapNotNull { id ->
-            if (id in SELECTION_INTERACTIVE_ACTION_IDS) {
-                SelectionToolbarAction(
+            when {
+                id == SettingsRepository.SELECTION_CASE_GROUP_ID -> SelectionToolbarAction(
+                    id = id,
+                    label = "Aa",
+                    description = localizedSelectionUi(
+                        settings,
+                        "Letter case",
+                        "Mayúsculas/minúsculas",
+                    ),
+                    groupActionIds = SELECTION_CASE_ACTION_IDS,
+                )
+                id in SELECTION_INTERACTIVE_ACTION_IDS -> SelectionToolbarAction(
                     id = id,
                     label = selectionQuickLabel(id),
                     description = selectionActionTitle(id, settings, ""),
                 )
-            } else {
-                ActionEngine.definitions.firstOrNull { it.id == id }?.let { definition ->
+                else -> ActionEngine.definitions.firstOrNull { it.id == id }?.let { definition ->
                     SelectionToolbarAction(
                         id = id,
                         label = selectionQuickLabel(id),
@@ -957,6 +985,198 @@ class ExpansionAccessibilityService : AccessibilityService() {
         "number_period" -> "1.000"
         "number_comma" -> "1,000"
         else -> "•"
+    }
+
+    private fun createSelectionToolbarGroupGestureListener(
+        button: View,
+        action: SelectionToolbarAction,
+        settings: AppSettings,
+    ): View.OnTouchListener {
+        val actionIds = action.groupActionIds
+        val touchSlop = ViewConfiguration.get(this).scaledTouchSlop
+        val ui = OverlayViews(this, resolveNativeTheme(this, settings))
+        var downX = 0f
+        var downY = 0f
+        var moved = false
+        var dragMenuActive = false
+        var longPressTask: Runnable? = null
+        var menuParams: WindowManager.LayoutParams? = null
+        var optionViews: List<TextView> = emptyList()
+        var hoveredIndex = -1
+
+        fun cancelLongPress() {
+            longPressTask?.let(mainHandler::removeCallbacks)
+            longPressTask = null
+        }
+
+        fun updateHighlight(index: Int) {
+            if (index == hoveredIndex) return
+            hoveredIndex = index
+            optionViews.forEachIndexed { optionIndex, option ->
+                option.background = ui.surface(
+                    radiusDp = 10,
+                    emphasized = optionIndex == hoveredIndex,
+                )
+            }
+        }
+
+        fun showDragMenu() {
+            if (actionIds.isEmpty() || selectionToolbarState == null) return
+            hideSelectionGroupOverlay()
+            val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+            val bounds = displayBounds(windowManager)
+            val menuHeight = dp(52)
+            val horizontalMargin = dp(8)
+            val menuWidth = minOf(
+                dp(248),
+                (bounds.width() - horizontalMargin * 2).coerceAtLeast(dp(160)),
+            )
+            val optionWidth = (menuWidth - dp(8)) / actionIds.size.coerceAtLeast(1)
+            val root = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+                setPadding(dp(4), dp(4), dp(4), dp(4))
+                background = ui.panel(14)
+                elevation = dp(10).toFloat()
+            }
+            optionViews = actionIds.map { actionId ->
+                ui.body(selectionQuickLabel(actionId), sizeSp = 14f).apply {
+                    gravity = Gravity.CENTER
+                    maxLines = 1
+                    background = ui.surface(10)
+                    contentDescription = selectionActionTitle(
+                        actionId,
+                        settings,
+                        ActionEngine.definitions.firstOrNull { it.id == actionId }?.title.orEmpty(),
+                    )
+                    root.addView(
+                        this,
+                        LinearLayout.LayoutParams(
+                            optionWidth,
+                            LinearLayout.LayoutParams.MATCH_PARENT,
+                        ).apply { marginEnd = dp(2) },
+                    )
+                }
+            }
+
+            val location = IntArray(2)
+            button.getLocationOnScreen(location)
+            val centerX = location[0] + button.width / 2
+            val x = (centerX - menuWidth / 2).coerceIn(
+                horizontalMargin,
+                (bounds.width() - menuWidth - horizontalMargin).coerceAtLeast(horizontalMargin),
+            )
+            val top = safeTop()
+            val bottom = safeBottom(bounds)
+            val aboveY = location[1] - menuHeight - dp(8)
+            val belowY = location[1] + button.height + dp(8)
+            val y = if (aboveY >= top) {
+                aboveY
+            } else {
+                belowY.coerceAtMost((bottom - menuHeight).coerceAtLeast(top))
+            }
+            val params = WindowManager.LayoutParams(
+                menuWidth,
+                menuHeight,
+                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                PixelFormat.TRANSLUCENT,
+            ).apply {
+                gravity = Gravity.TOP or Gravity.START
+                this.x = x
+                this.y = y
+            }
+            runCatching {
+                windowManager.addView(root, params)
+                selectionGroupOverlay = root
+                menuParams = params
+                dragMenuActive = true
+                if (settings.hapticFeedback) vibrate()
+            }.onFailure {
+                Log.w(TAG, "Could not show selection group drag menu", it)
+                selectionGroupOverlay = null
+                menuParams = null
+                optionViews = emptyList()
+                dragMenuActive = false
+            }
+        }
+
+        fun hoverFor(rawX: Float, rawY: Float): Int {
+            val params = menuParams ?: return -1
+            if (rawX < params.x || rawX >= params.x + params.width ||
+                rawY < params.y || rawY >= params.y + params.height
+            ) {
+                return -1
+            }
+            val innerLeft = params.x + dp(4)
+            val innerWidth = (params.width - dp(8)).coerceAtLeast(1)
+            if (rawX < innerLeft || rawX >= innerLeft + innerWidth) return -1
+            return (((rawX - innerLeft) / innerWidth) * actionIds.size)
+                .toInt()
+                .coerceIn(0, actionIds.lastIndex)
+        }
+
+        return View.OnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downX = event.rawX
+                    downY = event.rawY
+                    moved = false
+                    dragMenuActive = false
+                    hoveredIndex = -1
+                    cancelLongPress()
+                    val task = Runnable { showDragMenu() }
+                    longPressTask = task
+                    mainHandler.postDelayed(task, SELECTION_GROUP_LONG_PRESS_MS)
+                    true
+                }
+
+                MotionEvent.ACTION_MOVE -> {
+                    if (dragMenuActive) {
+                        updateHighlight(hoverFor(event.rawX, event.rawY))
+                    } else if (!moved &&
+                        (kotlin.math.abs(event.rawX - downX) > touchSlop ||
+                            kotlin.math.abs(event.rawY - downY) > touchSlop)
+                    ) {
+                        moved = true
+                        cancelLongPress()
+                    }
+                    true
+                }
+
+                MotionEvent.ACTION_UP -> {
+                    cancelLongPress()
+                    if (dragMenuActive) {
+                        val index = hoverFor(event.rawX, event.rawY)
+                        hideSelectionGroupOverlay()
+                        dragMenuActive = false
+                        menuParams = null
+                        optionViews = emptyList()
+                        hoveredIndex = -1
+                        if (index in actionIds.indices) {
+                            runSelectionTool(actionIds[index])
+                        }
+                    } else if (!moved) {
+                        button.performClick()
+                    }
+                    true
+                }
+
+                MotionEvent.ACTION_CANCEL -> {
+                    cancelLongPress()
+                    hideSelectionGroupOverlay()
+                    dragMenuActive = false
+                    menuParams = null
+                    optionViews = emptyList()
+                    hoveredIndex = -1
+                    true
+                }
+
+                else -> false
+            }
+        }
     }
 
     private fun showSelectionActionMenu(
@@ -1632,7 +1852,18 @@ class ExpansionAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun hideSelectionGroupOverlay() {
+        val overlay = selectionGroupOverlay
+        selectionGroupOverlay = null
+        if (overlay != null) {
+            runCatching {
+                (getSystemService(WINDOW_SERVICE) as WindowManager).removeView(overlay)
+            }
+        }
+    }
+
     private fun hideSelectionToolbar() {
+        hideSelectionGroupOverlay()
         cancelPendingSelectionToolbar()
         cancelSelectionToolbarValidation()
         val overlay = selectionToolbar
@@ -3992,6 +4223,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
             val id: String,
             val label: String,
             val description: String,
+            val groupActionIds: List<String> = emptyList(),
         )
 
         private const val SELECTION_UNDO_ID = "__selection_undo__"
@@ -4002,6 +4234,14 @@ class ExpansionAccessibilityService : AccessibilityService() {
         private const val SELECTION_REPEAT_TEXT_ID = "repeat_text"
         private const val SELECTION_PREFIX_SUFFIX_ID = "prefix_suffix"
         private const val MAX_SELECTION_UNDO_HISTORY = 10
+        private const val SELECTION_GROUP_LONG_PRESS_MS = 320L
+
+        private val SELECTION_CASE_ACTION_IDS = listOf(
+            "title_case",
+            "uppercase",
+            "lowercase",
+            "sentence_case",
+        )
 
         private val SELECTION_INTERACTIVE_ACTION_IDS = setOf(
             SELECTION_FIND_REPLACE_ID,
