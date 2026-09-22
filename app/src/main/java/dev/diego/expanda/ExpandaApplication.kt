@@ -13,6 +13,7 @@ class ExpandaApplication : Application() {
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val database by lazy { ExpandaDatabase(this) }
     val matchRepository by lazy { MatchRepository(database) }
+    val vaultRepository by lazy { dev.diego.expanda.data.VaultRepository(database) }
     val clipboardRepository by lazy { dev.diego.expanda.data.ClipboardRepository(database) }
     val clipboardMonitor by lazy {
         ClipboardMonitor(
@@ -45,6 +46,7 @@ class ExpandaApplication : Application() {
         clipboardMonitor.start()
         applicationScope.launch {
             matchRepository.refresh()
+            vaultRepository.refresh()
             espansoSourceRepository.initialize()
             clipboardRepository.refresh()
             clipboardMonitor.capture()
