@@ -154,6 +154,16 @@ class ActionEngineTest {
         )
     }
 
+    @Test fun `open vault action consumes trigger and requests vault overlay`() {
+        val result = engine.execute(
+            ActionContext("dato vv", "dato vv".length),
+            enabledActionIds = setOf("open_vault"),
+        )
+        assertEquals("dato", result?.text)
+        assertEquals(ActionRequest.OpenVault, result?.request)
+        assertEquals(" vv", result?.matchedTrigger)
+    }
+
     @Test fun `typing actions are declared opt in by default`() {
         assertEquals(true, ActionEngine.definitions.all { !it.enabledByDefault })
     }
