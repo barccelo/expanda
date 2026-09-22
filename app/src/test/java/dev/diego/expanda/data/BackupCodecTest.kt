@@ -21,11 +21,26 @@ class BackupCodecTest {
             templateIndex = 9,
         )
 
+        val customCaseConfig = SelectionActionGroupConfig(
+            label = "A↕",
+            actionOrder = listOf("uppercase", "lowercase", "title_case", "sentence_case"),
+            enabledActionIds = setOf("uppercase", "title_case"),
+            actionLabels = mapOf(
+                "lowercase" to "min",
+                "sentence_case" to "Or.",
+                "uppercase" to "MAY",
+                "title_case" to "Tit",
+            ),
+        )
         val settings = AppSettings(
             themeMode = ThemeMode.AMOLED,
             textScale = 1.35f,
             globallyExcludedPackages = setOf("com.example.private"),
             globalVariables = listOf(TemplateVariable("name", "echo", """{"value":"Diego"}""")),
+            selectionToolbarQuickActionIds = emptyList(),
+            selectionActionGroupConfigs = mapOf(
+                SettingsRepository.SELECTION_CASE_GROUP_ID to customCaseConfig,
+            ),
             suggestionMaxHeightDp = 440,
             suggestionWidthFraction = 0.68f,
             suggestionResizeHandleEnabled = false,
@@ -55,6 +70,13 @@ class BackupCodecTest {
         assertEquals(440, decoded.settings?.suggestionMaxHeightDp)
         assertEquals(0.68f, decoded.settings?.suggestionWidthFraction)
         assertEquals(false, decoded.settings?.suggestionResizeHandleEnabled)
+        assertEquals(emptyList<String>(), decoded.settings?.selectionToolbarQuickActionIds)
+        assertEquals(
+            customCaseConfig,
+            decoded.settings?.selectionActionGroupConfigs?.get(
+                SettingsRepository.SELECTION_CASE_GROUP_ID,
+            ),
+        )
         assertEquals(actions, decoded.actions)
         assertEquals(sources, decoded.sourceFiles)
         assertFalse(root.getJSONObject("settings").has("suggestionPositionX"))
