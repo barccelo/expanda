@@ -109,6 +109,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
@@ -1627,7 +1628,7 @@ private fun SelectionToolbarQuickActionsSetting(
     onChanged: (List<String>) -> Unit,
 ) {
     var workingOrder by remember(actionIds) { mutableStateOf(actionIds) }
-    val reorderThresholdPx = with(LocalDensity.current) { 44.dp.toPx() }
+    val reorderThresholdPx = with(LocalDensity.current) { 32.dp.toPx() }
     val es = usesSpanish(language)
 
     Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
@@ -1661,63 +1662,65 @@ private fun SelectionToolbarQuickActionsSetting(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
                 )
                 workingOrder.forEach { id ->
-                    var dragDistance by remember(id) { mutableFloatStateOf(0f) }
-                    ListItem(
-                        leadingContent = {
-                            Text(
-                                "≡",
-                                style = MaterialTheme.typography.titleLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        },
-                        headlineContent = { Text(toolbarQuickActionLabel(id, language, groupConfigs)) },
-                        supportingContent = {
-                            Text(
-                                if (es) "Arrastra para cambiar la posición"
-                                else "Drag to change position",
-                            )
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .pointerInput(id, workingOrder.size) {
-                                detectDragGesturesAfterLongPress(
-                                    onDragStart = { dragDistance = 0f },
-                                    onDragCancel = {
-                                        dragDistance = 0f
-                                        workingOrder = actionIds
-                                    },
-                                    onDragEnd = {
-                                        dragDistance = 0f
-                                        onChanged(workingOrder)
-                                    },
-                                    onDrag = { _, dragAmount ->
-                                        dragDistance += dragAmount.y
-                                        val index = workingOrder.indexOf(id)
-                                        when {
-                                            dragDistance > reorderThresholdPx &&
-                                                index >= 0 &&
-                                                index < workingOrder.lastIndex -> {
-                                                val reordered = workingOrder.toMutableList()
-                                                val next = reordered[index + 1]
-                                                reordered[index + 1] = id
-                                                reordered[index] = next
-                                                workingOrder = reordered
-                                                dragDistance -= reorderThresholdPx
-                                            }
-
-                                            dragDistance < -reorderThresholdPx && index > 0 -> {
-                                                val reordered = workingOrder.toMutableList()
-                                                val previous = reordered[index - 1]
-                                                reordered[index - 1] = id
-                                                reordered[index] = previous
-                                                workingOrder = reordered
-                                                dragDistance += reorderThresholdPx
-                                            }
+                    key(id) {
+                        var dragDistance by remember(id) { mutableFloatStateOf(0f) }
+                        val dragHandleModifier = Modifier.pointerInput(id, workingOrder.size) {
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = { dragDistance = 0f },
+                                onDragCancel = {
+                                    dragDistance = 0f
+                                    onChanged(workingOrder)
+                                },
+                                onDragEnd = {
+                                    dragDistance = 0f
+                                    onChanged(workingOrder)
+                                },
+                                onDrag = { _, dragAmount ->
+                                    dragDistance += dragAmount.y
+                                    val index = workingOrder.indexOf(id)
+                                    when {
+                                        dragDistance > reorderThresholdPx &&
+                                            index >= 0 &&
+                                            index < workingOrder.lastIndex -> {
+                                            val reordered = workingOrder.toMutableList()
+                                            val next = reordered[index + 1]
+                                            reordered[index + 1] = id
+                                            reordered[index] = next
+                                            workingOrder = reordered
+                                            dragDistance -= reorderThresholdPx
                                         }
-                                    },
+
+                                        dragDistance < -reorderThresholdPx && index > 0 -> {
+                                            val reordered = workingOrder.toMutableList()
+                                            val previous = reordered[index - 1]
+                                            reordered[index - 1] = id
+                                            reordered[index] = previous
+                                            workingOrder = reordered
+                                            dragDistance += reorderThresholdPx
+                                        }
+                                    }
+                                },
+                            )
+                        }
+                        ListItem(
+                            leadingContent = {
+                                Text(
+                                    "≡",
+                                    modifier = dragHandleModifier,
+                                    style = MaterialTheme.typography.titleLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             },
-                    )
+                            headlineContent = { Text(toolbarQuickActionLabel(id, language, groupConfigs)) },
+                            supportingContent = {
+                                Text(
+                                    if (es) "Mantén pulsado ≡ y arrastra"
+                                    else "Long-press ≡ and drag",
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
                 }
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 Text(
