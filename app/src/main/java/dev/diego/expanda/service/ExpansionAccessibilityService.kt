@@ -1059,17 +1059,20 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 }
             }
 
-            val location = IntArray(2)
-            button.getLocationOnScreen(location)
-            val centerX = location[0] + button.width / 2
+            val toolbarParams = selectionToolbarWindowParams ?: return
+            val toolbarView = selectionToolbar ?: return
+            val centerX = toolbarParams.x + button.left + button.width / 2
             val x = (centerX - menuWidth / 2).coerceIn(
                 horizontalMargin,
                 (bounds.width() - menuWidth - horizontalMargin).coerceAtLeast(horizontalMargin),
             )
             val top = safeTop()
             val bottom = safeBottom(bounds)
-            val aboveY = location[1] - menuHeight - dp(8)
-            val belowY = location[1] + button.height + dp(8)
+            val edgeGap = dp(2)
+            val toolbarTop = toolbarParams.y
+            val toolbarBottom = toolbarParams.y + toolbarView.height.coerceAtLeast(toolbarParams.height)
+            val aboveY = toolbarTop - menuHeight - edgeGap
+            val belowY = toolbarBottom + edgeGap
             val y = if (aboveY >= top) {
                 aboveY
             } else {
