@@ -1770,12 +1770,10 @@ private fun SelectionToolbarQuickActionsSetting(
     groupConfigs: Map<String, SelectionActionGroupConfig>,
     language: DisplayLanguage,
     onChanged: (List<String>) -> Unit,
-    onGroupConfigChanged: (String, SelectionActionGroupConfig) -> Unit,
-    onResetGroupConfig: (String) -> Unit,
+    onOpenGroup: (String) -> Unit,
 ) {
     var workingOrder by remember(actionIds) { mutableStateOf(actionIds) }
     var draggingId by remember { mutableStateOf<String?>(null) }
-    var expandedGroupId by remember { mutableStateOf<String?>(null) }
     val reorderThresholdPx = with(LocalDensity.current) { 32.dp.toPx() }
     val es = usesSpanish(language)
 
@@ -1921,7 +1919,6 @@ private fun SelectionToolbarQuickActionsSetting(
                 val canEnable = checked ||
                     workingOrder.size < SettingsRepository.MAX_SELECTION_TOOLBAR_QUICK_ACTIONS
                 val groupConfig = groupConfigs[id]
-                val expanded = expandedGroupId == id
                 ListItem(
                     headlineContent = { Text(toolbarQuickActionLabel(id, language, groupConfigs)) },
                     supportingContent = {
@@ -1933,13 +1930,9 @@ private fun SelectionToolbarQuickActionsSetting(
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
                             if (groupConfig != null) {
-                                IconButton(
-                                    onClick = {
-                                        expandedGroupId = if (expanded) null else id
-                                    },
-                                ) {
+                                IconButton(onClick = { onOpenGroup(id) }) {
                                     Icon(
-                                        if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                        Icons.Default.Settings,
                                         if (es) "Configurar grupo" else "Configure group",
                                     )
                                 }
@@ -1961,16 +1954,6 @@ private fun SelectionToolbarQuickActionsSetting(
                         }
                     },
                 )
-                if (groupConfig != null && expanded) {
-                    SelectionActionGroupSetting(
-                        groupId = id,
-                        config = groupConfig,
-                        language = language,
-                        onChanged = { updated -> onGroupConfigChanged(id, updated) },
-                        onReset = { onResetGroupConfig(id) },
-                        nested = true,
-                    )
-                }
             }
         }
     }
