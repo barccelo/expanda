@@ -91,6 +91,17 @@ class ActionEngineTest {
         assertEquals("Hello world?", engine.processSelectedText("sentence_case", "HELLO WORLD?"))
     }
 
+    @Test fun `title case normalizes fully uppercase selections`() {
+        assertEquals(
+            "Texto En Mayúsculas",
+            engine.processSelectedText("title_case", "TEXTO EN MAYÚSCULAS"),
+        )
+        assertEquals(
+            "Texto Ya Mezclado",
+            engine.processSelectedText("title_case", "tEXTO yA mEZCLADO"),
+        )
+    }
+
     @Test fun `selected range transformation preserves surrounding text and selection`() {
         val result = engine.processSelectedRange(
             actionId = "lowercase",
