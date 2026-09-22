@@ -1527,20 +1527,9 @@ private fun SelectionToolbarSettingsDialog(
                                 groupConfigs = settings.selectionActionGroupConfigs,
                                 language = settings.displayLanguage,
                                 onChanged = onQuickActionsChanged,
+                                onGroupConfigChanged = onGroupConfigChanged,
+                                onResetGroupConfig = onResetGroupConfig,
                             )
-                        }
-                        settings.selectionActionGroupConfigs.forEach { (groupId, groupConfig) ->
-                            item {
-                                SelectionActionGroupSetting(
-                                    groupId = groupId,
-                                    config = groupConfig,
-                                    language = settings.displayLanguage,
-                                    onChanged = { updated ->
-                                        onGroupConfigChanged(groupId, updated)
-                                    },
-                                    onReset = { onResetGroupConfig(groupId) },
-                                )
-                            }
                         }
                     }
                 }
@@ -1560,7 +1549,16 @@ private fun SelectionToolbarSizeSetting(
     var widthDraft by remember(widthFraction) { mutableFloatStateOf(widthFraction) }
     var heightDraft by remember(heightDp) { mutableFloatStateOf(heightDp.toFloat()) }
 
-    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+    Card(
+        Modifier
+            .fillMaxWidth()
+            .padding(
+                start = if (nested) 28.dp else 16.dp,
+                end = if (nested) 12.dp else 16.dp,
+                top = 4.dp,
+                bottom = 8.dp,
+            ),
+    ) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1627,9 +1625,12 @@ private fun SelectionToolbarQuickActionsSetting(
     groupConfigs: Map<String, SelectionActionGroupConfig>,
     language: DisplayLanguage,
     onChanged: (List<String>) -> Unit,
+    onGroupConfigChanged: (String, SelectionActionGroupConfig) -> Unit,
+    onResetGroupConfig: (String) -> Unit,
 ) {
     var workingOrder by remember(actionIds) { mutableStateOf(actionIds) }
     var draggingId by remember { mutableStateOf<String?>(null) }
+    var expandedGroupId by remember { mutableStateOf<String?>(null) }
     val reorderThresholdPx = with(LocalDensity.current) { 32.dp.toPx() }
     val es = usesSpanish(language)
 
@@ -1774,28 +1775,57 @@ private fun SelectionToolbarQuickActionsSetting(
                 val checked = id in workingOrder
                 val canEnable = checked ||
                     workingOrder.size < SettingsRepository.MAX_SELECTION_TOOLBAR_QUICK_ACTIONS
+                val groupConfig = groupConfigs[id]
+                val expanded = expandedGroupId == id
                 ListItem(
                     headlineContent = { Text(toolbarQuickActionLabel(id, language, groupConfigs)) },
                     supportingContent = {
                         Text(toolbarQuickActionDescription(id, language))
                     },
                     trailingContent = {
-                        Switch(
-                            checked = checked,
-                            enabled = canEnable,
-                            onCheckedChange = { enabled ->
-                                val updated = if (enabled) {
-                                    (workingOrder + id).distinct()
-                                        .take(SettingsRepository.MAX_SELECTION_TOOLBAR_QUICK_ACTIONS)
-                                } else {
-                                    workingOrder.filterNot { it == id }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            if (groupConfig != null) {
+                                IconButton(
+                                    onClick = {
+                                        expandedGroupId = if (expanded) null else id
+                                    },
+                                ) {
+                                    Icon(
+                                        if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                        if (es) "Configurar grupo" else "Configure group",
+                                    )
                                 }
-                                workingOrder = updated
-                                onChanged(updated)
-                            },
-                        )
+                            }
+                            Switch(
+                                checked = checked,
+                                enabled = canEnable,
+                                onCheckedChange = { enabled ->
+                                    val updated = if (enabled) {
+                                        (workingOrder + id).distinct()
+                                            .take(SettingsRepository.MAX_SELECTION_TOOLBAR_QUICK_ACTIONS)
+                                    } else {
+                                        workingOrder.filterNot { it == id }
+                                    }
+                                    workingOrder = updated
+                                    onChanged(updated)
+                                },
+                            )
+                        }
                     },
                 )
+                if (groupConfig != null && expanded) {
+                    SelectionActionGroupSetting(
+                        groupId = id,
+                        config = groupConfig,
+                        language = language,
+                        onChanged = { updated -> onGroupConfigChanged(id, updated) },
+                        onReset = { onResetGroupConfig(id) },
+                        nested = true,
+                    )
+                }
             }
         }
     }
@@ -1808,6 +1838,7 @@ private fun SelectionActionGroupSetting(
     language: DisplayLanguage,
     onChanged: (SelectionActionGroupConfig) -> Unit,
     onReset: () -> Unit,
+    nested: Boolean = false,
 ) {
     val defaults = SettingsRepository.DEFAULT_SELECTION_ACTION_GROUP_CONFIGS[groupId] ?: return
     val available = SettingsRepository.AVAILABLE_SELECTION_ACTION_GROUP_ACTIONS[groupId].orEmpty()
