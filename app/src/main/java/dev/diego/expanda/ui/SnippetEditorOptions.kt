@@ -99,12 +99,12 @@ internal fun SnippetMatchingOptionsCard(
                 val options = listOf(
                     ActivationOption(
                         TriggerActivation.IMMEDIATE,
-                        tr("Immediately", "Inmediatamente"),
+                        tr("Immediate", "Inmediato"),
                         Icons.Default.Bolt,
                     ),
                     ActivationOption(
                         TriggerActivation.SPACE,
-                        tr("After space", "Después de espacio"),
+                        tr("Space", "Espacio"),
                         Icons.Default.SpaceBar,
                     ),
                     ActivationOption(
@@ -125,7 +125,8 @@ internal fun SnippetMatchingOptionsCard(
                                     Icon(option.icon, null, Modifier.size(18.dp))
                                 }
                             },
-                            label = { Text(option.label, maxLines = 2) },
+                            modifier = Modifier.weight(1f),
+                            label = { Text(option.label, maxLines = 1) },
                         )
                     }
                 }
@@ -140,8 +141,8 @@ internal fun SnippetMatchingOptionsCard(
                     )
                     TriggerActivation.SPACE -> Text(
                         tr(
-                            "Expands only when you press Space after the trigger.",
-                            "Expande únicamente al presionar Espacio después del trigger.",
+                            "Expands only when you press Space after the trigger. This activation is stored by Expanda on Android; Espanso treats the snippet as immediate.",
+                            "Expande únicamente al presionar Espacio después del trigger. Esta activación se conserva en Expanda en Android; Espanso interpreta el snippet como inmediato.",
                         ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -149,8 +150,8 @@ internal fun SnippetMatchingOptionsCard(
                     TriggerActivation.DELIMITER -> {
                         Text(
                             tr(
-                                "Choose which characters activate the trigger.",
-                                "Elige qué caracteres activan el trigger.",
+                                "Choose which characters activate the trigger. This activation is stored by Expanda on Android; Espanso treats the snippet as immediate.",
+                                "Elige qué caracteres activan el trigger. Esta activación se conserva en Expanda en Android; Espanso interpreta el snippet como inmediato.",
                             ),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
