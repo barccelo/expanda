@@ -29,6 +29,30 @@ class VaultModelsTest {
     }
 
     @Test
+    fun `vault copy selection keeps only existing fields`() {
+        val first = VaultField(id = "one", label = "User", value = "david")
+        val second = VaultField(id = "two", label = "Password", value = "secret")
+        val entry = VaultEntry(
+            title = "Test",
+            fields = listOf(first, second),
+            preferredCopyFieldIds = listOf("two", "missing", "two"),
+        ).normalized()
+
+        assertEquals(listOf("two"), entry.preferredCopyFieldIds)
+    }
+
+    @Test
+    fun `empty normalized copy selection falls back to default all behavior`() {
+        val entry = VaultEntry(
+            title = "Test",
+            fields = listOf(VaultField(id = "one", label = "User", value = "david")),
+            preferredCopyFieldIds = listOf("missing"),
+        ).normalized()
+
+        assertEquals(null, entry.preferredCopyFieldIds)
+    }
+
+    @Test
     fun `case insensitive category collapses capitalization variants`() {
         val category = VaultCategory(
             name = "VOL",
