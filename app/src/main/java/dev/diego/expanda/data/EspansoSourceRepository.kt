@@ -237,9 +237,6 @@ class EspansoSourceRepository(
             require(match.runtimeCompatibility == RuntimeCompatibility.PORTABLE) {
                 "Desktop-only matches must be edited from Source."
             }
-            require(match.options.activation == TriggerActivation.IMMEDIATE) {
-                "Delimiter activation is Android-only. Use immediate activation for an Espanso-compatible snippet."
-            }
             val normalizedOptions = match.options.normalizedCase()
             require(match.selectionMode != TemplateSelectionMode.SEQUENTIAL) {
                 "Sequential replacement selection is Android-only. Choose first, random or manual selection."
@@ -656,6 +653,10 @@ class EspansoSourceRepository(
             tags = metadata.tags,
             enabled = metadata.enabled,
             excludedPackages = metadata.excludedPackages,
+            options = sourceMatch.options.copy(
+                activation = metadata.options.activation,
+                delimiters = metadata.options.delimiters,
+            ),
             templateIndex = metadata.templateIndex,
             usageCount = metadata.usageCount,
             createdAt = metadata.createdAt,
