@@ -1,5 +1,6 @@
 package dev.diego.expanda.data
 
+import dev.diego.expanda.engine.TriggerMatcher
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -149,6 +150,14 @@ class VaultRepository(
             return@withContext true
         }
 
+        val targetCaseSensitive = targetEntry?.caseSensitive ?: targetCategory?.caseSensitive ?: false
+        requireTriggerAvailable(
+            trigger = normalizedTrigger,
+            caseSensitive = targetCaseSensitive,
+            excludeEntryId = sourceEntry?.id ?: targetEntry?.id,
+            excludeCategoryId = sourceCategory?.id ?: targetCategory?.id,
+        )
+
         val now = System.currentTimeMillis()
 
         sourceEntry?.let { entry ->
@@ -222,25 +231,60 @@ class VaultRepository(
         categories.value.firstOrNull { category -> category.triggers.any { it == trigger } }
 
     private fun validateEntryTriggers(entry: VaultEntry) {
-        val otherEntryTriggers = mutableEntries.value
-            .filterNot { it.id == entry.id }
-            .flatMap(VaultEntry::triggers)
-            .toSet()
-        val categoryTriggers = mutableCategories.value
-            .flatMap(VaultCategory::triggers)
-            .toSet()
-        val duplicate = entry.triggers.firstOrNull { it in otherEntryTriggers || it in categoryTriggers }
-        require(duplicate == null) { "Trigger already used in the vault: $duplicate" }
+        entry.triggers.forEach { trigger ->
+            requireTriggerAvailable(
+                trigger = trigger,
+                caseSensitive = entry.caseSensitive,
+                excludeEntryId = entry.id,
+            )
+        }
     }
 
     private fun validateCategoryTriggers(category: VaultCategory) {
-        val entryTriggers = mutableEntries.value.flatMap(VaultEntry::triggers).toSet()
-        val otherCategoryTriggers = mutableCategories.value
-            .filterNot { it.id == category.id }
-            .flatMap(VaultCategory::triggers)
-            .toSet()
-        val duplicate = category.triggers.firstOrNull { it in entryTriggers || it in otherCategoryTriggers }
-        require(duplicate == null) { "Trigger already used in the vault: $duplicate" }
+        category.triggers.forEach { trigger ->
+            requireTriggerAvailable(
+                trigger = trigger,
+                caseSensitive = category.caseSensitive,
+                excludeCategoryId = category.id,
+            )
+        }
+    }
+
+    private fun requireTriggerAvailable(
+        trigger: String,
+        caseSensitive: Boolean,
+        excludeEntryId: Long? = null,
+        excludeCategoryId: Long? = null,
+    ) {
+        val entryConflict = mutableEntries.value
+            .asSequence()
+            .filterNot { it.id == excludeEntryId }
+            .any { entry ->
+                entry.triggers.any { existing ->
+                    TriggerMatcher.conflicts(
+                        trigger,
+                        caseSensitive,
+                        existing,
+                        entry.caseSensitive,
+                    )
+                }
+            }
+        val categoryConflict = mutableCategories.value
+            .asSequence()
+            .filterNot { it.id == excludeCategoryId }
+            .any { category ->
+                category.triggers.any { existing ->
+                    TriggerMatcher.conflicts(
+                        trigger,
+                        caseSensitive,
+                        existing,
+                        category.caseSensitive,
+                    )
+                }
+            }
+        require(!entryConflict && !categoryConflict) {
+            "Trigger already used in the vault: $trigger"
+        }
     }
 
     private fun ensureCategoriesForEntries() {
@@ -289,6 +333,7 @@ class VaultRepository(
     private fun encode(entry: VaultEntry): String = JSONObject().apply {
         put("title", entry.title)
         put("triggers", JSONArray(entry.triggers))
+        put("caseSensitive", entry.caseSensitive)
         put("category", entry.category)
         put("tags", JSONArray(entry.tags.sorted()))
         put("favorite", entry.favorite)
@@ -308,6 +353,7 @@ class VaultRepository(
     private fun encodeCategory(category: VaultCategory): String = JSONObject().apply {
         put("name", category.name)
         put("triggers", JSONArray(category.triggers))
+        put("caseSensitive", category.caseSensitive)
     }.toString()
 
     private fun decode(
@@ -335,6 +381,7 @@ class VaultRepository(
             id = id,
             title = json.optString("title"),
             triggers = json.optJSONArray("triggers").strings(),
+            caseSensitive = json.optBoolean("caseSensitive", false),
             fields = fields,
             category = json.optString("category").takeIf(String::isNotBlank),
             tags = json.optJSONArray("tags").strings().toSet(),
@@ -355,6 +402,7 @@ class VaultRepository(
             id = id,
             name = json.optString("name"),
             triggers = json.optJSONArray("triggers").strings(),
+            caseSensitive = json.optBoolean("caseSensitive", false),
             createdAt = createdAt,
             updatedAt = updatedAt,
         )
