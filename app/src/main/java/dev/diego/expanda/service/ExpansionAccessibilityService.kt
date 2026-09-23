@@ -4102,6 +4102,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
             val overlayRoot = dismissibleOverlayRoot(
                 card = root,
                 windowManager = windowManager,
+                verticalOffsetPx = -dp(VAULT_KEYBOARD_DIALOG_LIFT_DP),
                 onDismiss = { returnToVault() },
             )
             windowManager.addView(overlayRoot, params)
@@ -4253,6 +4254,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
             val overlayRoot = dismissibleOverlayRoot(
                 card = root,
                 windowManager = windowManager,
+                verticalOffsetPx = -dp(VAULT_KEYBOARD_DIALOG_LIFT_DP),
                 onDismiss = { returnToCategory() },
             )
             windowManager.addView(overlayRoot, params)
@@ -4910,7 +4912,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 card = root,
                 windowManager = windowManager,
                 onDismiss = { returnToEntry() },
-                verticalOffsetPx = -dp(28),
+                verticalOffsetPx = -dp(VAULT_KEYBOARD_DIALOG_LIFT_DP),
             )
             windowManager.addView(overlayRoot, params)
             formOverlay = overlayRoot
@@ -5075,6 +5077,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
             val overlayRoot = dismissibleOverlayRoot(
                 card = root,
                 windowManager = windowManager,
+                verticalOffsetPx = -dp(VAULT_KEYBOARD_DIALOG_LIFT_DP),
                 onDismiss = { returnToEntry() },
             )
             windowManager.addView(overlayRoot, params)
@@ -5271,7 +5274,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 card = root,
                 windowManager = windowManager,
                 onDismiss = { returnToEntry() },
-                verticalOffsetPx = -dp(28),
+                verticalOffsetPx = -dp(VAULT_KEYBOARD_DIALOG_LIFT_DP),
             )
             windowManager.addView(overlayRoot, params)
             formOverlay = overlayRoot
@@ -6648,6 +6651,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
     }
 
     companion object {
+        private const val VAULT_KEYBOARD_DIALOG_LIFT_DP = 28
         @Volatile private var activeService: WeakReference<ExpansionAccessibilityService>? = null
 
         /** Opens the real overlay for the currently focused editor, without requiring typed characters. */
