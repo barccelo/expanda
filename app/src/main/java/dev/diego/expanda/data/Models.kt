@@ -64,6 +64,8 @@ data class TextMatch(
     val tags: Set<String> = emptySet(),
     val searchTerms: Set<String> = emptySet(),
     val enabled: Boolean = true,
+    /** Whether this snippet participates in the floating suggestion popup. */
+    val suggestionEnabled: Boolean = true,
     val options: MatchOptions = MatchOptions(),
     val vars: List<TemplateVariable> = emptyList(),
     /** Import details that need user attention but do not prevent safe storage. */
