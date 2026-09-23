@@ -92,6 +92,32 @@ class OverlayViews(
         setOnClickListener { onClick() }
     }
 
+    fun compactButton(
+        label: String,
+        primary: Boolean = false,
+        onClick: () -> Unit,
+    ): TextView = TextView(context).apply {
+        text = label
+        textSize = scaled(13.5f)
+        gravity = Gravity.CENTER
+        includeFontPadding = false
+        minHeight = dp(48)
+        minimumHeight = dp(48)
+        setPadding(dp(13), dp(10), dp(13), dp(10))
+        setTextColor(if (primary) theme.onPrimary else theme.onSurface)
+        background = drawable(
+            color = if (primary) theme.primary else theme.surfaceContainerHigh,
+            radiusDp = 22,
+            strokeColor = if (primary) null else theme.outline,
+            strokeDp = if (primary) 0 else 1,
+        )
+        isClickable = true
+        isFocusable = true
+        contentDescription = label
+        foreground = selectableForeground()
+        setOnClickListener { onClick() }
+    }
+
     fun input(label: String, defaultValue: String): EditText = EditText(context).apply {
         hint = label
         setText(defaultValue)
