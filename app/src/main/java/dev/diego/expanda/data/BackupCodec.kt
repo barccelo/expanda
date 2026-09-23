@@ -102,6 +102,7 @@ object BackupCodec {
         )
         put("displayLanguage", settings.displayLanguage.name)
         put("suggestionShowActions", settings.suggestionShowActions)
+        put("suggestionShowVault", settings.suggestionShowVault)
         put("matchFromBeginning", settings.matchFromBeginning)
         put("suggestionCompactList", settings.suggestionCompactList)
         put("suggestionMaxHeightDp", settings.suggestionMaxHeightDp)
@@ -156,6 +157,7 @@ object BackupCodec {
             dev.diego.expanda.data.DisplayLanguage.SYSTEM,
         ),
         suggestionShowActions = json.optBoolean("suggestionShowActions", true),
+        suggestionShowVault = json.optBoolean("suggestionShowVault", true),
         matchFromBeginning = json.optBoolean("matchFromBeginning", true),
         suggestionCompactList = json.optBoolean("suggestionCompactList", true),
         suggestionMaxHeightDp = json.optInt(
