@@ -67,6 +67,7 @@ class VaultRepository(
     private fun encode(entry: VaultEntry): String = JSONObject().apply {
         put("title", entry.title)
         put("triggers", JSONArray(entry.triggers))
+        put("category", entry.category)
         put("tags", JSONArray(entry.tags.sorted()))
         put("favorite", entry.favorite)
         put("fields", JSONArray().apply {
@@ -108,6 +109,7 @@ class VaultRepository(
             title = json.optString("title"),
             triggers = json.optJSONArray("triggers").strings(),
             fields = fields,
+            category = json.optString("category").takeIf(String::isNotBlank),
             tags = json.optJSONArray("tags").strings().toSet(),
             favorite = json.optBoolean("favorite"),
             createdAt = createdAt,
