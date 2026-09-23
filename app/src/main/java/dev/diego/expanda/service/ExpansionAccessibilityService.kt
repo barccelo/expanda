@@ -4322,7 +4322,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
             val triggerRow = LinearLayout(this@ExpansionAccessibilityService).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
-                setPadding(dp(48), 0, dp(2), dp(8))
+                setPadding(dp(6), 0, dp(6), dp(8))
+                background = android.graphics.drawable.ColorDrawable(ui.theme.surface)
             }
             val triggerLabel = if (entry.triggers.isEmpty()) {
                 localizedSelectionUi(settings, "No trigger", "Sin trigger")
@@ -4340,7 +4341,6 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     1f,
                 ),
             )
-            triggerRow.background = ui.surface(10)
             addView(
                 vaultSwipeEditCard(
                     front = triggerRow,
@@ -4634,11 +4634,41 @@ class ExpansionAccessibilityService : AccessibilityService() {
             var downY = 0f
             var dragging = false
             var armed = false
-            // Lock the first horizontal direction for the lifetime of one touch.
-            // +1 = right, -1 = left, 0 = not chosen yet.
+            // First horizontal direction wins until ACTION_UP/ACTION_CANCEL.
+            // +1 = right, -1 = left, 0 = undecided.
             var directionLock = 0
 
-            override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
+            private fun updateDrag(event: MotionEvent) {
+                val dx = event.x - downX
+                val clamped = when (directionLock) {
+                    1 -> dx.coerceIn(0f, maxTravel)
+                    -1 -> dx.coerceIn(-maxTravel, 0f)
+                    else -> 0f
+                }
+                front.translationX = clamped
+                val nowArmed = kotlin.math.abs(clamped) >= commitThreshold
+                if (nowArmed && !armed && settings.hapticFeedback) {
+                    vibrateTick()
+                }
+                armed = nowArmed
+            }
+
+            private fun finishDrag(runEdit: Boolean) {
+                val shouldEdit = runEdit && dragging && armed
+                dragging = false
+                armed = false
+                directionLock = 0
+                parent?.requestDisallowInterceptTouchEvent(false)
+                front.animate()
+                    .translationX(0f)
+                    .setDuration(120L)
+                    .withEndAction {
+                        if (shouldEdit) onEdit()
+                    }
+                    .start()
+            }
+
+            override fun dispatchTouchEvent(event: MotionEvent): Boolean {
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
                         downX = event.x
@@ -4646,7 +4676,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
                         dragging = false
                         armed = false
                         directionLock = 0
+                        return super.dispatchTouchEvent(event)
                     }
+
                     MotionEvent.ACTION_MOVE -> {
                         val dx = event.x - downX
                         val dy = event.y - downY
@@ -4658,55 +4690,43 @@ class ExpansionAccessibilityService : AccessibilityService() {
                             dragging = true
                             directionLock = if (dx >= 0f) 1 else -1
                             parent?.requestDisallowInterceptTouchEvent(true)
+
+                            // A child (Copy/Insert/Update/etc.) may have received
+                            // ACTION_DOWN. Cancel that click as soon as this becomes
+                            // a horizontal card gesture.
+                            val cancel = MotionEvent.obtain(event).apply {
+                                action = MotionEvent.ACTION_CANCEL
+                            }
+                            super.dispatchTouchEvent(cancel)
+                            cancel.recycle()
+
+                            updateDrag(event)
                             return true
                         }
+                        if (dragging) {
+                            updateDrag(event)
+                            return true
+                        }
+                        return super.dispatchTouchEvent(event)
                     }
-                }
-                return dragging
-            }
 
-            override fun onTouchEvent(event: MotionEvent): Boolean {
-                when (event.actionMasked) {
-                    MotionEvent.ACTION_MOVE -> {
-                        val dx = event.x - downX
-                        val clamped = when (directionLock) {
-                            1 -> dx.coerceIn(0f, maxTravel)
-                            -1 -> dx.coerceIn(-maxTravel, 0f)
-                            else -> 0f
-                        }
-                        front.translationX = clamped
-                        val nowArmed = kotlin.math.abs(clamped) >= commitThreshold
-                        if (nowArmed && !armed && settings.hapticFeedback) {
-                            vibrateTick()
-                        }
-                        armed = nowArmed
-                        return true
-                    }
                     MotionEvent.ACTION_UP -> {
-                        val shouldEdit = dragging && armed
-                        dragging = false
-                        armed = false
-                        directionLock = 0
-                        parent?.requestDisallowInterceptTouchEvent(false)
-                        front.animate()
-                            .translationX(0f)
-                            .setDuration(120L)
-                            .withEndAction {
-                                if (shouldEdit) onEdit()
-                            }
-                            .start()
-                        return true
+                        if (dragging) {
+                            finishDrag(runEdit = true)
+                            return true
+                        }
+                        return super.dispatchTouchEvent(event)
                     }
+
                     MotionEvent.ACTION_CANCEL -> {
-                        dragging = false
-                        armed = false
-                        directionLock = 0
-                        parent?.requestDisallowInterceptTouchEvent(false)
-                        front.animate().translationX(0f).setDuration(120L).start()
-                        return true
+                        if (dragging) {
+                            finishDrag(runEdit = false)
+                            return true
+                        }
+                        return super.dispatchTouchEvent(event)
                     }
                 }
-                return true
+                return if (dragging) true else super.dispatchTouchEvent(event)
             }
         }.apply {
             clipChildren = true
