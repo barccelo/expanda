@@ -3,6 +3,8 @@ package dev.diego.expanda.ui
 import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +27,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -50,6 +53,7 @@ import dev.diego.expanda.data.VaultCategory
 import dev.diego.expanda.data.VaultEntry
 import dev.diego.expanda.data.VaultField
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun VaultScreen(
     entries: List<VaultEntry>,
@@ -58,6 +62,8 @@ fun VaultScreen(
     onDelete: (Long) -> Unit,
     onSaveCategory: (VaultCategory) -> Unit,
     onDeleteCategory: (Long) -> Unit,
+    onMoveEntries: (Set<Long>, String?) -> Unit,
+    onMoveTrigger: (String, Long?, Long?) -> Unit,
     onCopy: (String, Boolean) -> Unit,
     onUpdateFromClipboard: (Long, String, String) -> Unit,
 ) {
@@ -66,6 +72,10 @@ fun VaultScreen(
     var editing by remember { mutableStateOf<VaultEntry?>(null) }
     var creating by remember { mutableStateOf(false) }
     var editingCategory by remember { mutableStateOf<VaultCategory?>(null) }
+    var selectedIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
+    var showMoveDialog by remember { mutableStateOf(false) }
+    var showTriggerManager by remember { mutableStateOf(false) }
+    var movingTrigger by remember { mutableStateOf<String?>(null) }
 
     val visible = entries
         .filter { entry ->
@@ -94,6 +104,48 @@ fun VaultScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 10.dp),
             )
+
+            if (selectedIds.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        tr(
+                            "${selectedIds.size} selected",
+                            "${selectedIds.size} seleccionadas",
+                        ),
+                        modifier = Modifier.weight(1f),
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    TextButton(onClick = { showMoveDialog = true }) {
+                        Text(tr("Move", "Mover"))
+                    }
+                    TextButton(onClick = {
+                        onMoveEntries(selectedIds, null)
+                        selectedIds = emptySet()
+                    }) {
+                        Text(tr("Uncategorize", "Sin categoría"))
+                    }
+                    TextButton(onClick = { selectedIds = emptySet() }) {
+                        Text(tr("Cancel", "Cancelar"))
+                    }
+                }
+            } else {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    TextButton(onClick = { showTriggerManager = true }) {
+                        Text(tr("Manage triggers", "Administrar triggers"))
+                    }
+                }
+            }
 
             if (visible.isEmpty()) {
                 Column(
@@ -164,10 +216,30 @@ fun VaultScreen(
                             }
                         }
                         items(categoryEntries, key = VaultEntry::id) { entry ->
+                            val selected = entry.id in selectedIds
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { viewing = entry },
+                                    .combinedClickable(
+                                        onClick = {
+                                            if (selectedIds.isNotEmpty()) {
+                                                selectedIds = if (selected) {
+                                                    selectedIds - entry.id
+                                                } else {
+                                                    selectedIds + entry.id
+                                                }
+                                            } else {
+                                                viewing = entry
+                                            }
+                                        },
+                                        onLongClick = {
+                                            selectedIds = if (selected) {
+                                                selectedIds - entry.id
+                                            } else {
+                                                selectedIds + entry.id
+                                            }
+                                        },
+                                    ),
                             ) {
                                 ListItem(
                                     headlineContent = {
@@ -188,10 +260,23 @@ fun VaultScreen(
                                         )
                                     },
                                     leadingContent = {
-                                        Icon(
-                                            if (entry.favorite) Icons.Default.Favorite else Icons.Default.Lock,
-                                            null,
-                                        )
+                                        if (selectedIds.isNotEmpty()) {
+                                            Checkbox(
+                                                checked = selected,
+                                                onCheckedChange = {
+                                                    selectedIds = if (selected) {
+                                                        selectedIds - entry.id
+                                                    } else {
+                                                        selectedIds + entry.id
+                                                    }
+                                                },
+                                            )
+                                        } else {
+                                            Icon(
+                                                if (entry.favorite) Icons.Default.Favorite else Icons.Default.Lock,
+                                                null,
+                                            )
+                                        }
                                     },
                                 )
                             }
@@ -257,6 +342,218 @@ fun VaultScreen(
             },
         )
     }
+
+    if (showMoveDialog) {
+        VaultMoveEntriesDialog(
+            categories = categories,
+            selectedCount = selectedIds.size,
+            onDismiss = { showMoveDialog = false },
+            onMove = { categoryName ->
+                onMoveEntries(selectedIds, categoryName)
+                selectedIds = emptySet()
+                showMoveDialog = false
+            },
+        )
+    }
+
+    if (showTriggerManager) {
+        VaultTriggerManagerDialog(
+            entries = entries,
+            categories = categories,
+            onDismiss = { showTriggerManager = false },
+            onMove = { movingTrigger = it },
+        )
+    }
+
+    movingTrigger?.let { trigger ->
+        VaultTriggerMoveDialog(
+            trigger = trigger,
+            entries = entries,
+            categories = categories,
+            onDismiss = { movingTrigger = null },
+            onMoveToCategory = { categoryId ->
+                onMoveTrigger(trigger, categoryId, null)
+                movingTrigger = null
+            },
+            onMoveToEntry = { entryId ->
+                onMoveTrigger(trigger, null, entryId)
+                movingTrigger = null
+            },
+        )
+    }
+}
+
+@Composable
+private fun VaultMoveEntriesDialog(
+    categories: List<VaultCategory>,
+    selectedCount: Int,
+    onDismiss: () -> Unit,
+    onMove: (String?) -> Unit,
+) {
+    var newCategory by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                tr(
+                    "Move $selectedCount entries",
+                    "Mover $selectedCount entradas",
+                ),
+            )
+        },
+        text = {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                item {
+                    ListItem(
+                        headlineContent = { Text(tr("Uncategorized", "Sin categoría")) },
+                        modifier = Modifier.clickable { onMove(null) },
+                    )
+                }
+                items(categories.sortedBy { it.name.lowercase() }, key = VaultCategory::id) { category ->
+                    ListItem(
+                        headlineContent = { Text(category.name) },
+                        supportingContent = {
+                            if (category.triggers.isNotEmpty()) {
+                                Text(category.triggers.joinToString(" · "))
+                            }
+                        },
+                        modifier = Modifier.clickable { onMove(category.name) },
+                    )
+                }
+                item {
+                    HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                    OutlinedTextField(
+                        value = newCategory,
+                        onValueChange = { newCategory = it },
+                        label = { Text(tr("New category", "Nueva categoría")) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Button(
+                        onClick = { onMove(newCategory.trim()) },
+                        enabled = newCategory.isNotBlank(),
+                        modifier = Modifier.padding(top = 8.dp),
+                    ) {
+                        Text(tr("Create and move", "Crear y mover"))
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(tr("Cancel", "Cancelar")) }
+        },
+    )
+}
+
+private data class VaultTriggerRow(
+    val trigger: String,
+    val owner: String,
+)
+
+@Composable
+private fun VaultTriggerManagerDialog(
+    entries: List<VaultEntry>,
+    categories: List<VaultCategory>,
+    onDismiss: () -> Unit,
+    onMove: (String) -> Unit,
+) {
+    val rows = buildList {
+        categories.forEach { category ->
+            category.triggers.forEach { trigger ->
+                add(VaultTriggerRow(trigger, tr("Category: ${category.name}", "Categoría: ${category.name}")))
+            }
+        }
+        entries.forEach { entry ->
+            entry.triggers.forEach { trigger ->
+                add(VaultTriggerRow(trigger, tr("Entry: ${entry.title}", "Entrada: ${entry.title}")))
+            }
+        }
+    }.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.trigger })
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(tr("Manage triggers", "Administrar triggers")) },
+        text = {
+            if (rows.isEmpty()) {
+                Text(tr("There are no vault triggers yet.", "Todavía no hay triggers en la bóveda."))
+            } else {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    items(rows, key = { "${it.owner}::${it.trigger}" }) { row ->
+                        ListItem(
+                            headlineContent = {
+                                Text(row.trigger, fontWeight = FontWeight.SemiBold)
+                            },
+                            supportingContent = { Text(row.owner) },
+                            trailingContent = {
+                                TextButton(onClick = { onMove(row.trigger) }) {
+                                    Text(tr("Move", "Mover"))
+                                }
+                            },
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(tr("Close", "Cerrar")) }
+        },
+    )
+}
+
+@Composable
+private fun VaultTriggerMoveDialog(
+    trigger: String,
+    entries: List<VaultEntry>,
+    categories: List<VaultCategory>,
+    onDismiss: () -> Unit,
+    onMoveToCategory: (Long) -> Unit,
+    onMoveToEntry: (Long) -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(tr("Move trigger $trigger", "Mover trigger $trigger")) },
+        text = {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                item {
+                    Text(
+                        tr("Categories", "Categorías"),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(vertical = 6.dp),
+                    )
+                }
+                items(categories.sortedBy { it.name.lowercase() }, key = { "c:${it.id}" }) { category ->
+                    ListItem(
+                        headlineContent = { Text(category.name) },
+                        modifier = Modifier.clickable { onMoveToCategory(category.id) },
+                    )
+                }
+                item {
+                    Text(
+                        tr("Entries", "Entradas"),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(vertical = 6.dp),
+                    )
+                }
+                items(entries.sortedBy { it.title.lowercase() }, key = { "e:${it.id}" }) { entry ->
+                    ListItem(
+                        headlineContent = { Text(entry.title) },
+                        supportingContent = {
+                            entry.category?.let { Text(it) }
+                        },
+                        modifier = Modifier.clickable { onMoveToEntry(entry.id) },
+                    )
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(tr("Cancel", "Cancelar")) }
+        },
+    )
 }
 
 @Composable
