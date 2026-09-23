@@ -222,6 +222,7 @@ object CsvCodec {
 
     private fun parseActivation(value: String): TriggerActivation = when (value.uppercase(Locale.ROOT)) {
         "IMMEDIATE", "INSTANT" -> TriggerActivation.IMMEDIATE
+        "SPACE", "AFTER_SPACE" -> TriggerActivation.SPACE
         else -> TriggerActivation.DELIMITER
     }
 
