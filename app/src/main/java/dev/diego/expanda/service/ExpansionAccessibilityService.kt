@@ -2979,6 +2979,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         card: View,
         windowManager: WindowManager,
         onDismiss: () -> Unit = { hideFormOverlay() },
+        verticalOffsetPx: Int = 0,
     ): FrameLayout {
         val screenWidth = displayBounds(windowManager).width()
         val cardWidth = (screenWidth * 0.9f).toInt()
@@ -2993,6 +2994,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
             setOnClickListener { onDismiss() }
         }
         card.isClickable = true
+        card.translationY = verticalOffsetPx.toFloat()
         return FrameLayout(this).apply {
             addView(
                 backdrop,
@@ -4908,6 +4910,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 card = root,
                 windowManager = windowManager,
                 onDismiss = { returnToEntry() },
+                verticalOffsetPx = -dp(28),
             )
             windowManager.addView(overlayRoot, params)
             formOverlay = overlayRoot
@@ -5268,6 +5271,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 card = root,
                 windowManager = windowManager,
                 onDismiss = { returnToEntry() },
+                verticalOffsetPx = -dp(28),
             )
             windowManager.addView(overlayRoot, params)
             formOverlay = overlayRoot
