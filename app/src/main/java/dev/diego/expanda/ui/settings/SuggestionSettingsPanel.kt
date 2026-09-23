@@ -48,6 +48,10 @@ fun SuggestionSettingsPanel(
     compactPresentation: Boolean = false,
     showAdditionalOptions: Boolean = false,
     onShowActionsChanged: (Boolean) -> Unit = {},
+    onShowVaultChanged: (Boolean) -> Unit = {},
+    snippetSuggestionCount: Int? = null,
+    snippetCount: Int? = null,
+    onConfigureSnippetSuggestions: (() -> Unit)? = null,
     onMatchFromBeginningChanged: (Boolean) -> Unit = {},
     onWidthPreviewChanged: (Float) -> Unit = {},
     onHeightPreviewChanged: (Int) -> Unit = {},
@@ -69,6 +73,38 @@ fun SuggestionSettingsPanel(
                     supportingContent = { Text(tr("Include enabled actions alongside text snippets")) },
                     trailingContent = { Switch(settings.suggestionShowActions, onShowActionsChanged) },
                 )
+                ListItem(
+                    headlineContent = { Text(tr("Vault in suggestions", "Bóveda en sugerencias")) },
+                    leadingContent = { Icon(Icons.Default.Lightbulb, null) },
+                    supportingContent = {
+                        Text(tr(
+                            "Include matching vault categories and entries",
+                            "Incluye categorías y entradas de la bóveda que coincidan",
+                        ))
+                    },
+                    trailingContent = { Switch(settings.suggestionShowVault, onShowVaultChanged) },
+                )
+                if (
+                    snippetSuggestionCount != null &&
+                    snippetCount != null &&
+                    onConfigureSnippetSuggestions != null
+                ) {
+                    ListItem(
+                        headlineContent = { Text(tr("Snippet suggestions", "Sugerencias de snippets")) },
+                        leadingContent = { Icon(Icons.Default.Lightbulb, null) },
+                        supportingContent = {
+                            Text(tr(
+                                "$snippetSuggestionCount of $snippetCount snippets",
+                                "$snippetSuggestionCount de $snippetCount snippets",
+                            ))
+                        },
+                        trailingContent = {
+                            TextButton(onClick = onConfigureSnippetSuggestions) {
+                                Text(tr("Configure", "Configurar"))
+                            }
+                        },
+                    )
+                }
             }
             ListItem(
                 headlineContent = { Text(if (compactPresentation) tr("Compact list") else tr("Compact suggestion list")) },
