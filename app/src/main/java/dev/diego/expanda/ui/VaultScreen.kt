@@ -75,7 +75,7 @@ fun VaultScreen(
     var selectedIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var showMoveDialog by remember { mutableStateOf(false) }
     var showTriggerManager by remember { mutableStateOf(false) }
-    var movingTrigger by remember { mutableStateOf<String?>(null) }
+    var movingTriggers by remember { mutableStateOf<Set<String>>(emptySet()) }
 
     val visible = entries
         .filter { entry ->
@@ -361,23 +361,27 @@ fun VaultScreen(
             entries = entries,
             categories = categories,
             onDismiss = { showTriggerManager = false },
-            onMove = { movingTrigger = it },
+            onMove = { movingTriggers = it },
         )
     }
 
-    movingTrigger?.let { trigger ->
+    if (movingTriggers.isNotEmpty()) {
         VaultTriggerMoveDialog(
-            trigger = trigger,
+            triggers = movingTriggers,
             entries = entries,
             categories = categories,
-            onDismiss = { movingTrigger = null },
+            onDismiss = { movingTriggers = emptySet() },
             onMoveToCategory = { categoryId ->
-                onMoveTrigger(trigger, categoryId, null)
-                movingTrigger = null
+                movingTriggers.forEach { trigger ->
+                    onMoveTrigger(trigger, categoryId, null)
+                }
+                movingTriggers = emptySet()
             },
             onMoveToEntry = { entryId ->
-                onMoveTrigger(trigger, null, entryId)
-                movingTrigger = null
+                movingTriggers.forEach { trigger ->
+                    onMoveTrigger(trigger, null, entryId)
+                }
+                movingTriggers = emptySet()
             },
         )
     }
@@ -457,17 +461,20 @@ private fun VaultTriggerManagerDialog(
     entries: List<VaultEntry>,
     categories: List<VaultCategory>,
     onDismiss: () -> Unit,
-    onMove: (String) -> Unit,
+    onMove: (Set<String>) -> Unit,
 ) {
+    var selected by remember { mutableStateOf<Set<String>>(emptySet()) }
+    val categoryPrefix = tr("Category", "Categoría")
+    val entryPrefix = tr("Entry", "Entrada")
     val rows = buildList {
         categories.forEach { category ->
             category.triggers.forEach { trigger ->
-                add(VaultTriggerRow(trigger, tr("Category: ${category.name}", "Categoría: ${category.name}")))
+                add(VaultTriggerRow(trigger, "$categoryPrefix: ${category.name}"))
             }
         }
         entries.forEach { entry ->
             entry.triggers.forEach { trigger ->
-                add(VaultTriggerRow(trigger, tr("Entry: ${entry.title}", "Entrada: ${entry.title}")))
+                add(VaultTriggerRow(trigger, "$entryPrefix: ${entry.title}"))
             }
         }
     }.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.trigger })
@@ -479,19 +486,62 @@ private fun VaultTriggerManagerDialog(
             if (rows.isEmpty()) {
                 Text(tr("There are no vault triggers yet.", "Todavía no hay triggers en la bóveda."))
             } else {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    items(rows, key = { "${it.owner}::${it.trigger}" }) { row ->
-                        ListItem(
-                            headlineContent = {
-                                Text(row.trigger, fontWeight = FontWeight.SemiBold)
-                            },
-                            supportingContent = { Text(row.owner) },
-                            trailingContent = {
-                                TextButton(onClick = { onMove(row.trigger) }) {
-                                    Text(tr("Move", "Mover"))
-                                }
-                            },
-                        )
+                Column {
+                    if (selected.isNotEmpty()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                tr(
+                                    "${selected.size} selected",
+                                    "${selected.size} seleccionados",
+                                ),
+                                modifier = Modifier.weight(1f),
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            TextButton(onClick = { onMove(selected) }) {
+                                Text(tr("Move selected", "Mover seleccionados"))
+                            }
+                            TextButton(onClick = { selected = emptySet() }) {
+                                Text(tr("Clear", "Limpiar"))
+                            }
+                        }
+                    }
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        items(rows, key = { "${it.owner}::${it.trigger}" }) { row ->
+                            val checked = row.trigger in selected
+                            ListItem(
+                                headlineContent = {
+                                    Text(row.trigger, fontWeight = FontWeight.SemiBold)
+                                },
+                                supportingContent = { Text(row.owner) },
+                                leadingContent = {
+                                    Checkbox(
+                                        checked = checked,
+                                        onCheckedChange = {
+                                            selected = if (checked) {
+                                                selected - row.trigger
+                                            } else {
+                                                selected + row.trigger
+                                            }
+                                        },
+                                    )
+                                },
+                                trailingContent = {
+                                    TextButton(onClick = { onMove(setOf(row.trigger)) }) {
+                                        Text(tr("Move", "Mover"))
+                                    }
+                                },
+                                modifier = Modifier.clickable {
+                                    selected = if (checked) {
+                                        selected - row.trigger
+                                    } else {
+                                        selected + row.trigger
+                                    }
+                                },
+                            )
+                        }
                     }
                 }
             }
@@ -504,7 +554,7 @@ private fun VaultTriggerManagerDialog(
 
 @Composable
 private fun VaultTriggerMoveDialog(
-    trigger: String,
+    triggers: Set<String>,
     entries: List<VaultEntry>,
     categories: List<VaultCategory>,
     onDismiss: () -> Unit,
@@ -513,7 +563,19 @@ private fun VaultTriggerMoveDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(tr("Move trigger $trigger", "Mover trigger $trigger")) },
+        title = {
+            Text(
+                if (triggers.size == 1) {
+                    val trigger = triggers.first()
+                    tr("Move trigger $trigger", "Mover trigger $trigger")
+                } else {
+                    tr(
+                        "Move ${triggers.size} triggers",
+                        "Mover ${triggers.size} triggers",
+                    )
+                },
+            )
+        },
         text = {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 item {
