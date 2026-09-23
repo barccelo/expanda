@@ -5454,6 +5454,64 @@ class ExpansionAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun applyVaultSuggestion(
+        target: VaultTriggerTarget,
+        trigger: String,
+        browseMode: Boolean,
+    ) {
+        val anchor = suggestionAnchor ?: run {
+            hideSuggestions()
+            return
+        }
+        clearAccessibilityCache()
+        val node = findAnchoredEditor(anchor) ?: run {
+            hideSuggestions()
+            return
+        }
+        try {
+            if (!node.isEditable || node.isPassword || isPasswordInput(node.inputType)) return
+            runCatching { node.refresh() }
+            val text = editableText(node)
+            val cursor = node.textSelectionEnd.takeIf { it in 0..text.length } ?: text.length
+            val range = SuggestionApplyLocator.locate(
+                text = text,
+                cursor = cursor,
+                trigger = trigger,
+                browseMode = browseMode,
+            ) ?: return
+            val currentSettings = settingsRepository.settings.value
+            val withoutTypedPrefix = text.removeRange(range.start, range.end)
+            if (!setFieldText(
+                    node = node,
+                    originalText = text,
+                    newText = withoutTypedPrefix,
+                    selectionStart = range.start,
+                    selectionEnd = range.start,
+                    settings = currentSettings,
+                )
+            ) return
+
+            lastAppliedText = withoutTypedPrefix
+            lastAppliedAt = SystemClock.elapsedRealtime()
+            hideSuggestions()
+            when (target) {
+                is VaultTriggerTarget.Entry -> showVaultOverlay(
+                    entryId = target.entry.id,
+                    anchor = anchor,
+                    insertionCursor = range.start,
+                )
+                is VaultTriggerTarget.Category -> showVaultOverlay(
+                    categoryName = target.category.name,
+                    anchor = anchor,
+                    insertionCursor = range.start,
+                )
+            }
+        } finally {
+            node.recycle()
+            hideSuggestions()
+        }
+    }
+
     private fun applyActionSuggestion(shownDefinition: ActionDefinition) {
         val anchor = suggestionAnchor ?: run {
             hideSuggestions()
