@@ -483,9 +483,9 @@ fun ExpandaApp(
                             }
                         }
                     },
-                    onMoveTrigger = { trigger, categoryId, entryId ->
-                        viewModel.moveVaultTrigger(
-                            trigger = trigger,
+                    onMoveTriggers = { triggers, categoryId, entryId ->
+                        viewModel.moveVaultTriggers(
+                            triggers = triggers,
                             targetCategoryId = categoryId,
                             targetEntryId = entryId,
                         ) { result ->
