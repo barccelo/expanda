@@ -4297,20 +4297,47 @@ class ExpansionAccessibilityService : AccessibilityService() {
             )
         }
 
+        val preferredIds = entry.preferredCopyFieldIds?.toSet()
+        val copyFields = entry.fields
+            .filter { preferredIds == null || it.id in preferredIds }
+            .ifEmpty { entry.fields }
+        val copyLabel = if (copyFields.size == entry.fields.size) {
+            localizedSelectionUi(settings, "Copy all", "Copiar todo")
+        } else {
+            localizedSelectionUi(
+                settings,
+                "Copy ${copyFields.size}/${entry.fields.size}",
+                "Copiar ${copyFields.size}/${entry.fields.size}",
+            )
+        }
+
         val footer = overlayActionFooter(
             ui = ui,
-            primaryLabel = localizedSelectionUi(settings, "Copy all", "Copiar todo"),
+            primaryLabel = copyLabel,
             cancelLabel = localizedSelectionUi(settings, "Close", "Cerrar"),
             onCancel = { hideFormOverlay() },
             onPrimary = {
-                val valuesOnly = entry.fields.joinToString("\n", transform = VaultField::value)
-                writeVaultClipboard(valuesOnly, entry.fields.any(VaultField::sensitive))
+                val valuesOnly = copyFields.joinToString("\n", transform = VaultField::value)
+                writeVaultClipboard(valuesOnly, copyFields.any(VaultField::sensitive))
                 if (settings.hapticFeedback) vibrateTick()
             },
             onPrimaryLongClick = {
-                val labeled = entry.fields.joinToString("\n") { "${it.label}: ${it.value}" }
-                writeVaultClipboard(labeled, entry.fields.any(VaultField::sensitive))
+                val labeled = copyFields.joinToString("\n") { "${it.label}: ${it.value}" }
+                writeVaultClipboard(labeled, copyFields.any(VaultField::sensitive))
                 if (settings.hapticFeedback) vibrateTick()
+            },
+            onPrimarySwipe = if (entry.fields.size > 1) {
+                {
+                    if (settings.hapticFeedback) vibrateTick()
+                    showVaultCopyFieldSelectorOverlay(
+                        entry = entry,
+                        anchor = anchor,
+                        insertionCursor = insertionCursor,
+                        settings = settings,
+                    )
+                }
+            } else {
+                null
             },
         )
         val bounds = displayBounds(windowManager)
@@ -4329,6 +4356,116 @@ class ExpansionAccessibilityService : AccessibilityService() {
             formOverlay = overlayRoot
             markVaultOverlayShown(anchor)
         }
+    }
+
+    private fun showVaultCopyFieldSelectorOverlay(
+        entry: VaultEntry,
+        anchor: SuggestionAnchor?,
+        insertionCursor: Int?,
+        settings: AppSettings,
+    ) {
+        hideFormOverlay()
+        val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        val ui = OverlayViews(this, resolveNativeTheme(this, settings))
+        val selectedIds = (
+            entry.preferredCopyFieldIds?.toMutableSet()
+                ?: entry.fields.mapTo(linkedSetOf(), VaultField::id)
+            )
+        val checkboxes = linkedMapOf<String, CheckBox>()
+
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(14), dp(16), dp(8))
+            addView(
+                ui.title(
+                    localizedSelectionUi(
+                        settings,
+                        "Choose fields to copy",
+                        "Elegir campos para copiar",
+                    ),
+                ),
+            )
+            addView(
+                ui.body(
+                    localizedSelectionUi(
+                        settings,
+                        "This selection is remembered for this entry.",
+                        "Esta selección se recuerda para esta entrada.",
+                    ),
+                    secondary = true,
+                ).apply { setPadding(0, dp(4), 0, dp(10)) },
+            )
+        }
+
+        entry.fields.forEach { field ->
+            val checkbox = CheckBox(this).apply {
+                text = field.label
+                isChecked = field.id in selectedIds
+                setTextColor(ui.theme.onSurface)
+                minimumHeight = dp(48)
+                setPadding(dp(6), 0, dp(6), 0)
+                setOnCheckedChangeListener { _, checked ->
+                    if (checked) selectedIds += field.id else selectedIds -= field.id
+                }
+            }
+            checkboxes[field.id] = checkbox
+            content.addView(
+                checkbox,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    dp(48),
+                ),
+            )
+        }
+
+        fun returnToEntry() {
+            val latest = vaultRepository.entries.value.firstOrNull { it.id == entry.id } ?: entry
+            showVaultEntryOverlay(
+                entry = latest,
+                anchor = anchor,
+                insertionCursor = insertionCursor,
+                settings = settings,
+            )
+        }
+
+        val footer = overlayActionFooter(
+            ui = ui,
+            primaryLabel = localizedSelectionUi(settings, "Save", "Guardar"),
+            cancelLabel = localizedSelectionUi(settings, "Cancel", "Cancelar"),
+            onCancel = { returnToEntry() },
+            onPrimary = {
+                if (selectedIds.isEmpty()) return@overlayActionFooter
+                hideFormOverlay()
+                scope.launch {
+                    vaultRepository.updateCopyFieldSelection(
+                        entryId = entry.id,
+                        fieldIds = entry.fields
+                            .map(VaultField::id)
+                            .filter { it in selectedIds },
+                    )
+                    returnToEntry()
+                }
+            },
+        )
+        val root = buildPickerOverlayRoot(
+            content = content,
+            footer = footer,
+            itemCount = entry.fields.size,
+            maxContentHeightPx = (displayBounds(windowManager).height() * 0.58f).toInt(),
+            background = ui.panel(22),
+            ui = ui,
+        )
+        val params = vaultOverlayDialogParams(windowManager, softInput = false)
+        runCatching {
+            val overlayRoot = dismissibleOverlayRoot(
+                card = root,
+                windowManager = windowManager,
+                onDismiss = { returnToEntry() },
+            )
+            windowManager.addView(overlayRoot, params)
+            formOverlay = overlayRoot
+            markVaultOverlayShown(anchor)
+        }.onFailure { formOverlay = null }
     }
 
     private fun showVaultFieldEditOverlay(
