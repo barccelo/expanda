@@ -2979,7 +2979,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         card: View,
         windowManager: WindowManager,
         onDismiss: () -> Unit = { hideFormOverlay() },
-        verticalOffsetPx: Int = 0,
+        keyboardAware: Boolean = false,
     ): FrameLayout {
         val screenWidth = displayBounds(windowManager).width()
         val cardWidth = (screenWidth * 0.9f).toInt()
@@ -2994,7 +2994,6 @@ class ExpansionAccessibilityService : AccessibilityService() {
             setOnClickListener { onDismiss() }
         }
         card.isClickable = true
-        card.translationY = verticalOffsetPx.toFloat()
         return FrameLayout(this).apply {
             addView(
                 backdrop,
@@ -3011,7 +3010,71 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     Gravity.CENTER,
                 ),
             )
+            if (keyboardAware) {
+                attachVaultKeyboardAvoidance(
+                    overlayRoot = this,
+                    card = card,
+                    windowManager = windowManager,
+                )
+            }
         }
+    }
+
+    private fun attachVaultKeyboardAvoidance(
+        overlayRoot: View,
+        card: View,
+        windowManager: WindowManager,
+    ) {
+        val marginPx = dp(VAULT_KEYBOARD_DIALOG_MARGIN_DP)
+        val listener = ViewTreeObserver.OnGlobalLayoutListener {
+            if (!overlayRoot.isAttachedToWindow || !card.isLaidOut) return@OnGlobalLayoutListener
+
+            val bounds = displayBounds(windowManager)
+            val visible = Rect()
+            overlayRoot.getWindowVisibleDisplayFrame(visible)
+            val visibleKeyboard = (bounds.bottom - visible.bottom).coerceAtLeast(0)
+            val insetKeyboard = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                overlayRoot.rootWindowInsets
+                    ?.getInsets(WindowInsets.Type.ime())
+                    ?.bottom
+                    ?: 0
+            } else {
+                0
+            }
+            val keyboardHeight = maxOf(visibleKeyboard, insetKeyboard)
+            val keyboardVisible = keyboardHeight > bounds.height() * 0.12f
+            if (!keyboardVisible) {
+                if (card.translationY != 0f) card.translationY = 0f
+                return@OnGlobalLayoutListener
+            }
+
+            val keyboardTop = bounds.bottom - keyboardHeight
+            val location = IntArray(2)
+            card.getLocationOnScreen(location)
+            val baseTop = location[1] - card.translationY.roundToInt()
+            val baseBottom = baseTop + card.height
+            val desiredBottom = keyboardTop - marginPx
+            val neededLift = (baseBottom - desiredBottom).coerceAtLeast(0)
+
+            val topInset = vaultSystemBarInsets(windowManager).first
+            val highestAllowedTop = topInset + marginPx
+            val maxLift = (baseTop - highestAllowedTop).coerceAtLeast(0)
+            val lift = minOf(neededLift, maxLift)
+
+            val target = -lift.toFloat()
+            if (kotlin.math.abs(card.translationY - target) > 1f) {
+                card.translationY = target
+            }
+        }
+        overlayRoot.viewTreeObserver.addOnGlobalLayoutListener(listener)
+        overlayRoot.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(v: View) = Unit
+            override fun onViewDetachedFromWindow(v: View) {
+                if (overlayRoot.viewTreeObserver.isAlive) {
+                    overlayRoot.viewTreeObserver.removeOnGlobalLayoutListener(listener)
+                }
+            }
+        })
     }
 
     private fun overlayCancelFooter(
@@ -4102,7 +4165,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
             val overlayRoot = dismissibleOverlayRoot(
                 card = root,
                 windowManager = windowManager,
-                verticalOffsetPx = -dp(VAULT_KEYBOARD_DIALOG_LIFT_DP),
+                keyboardAware = true,
                 onDismiss = { returnToVault() },
             )
             windowManager.addView(overlayRoot, params)
@@ -4245,7 +4308,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         val root = buildScrollableOverlayRoot(
             content = panel,
             footer = footer,
-            maxContentHeightPx = (displayBounds(windowManager).height() * 0.62f).toInt(),
+            maxContentHeightPx = (displayBounds(windowManager).height() * VAULT_ENTRY_FORM_CONTENT_RATIO).toInt(),
             background = ui.panel(22),
             ui = ui,
         )
@@ -4254,7 +4317,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
             val overlayRoot = dismissibleOverlayRoot(
                 card = root,
                 windowManager = windowManager,
-                verticalOffsetPx = -dp(VAULT_KEYBOARD_DIALOG_LIFT_DP),
+                keyboardAware = true,
                 onDismiss = { returnToCategory() },
             )
             windowManager.addView(overlayRoot, params)
@@ -4912,7 +4975,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 card = root,
                 windowManager = windowManager,
                 onDismiss = { returnToEntry() },
-                verticalOffsetPx = -dp(VAULT_KEYBOARD_DIALOG_LIFT_DP),
+                keyboardAware = true,
             )
             windowManager.addView(overlayRoot, params)
             formOverlay = overlayRoot
@@ -5191,7 +5254,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
             val overlayRoot = dismissibleOverlayRoot(
                 card = root,
                 windowManager = windowManager,
-                verticalOffsetPx = -dp(VAULT_KEYBOARD_DIALOG_LIFT_DP),
+                keyboardAware = true,
                 onDismiss = { returnToEntry() },
             )
             windowManager.addView(overlayRoot, params)
@@ -5274,7 +5337,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 card = root,
                 windowManager = windowManager,
                 onDismiss = { returnToEntry() },
-                verticalOffsetPx = -dp(VAULT_KEYBOARD_DIALOG_LIFT_DP),
+                keyboardAware = true,
             )
             windowManager.addView(overlayRoot, params)
             formOverlay = overlayRoot
@@ -6651,7 +6714,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
     }
 
     companion object {
-        private const val VAULT_KEYBOARD_DIALOG_LIFT_DP = 28
+        private const val VAULT_KEYBOARD_DIALOG_MARGIN_DP = 18
+        private const val VAULT_ENTRY_FORM_CONTENT_RATIO = 0.38f
         @Volatile private var activeService: WeakReference<ExpansionAccessibilityService>? = null
 
         /** Opens the real overlay for the currently focused editor, without requiring typed characters. */
