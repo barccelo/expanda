@@ -472,6 +472,32 @@ fun ExpandaApp(
                     onDeleteCategory = { id ->
                         viewModel.deleteVaultCategory(id)
                     },
+                    onMoveEntries = { ids, categoryName ->
+                        viewModel.moveVaultEntries(ids, categoryName) { result ->
+                            result.exceptionOrNull()?.let { error ->
+                                scope.launch {
+                                    snackbarHostState.showSnackbar(
+                                        error.message ?: vaultSaveErrorText,
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    onMoveTrigger = { trigger, categoryId, entryId ->
+                        viewModel.moveVaultTrigger(
+                            trigger = trigger,
+                            targetCategoryId = categoryId,
+                            targetEntryId = entryId,
+                        ) { result ->
+                            result.exceptionOrNull()?.let { error ->
+                                scope.launch {
+                                    snackbarHostState.showSnackbar(
+                                        error.message ?: vaultSaveErrorText,
+                                    )
+                                }
+                            }
+                        }
+                    },
                     onCopy = viewModel::copyVaultValue,
                     onUpdateFromClipboard = { entryId, fieldId, value ->
                         viewModel.updateVaultFieldFromClipboard(entryId, fieldId, value)
