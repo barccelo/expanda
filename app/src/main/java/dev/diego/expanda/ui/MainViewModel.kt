@@ -288,6 +288,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         settingsRepository.setDisplayLanguage(language)
     }
     fun setSuggestionShowActions(enabled: Boolean) = viewModelScope.launch { settingsRepository.setSuggestionShowActions(enabled) }
+    fun setSuggestionShowVault(enabled: Boolean) = viewModelScope.launch { settingsRepository.setSuggestionShowVault(enabled) }
+    fun setSnippetSuggestionEnabled(ids: Set<Long>, enabled: Boolean) = viewModelScope.launch {
+        repository.setSuggestionEnabled(ids, enabled)
+    }
     fun setMatchFromBeginning(enabled: Boolean) = viewModelScope.launch { settingsRepository.setMatchFromBeginning(enabled) }
     fun setSuggestionCompactList(enabled: Boolean) = viewModelScope.launch { settingsRepository.setSuggestionCompactList(enabled) }
     fun setSuggestionMaxHeightDp(heightDp: Int) = viewModelScope.launch { settingsRepository.setSuggestionMaxHeightDp(heightDp) }
