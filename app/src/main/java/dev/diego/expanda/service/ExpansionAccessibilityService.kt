@@ -4634,6 +4634,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
             var downY = 0f
             var dragging = false
             var armed = false
+            // Lock the first horizontal direction for the lifetime of one touch.
+            // +1 = right, -1 = left, 0 = not chosen yet.
+            var directionLock = 0
 
             override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
                 when (event.actionMasked) {
@@ -4642,6 +4645,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                         downY = event.y
                         dragging = false
                         armed = false
+                        directionLock = 0
                     }
                     MotionEvent.ACTION_MOVE -> {
                         val dx = event.x - downX
@@ -4652,6 +4656,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                             kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.15f
                         ) {
                             dragging = true
+                            directionLock = if (dx >= 0f) 1 else -1
                             parent?.requestDisallowInterceptTouchEvent(true)
                             return true
                         }
@@ -4664,7 +4669,11 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 when (event.actionMasked) {
                     MotionEvent.ACTION_MOVE -> {
                         val dx = event.x - downX
-                        val clamped = dx.coerceIn(-maxTravel, maxTravel)
+                        val clamped = when (directionLock) {
+                            1 -> dx.coerceIn(0f, maxTravel)
+                            -1 -> dx.coerceIn(-maxTravel, 0f)
+                            else -> 0f
+                        }
                         front.translationX = clamped
                         val nowArmed = kotlin.math.abs(clamped) >= commitThreshold
                         if (nowArmed && !armed && settings.hapticFeedback) {
@@ -4677,6 +4686,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                         val shouldEdit = dragging && armed
                         dragging = false
                         armed = false
+                        directionLock = 0
                         parent?.requestDisallowInterceptTouchEvent(false)
                         front.animate()
                             .translationX(0f)
@@ -4690,6 +4700,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     MotionEvent.ACTION_CANCEL -> {
                         dragging = false
                         armed = false
+                        directionLock = 0
                         parent?.requestDisallowInterceptTouchEvent(false)
                         front.animate().translationX(0f).setDuration(120L).start()
                         return true
