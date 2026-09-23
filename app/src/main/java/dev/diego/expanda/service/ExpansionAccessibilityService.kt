@@ -3073,9 +3073,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 if (direction == activeDirection) return
                 activeDirection = direction
                 primaryButton.setCompoundDrawablesWithIntrinsicBounds(
-                    if (direction == PrimarySwipeDirection.LEFT) android.R.drawable.ic_menu_copy else 0,
-                    if (direction == PrimarySwipeDirection.UP) android.R.drawable.ic_menu_copy else 0,
-                    if (direction == PrimarySwipeDirection.RIGHT) android.R.drawable.ic_menu_copy else 0,
+                    if (direction == PrimarySwipeDirection.LEFT) R.drawable.ic_copy_fine else 0,
+                    if (direction == PrimarySwipeDirection.UP) R.drawable.ic_copy_fine else 0,
+                    if (direction == PrimarySwipeDirection.RIGHT) R.drawable.ic_copy_fine else 0,
                     0,
                 )
                 primaryButton.compoundDrawablePadding = if (direction == null) 0 else dp(6)
