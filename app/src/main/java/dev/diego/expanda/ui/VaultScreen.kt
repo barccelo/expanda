@@ -167,7 +167,7 @@ fun VaultScreen(
                 }
             }
 
-            if (visible.isEmpty()) {
+            if (sections.isEmpty()) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -177,14 +177,14 @@ fun VaultScreen(
                 ) {
                     Icon(Icons.Default.Lock, null)
                     Text(
-                        if (entries.isEmpty()) {
+                        if (entries.isEmpty() && categories.isEmpty()) {
                             tr("Your vault is empty", "Tu bóveda está vacía")
                         } else {
                             tr("No matching entries", "No hay coincidencias")
                         },
                         style = MaterialTheme.typography.titleMedium,
                     )
-                    if (entries.isEmpty()) {
+                    if (entries.isEmpty() && categories.isEmpty()) {
                         Text(
                             tr(
                                 "Store notes, usernames, passwords and other text you need to retrieve quickly.",
