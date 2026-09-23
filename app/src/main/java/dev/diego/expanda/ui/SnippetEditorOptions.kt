@@ -51,6 +51,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.diego.expanda.data.TemplateSelectionMode
+import dev.diego.expanda.data.TriggerActivation
 import dev.diego.expanda.data.UppercaseStyle
 
 internal fun hasMultipleConfiguredReplacements(replacements: List<String>): Boolean =
@@ -58,8 +59,8 @@ internal fun hasMultipleConfiguredReplacements(replacements: List<String>): Bool
 
 @Composable
 internal fun SnippetMatchingOptionsCard(
-    immediate: Boolean,
-    onImmediateChanged: (Boolean) -> Unit,
+    activation: TriggerActivation,
+    onActivationChanged: (TriggerActivation) -> Unit,
     delimiters: String,
     onDelimitersChanged: (String) -> Unit,
     alternativeTriggers: String,
@@ -94,36 +95,119 @@ internal fun SnippetMatchingOptionsCard(
                 fontWeight = FontWeight.SemiBold,
             )
 
-            OptionSection("Activation") {
+            OptionSection(tr("Activation", "Activación")) {
                 val options = listOf(
-                    ActivationOption("After delimiter", Icons.Default.SpaceBar, false),
-                    ActivationOption("Immediately", Icons.Default.Bolt, true),
+                    ActivationOption(
+                        TriggerActivation.IMMEDIATE,
+                        tr("Immediately", "Inmediatamente"),
+                        Icons.Default.Bolt,
+                    ),
+                    ActivationOption(
+                        TriggerActivation.SPACE,
+                        tr("After space", "Después de espacio"),
+                        Icons.Default.SpaceBar,
+                    ),
+                    ActivationOption(
+                        TriggerActivation.DELIMITER,
+                        tr("Delimiter", "Delimitador"),
+                        Icons.Default.TouchApp,
+                    ),
                 )
                 SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                     options.forEachIndexed { index, option ->
-                        val selected = immediate == option.immediate
+                        val selected = activation == option.activation
                         SegmentedButton(
                             selected = selected,
-                            onClick = { onImmediateChanged(option.immediate) },
+                            onClick = { onActivationChanged(option.activation) },
                             shape = SegmentedButtonDefaults.itemShape(index, options.size),
                             icon = {
                                 SegmentedButtonDefaults.Icon(active = selected) {
                                     Icon(option.icon, null, Modifier.size(18.dp))
                                 }
                             },
-                            label = { Text(option.label, maxLines = 1) },
+                            label = { Text(option.label, maxLines = 2) },
                         )
                     }
                 }
-                if (!immediate) {
-                    OutlinedTextField(
-                        value = delimiters,
-                        onValueChange = onDelimitersChanged,
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text(tr("Activation delimiters")) },
-                        minLines = 1,
-                        maxLines = 2,
+                when (activation) {
+                    TriggerActivation.IMMEDIATE -> Text(
+                        tr(
+                            "Expands as soon as the trigger is complete.",
+                            "Expande en cuanto se completa el trigger.",
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    TriggerActivation.SPACE -> Text(
+                        tr(
+                            "Expands only when you press Space after the trigger.",
+                            "Expande únicamente al presionar Espacio después del trigger.",
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    TriggerActivation.DELIMITER -> {
+                        Text(
+                            tr(
+                                "Choose which characters activate the trigger.",
+                                "Elige qué caracteres activan el trigger.",
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(DELIMITER_OPTIONS, key = DelimiterOption::value) { option ->
+                                val selected = option.value.any { it in delimiters }
+                                FilterChip(
+                                    selected = selected,
+                                    onClick = {
+                                        val next = if (selected) {
+                                            delimiters.filterNot { character ->
+                                                character in option.value
+                                            }
+                                        } else {
+                                            delimiters + option.value
+                                        }
+                                        onDelimitersChanged(next.distinct().joinToString(""))
+                                    },
+                                    label = { Text(option.label) },
+                                )
+                            }
+                        }
+                        val knownCharacters = DELIMITER_OPTIONS
+                            .flatMap { it.value.toList() }
+                            .toSet()
+                        val custom = delimiters.filterNot { it in knownCharacters }
+                        OutlinedTextField(
+                            value = custom,
+                            onValueChange = { updatedCustom ->
+                                val selectedKnown = delimiters.filter { it in knownCharacters }
+                                onDelimitersChanged(
+                                    (selectedKnown + updatedCustom)
+                                        .distinct()
+                                        .joinToString(""),
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = {
+                                Text(
+                                    tr(
+                                        "Other delimiter characters",
+                                        "Otros caracteres delimitadores",
+                                    ),
+                                )
+                            },
+                            supportingText = {
+                                Text(
+                                    tr(
+                                        "Space, Enter and Tab are controlled by the chips above.",
+                                        "Espacio, Enter y Tab se controlan con las opciones superiores.",
+                                    ),
+                                )
+                            },
+                            singleLine = true,
+                        )
+                    }
                 }
             }
 
@@ -365,9 +449,26 @@ private fun OptionSection(
 }
 
 private data class ActivationOption(
+    val activation: TriggerActivation,
     val label: String,
     val icon: ImageVector,
-    val immediate: Boolean,
+)
+
+private data class DelimiterOption(
+    val value: String,
+    val label: String,
+)
+
+private val DELIMITER_OPTIONS = listOf(
+    DelimiterOption(" ", "Espacio"),
+    DelimiterOption("\n", "Enter"),
+    DelimiterOption("\t", "Tab"),
+    DelimiterOption(".", "."),
+    DelimiterOption(",", ","),
+    DelimiterOption("!", "!"),
+    DelimiterOption("?", "?"),
+    DelimiterOption(";", ";"),
+    DelimiterOption(":", ":"),
 )
 
 private enum class BoundaryOption(val label: String, val icon: ImageVector) {
