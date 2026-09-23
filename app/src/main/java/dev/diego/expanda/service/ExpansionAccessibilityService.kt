@@ -5077,7 +5077,6 @@ class ExpansionAccessibilityService : AccessibilityService() {
             val overlayRoot = dismissibleOverlayRoot(
                 card = root,
                 windowManager = windowManager,
-                verticalOffsetPx = -dp(VAULT_KEYBOARD_DIALOG_LIFT_DP),
                 onDismiss = { returnToEntry() },
             )
             windowManager.addView(overlayRoot, params)
@@ -5192,6 +5191,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
             val overlayRoot = dismissibleOverlayRoot(
                 card = root,
                 windowManager = windowManager,
+                verticalOffsetPx = -dp(VAULT_KEYBOARD_DIALOG_LIFT_DP),
                 onDismiss = { returnToEntry() },
             )
             windowManager.addView(overlayRoot, params)
