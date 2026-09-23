@@ -69,6 +69,8 @@ data class AppSettings(
     /** Display language for Expanda Personal surfaces that support localization. */
     val displayLanguage: DisplayLanguage = DisplayLanguage.SYSTEM,
     val suggestionShowActions: Boolean = true,
+    /** Include vault categories and entries in floating suggestions. */
+    val suggestionShowVault: Boolean = true,
     val matchFromBeginning: Boolean = true,
     /** Keep the suggestion list visually dense when enabled. */
     val suggestionCompactList: Boolean = true,
@@ -166,6 +168,7 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
                 runCatching { DisplayLanguage.valueOf(it) }.getOrNull()
             } ?: DisplayLanguage.SYSTEM,
             suggestionShowActions = values[Keys.SUGGESTION_SHOW_ACTIONS] ?: true,
+            suggestionShowVault = values[Keys.SUGGESTION_SHOW_VAULT] ?: true,
             matchFromBeginning = values[Keys.MATCH_BEGINNING] ?: true,
             suggestionCompactList = values[Keys.SUGGESTION_COMPACT] ?: true,
             suggestionMaxHeightDp = (
@@ -267,6 +270,7 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         it[Keys.DISPLAY_LANGUAGE] = language.name
     }
     suspend fun setSuggestionShowActions(enabled: Boolean) = store.edit { it[Keys.SUGGESTION_SHOW_ACTIONS] = enabled }
+    suspend fun setSuggestionShowVault(enabled: Boolean) = store.edit { it[Keys.SUGGESTION_SHOW_VAULT] = enabled }
     suspend fun setMatchFromBeginning(enabled: Boolean) = store.edit { it[Keys.MATCH_BEGINNING] = enabled }
     suspend fun setSuggestionCompactList(enabled: Boolean) = store.edit {
         it[Keys.SUGGESTION_COMPACT] = enabled
@@ -342,6 +346,7 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         val SELECTION_WRAP_GROUP_MIGRATED = booleanPreferencesKey("selection_wrap_group_migrated")
         val DISPLAY_LANGUAGE = stringPreferencesKey("display_language")
         val SUGGESTION_SHOW_ACTIONS = booleanPreferencesKey("suggestion_show_actions")
+        val SUGGESTION_SHOW_VAULT = booleanPreferencesKey("suggestion_show_vault")
         val MATCH_BEGINNING = booleanPreferencesKey("match_beginning")
         val SUGGESTION_COMPACT = booleanPreferencesKey("suggestion_compact_list")
         val SUGGESTION_MAX_HEIGHT_DP = intPreferencesKey("suggestion_max_height_dp")
@@ -382,6 +387,7 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
             encodeSelectionActionGroupConfigs(snapshot.selectionActionGroupConfigs)
         values[Keys.DISPLAY_LANGUAGE] = snapshot.displayLanguage.name
         values[Keys.SUGGESTION_SHOW_ACTIONS] = snapshot.suggestionShowActions
+        values[Keys.SUGGESTION_SHOW_VAULT] = snapshot.suggestionShowVault
         values[Keys.MATCH_BEGINNING] = snapshot.matchFromBeginning
         values[Keys.SUGGESTION_COMPACT] = snapshot.suggestionCompactList
         values[Keys.SUGGESTION_MAX_HEIGHT_DP] = snapshot.suggestionMaxHeightDp.coerceIn(
