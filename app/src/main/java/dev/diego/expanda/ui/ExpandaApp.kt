@@ -981,6 +981,7 @@ private fun SettingsScreen(
     var diagnosticsCopied by remember { mutableStateOf(false) }
     var folderStatus by remember { mutableStateOf<String?>(null) }
     var showSelectionToolbarSettings by remember { mutableStateOf(false) }
+    var showSnippetSuggestionSettings by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
     Box(Modifier.fillMaxSize()) {
@@ -1137,6 +1138,10 @@ private fun SettingsScreen(
                 onResizeHandleChanged = viewModel::setSuggestionResizeHandleEnabled,
                 showAdditionalOptions = true,
                 onShowActionsChanged = viewModel::setSuggestionShowActions,
+                onShowVaultChanged = viewModel::setSuggestionShowVault,
+                snippetSuggestionCount = state.matches.count(TextMatch::suggestionEnabled),
+                snippetCount = state.matches.size,
+                onConfigureSnippetSuggestions = { showSnippetSuggestionSettings = true },
                 onMatchFromBeginningChanged = viewModel::setMatchFromBeginning,
             )
         }
@@ -1378,6 +1383,13 @@ private fun SettingsScreen(
         }
         }
 
+        if (showSnippetSuggestionSettings) {
+            SnippetSuggestionSettingsDialog(
+                matches = state.matches,
+                onDismiss = { showSnippetSuggestionSettings = false },
+                onSetEnabled = viewModel::setSnippetSuggestionEnabled,
+            )
+        }
         if (showSelectionToolbarSettings) {
             SelectionToolbarSettingsDialog(
                 settings = state.settings,
@@ -1437,6 +1449,96 @@ private fun SettingsScreen(
             },
         )
     }
+}
+
+@Composable
+private fun SnippetSuggestionSettingsDialog(
+    matches: List<TextMatch>,
+    onDismiss: () -> Unit,
+    onSetEnabled: (Set<Long>, Boolean) -> Unit,
+) {
+    var query by remember { mutableStateOf("") }
+    val filtered = remember(matches, query) {
+        val needle = query.trim()
+        if (needle.isBlank()) {
+            matches.sortedBy { it.label.ifBlank { it.trigger }.lowercase() }
+        } else {
+            matches.filter { match ->
+                match.label.contains(needle, ignoreCase = true) ||
+                    match.textTriggers().any { it.contains(needle, ignoreCase = true) }
+            }.sortedBy { it.label.ifBlank { it.trigger }.lowercase() }
+        }
+    }
+    val allIds = matches.mapTo(linkedSetOf(), TextMatch::id)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(tr("Snippet suggestions", "Sugerencias de snippets")) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    tr(
+                        "Choose which snippets may appear in the floating suggestion panel.",
+                        "Elige qué snippets pueden aparecer en el panel flotante de sugerencias.",
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    TextButton(
+                        onClick = { onSetEnabled(allIds, true) },
+                        modifier = Modifier.weight(1f),
+                    ) { Text(tr("Select all", "Marcar todos")) }
+                    TextButton(
+                        onClick = { onSetEnabled(allIds, false) },
+                        modifier = Modifier.weight(1f),
+                    ) { Text(tr("Clear all", "Desmarcar todos")) }
+                }
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    leadingIcon = { Icon(Icons.Default.Search, null) },
+                    placeholder = { Text(tr("Search snippets", "Buscar snippets")) },
+                )
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    items(filtered, key = TextMatch::id) { match ->
+                        ListItem(
+                            headlineContent = {
+                                Text(match.label.ifBlank { match.trigger })
+                            },
+                            supportingContent = {
+                                Text(
+                                    match.textTriggers().joinToString(" · "),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            },
+                            trailingContent = {
+                                Checkbox(
+                                    checked = match.suggestionEnabled,
+                                    onCheckedChange = { checked ->
+                                        onSetEnabled(setOf(match.id), checked)
+                                    },
+                                )
+                            },
+                            modifier = Modifier.clickable {
+                                onSetEnabled(setOf(match.id), !match.suggestionEnabled)
+                            },
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(tr("Done", "Listo")) }
+        },
+    )
 }
 
 @Composable
