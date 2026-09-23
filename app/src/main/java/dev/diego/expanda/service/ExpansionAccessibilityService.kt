@@ -3361,13 +3361,16 @@ class ExpansionAccessibilityService : AccessibilityService() {
         maxContentHeightPx: Int,
         background: android.graphics.drawable.Drawable,
         ui: OverlayViews,
+        addKeyboardPadding: Boolean = true,
     ): LinearLayout {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             this.background = background
         }
         val scroll = BoundedScrollView(this, maxContentHeightPx).apply { addView(content) }
-        attachKeyboardScrollAssist(scroll, content)
+        if (addKeyboardPadding) {
+            attachKeyboardScrollAssist(scroll, content)
+        }
         root.addView(
             scroll,
             LinearLayout.LayoutParams(
@@ -4311,6 +4314,11 @@ class ExpansionAccessibilityService : AccessibilityService() {
             maxContentHeightPx = (displayBounds(windowManager).height() * VAULT_ENTRY_FORM_CONTENT_RATIO).toInt(),
             background = ui.panel(22),
             ui = ui,
+            // This vault window already uses SOFT_INPUT_ADJUST_RESIZE and the
+            // card is repositioned against the real IME height. Adding the IME
+            // height again as content padding creates the large empty block seen
+            // above the fixed Cancel/Save footer.
+            addKeyboardPadding = false,
         )
         val params = vaultOverlayDialogParams(windowManager, softInput = true)
         runCatching {
