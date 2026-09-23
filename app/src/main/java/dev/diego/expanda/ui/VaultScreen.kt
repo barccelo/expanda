@@ -63,7 +63,7 @@ fun VaultScreen(
     onSaveCategory: (VaultCategory) -> Unit,
     onDeleteCategory: (Long) -> Unit,
     onMoveEntries: (Set<Long>, String?) -> Unit,
-    onMoveTrigger: (String, Long?, Long?) -> Unit,
+    onMoveTriggers: (Set<String>, Long?, Long?) -> Unit,
     onCopy: (String, Boolean) -> Unit,
     onUpdateFromClipboard: (Long, String, String) -> Unit,
 ) {
@@ -372,15 +372,11 @@ fun VaultScreen(
             categories = categories,
             onDismiss = { movingTriggers = emptySet() },
             onMoveToCategory = { categoryId ->
-                movingTriggers.forEach { trigger ->
-                    onMoveTrigger(trigger, categoryId, null)
-                }
+                onMoveTriggers(movingTriggers, categoryId, null)
                 movingTriggers = emptySet()
             },
             onMoveToEntry = { entryId ->
-                movingTriggers.forEach { trigger ->
-                    onMoveTrigger(trigger, null, entryId)
-                }
+                onMoveTriggers(movingTriggers, null, entryId)
                 movingTriggers = emptySet()
             },
         )
