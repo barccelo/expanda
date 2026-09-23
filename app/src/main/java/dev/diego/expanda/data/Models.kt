@@ -7,7 +7,7 @@ data class MatchTrigger(
     val kind: TriggerKind = TriggerKind.TEXT,
 )
 
-enum class TriggerActivation { DELIMITER, IMMEDIATE }
+enum class TriggerActivation { IMMEDIATE, SPACE, DELIMITER }
 
 enum class UppercaseStyle { CAPITALIZE, CAPITALIZE_WORDS, UPPERCASE }
 
