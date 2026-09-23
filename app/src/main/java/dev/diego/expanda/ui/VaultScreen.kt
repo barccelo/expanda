@@ -66,13 +66,17 @@ fun VaultScreen(
         .filter { entry ->
             search.isBlank() ||
                 entry.title.contains(search, ignoreCase = true) ||
+                entry.category?.contains(search, ignoreCase = true) == true ||
                 entry.tags.any { it.contains(search, ignoreCase = true) } ||
                 entry.fields.any { it.label.contains(search, ignoreCase = true) }
         }
         .sortedWith(
-            compareByDescending<VaultEntry> { it.favorite }
+            compareBy<VaultEntry> { it.category.isNullOrBlank() }
+                .thenBy(String.CASE_INSENSITIVE_ORDER) { it.category.orEmpty() }
+                .thenByDescending { it.favorite }
                 .thenBy(String.CASE_INSENSITIVE_ORDER) { it.title },
         )
+    val grouped = visible.groupBy { it.category?.takeIf(String::isNotBlank) }
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
@@ -118,37 +122,48 @@ fun VaultScreen(
                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 96.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    items(visible, key = VaultEntry::id) { entry ->
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { viewing = entry },
-                        ) {
-                            ListItem(
-                                headlineContent = {
-                                    Text(entry.title, fontWeight = FontWeight.SemiBold)
-                                },
-                                supportingContent = {
-                                    val triggerText = entry.triggers.joinToString(" · ")
-                                    Text(
-                                        buildString {
-                                            append(
-                                                tr(
-                                                    "${entry.fields.size} fields",
-                                                    "${entry.fields.size} campos",
-                                                ),
-                                            )
-                                            if (triggerText.isNotBlank()) append(" · $triggerText")
-                                        },
-                                    )
-                                },
-                                leadingContent = {
-                                    Icon(
-                                        if (entry.favorite) Icons.Default.Favorite else Icons.Default.Lock,
-                                        null,
-                                    )
-                                },
+                    grouped.forEach { (category, categoryEntries) ->
+                        item(key = "category:${category ?: "__none__"}") {
+                            Text(
+                                category ?: tr("Uncategorized", "Sin categoría"),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(top = 8.dp, start = 4.dp, bottom = 2.dp),
                             )
+                        }
+                        items(categoryEntries, key = VaultEntry::id) { entry ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { viewing = entry },
+                            ) {
+                                ListItem(
+                                    headlineContent = {
+                                        Text(entry.title, fontWeight = FontWeight.SemiBold)
+                                    },
+                                    supportingContent = {
+                                        val triggerText = entry.triggers.joinToString(" · ")
+                                        Text(
+                                            buildString {
+                                                append(
+                                                    tr(
+                                                        "${entry.fields.size} fields",
+                                                        "${entry.fields.size} campos",
+                                                    ),
+                                                )
+                                                if (triggerText.isNotBlank()) append(" · $triggerText")
+                                            },
+                                        )
+                                    },
+                                    leadingContent = {
+                                        Icon(
+                                            if (entry.favorite) Icons.Default.Favorite else Icons.Default.Lock,
+                                            null,
+                                        )
+                                    },
+                                )
+                            }
                         }
                     }
                 }
@@ -218,9 +233,13 @@ private fun VaultEntryDialog(
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text(entry.title)
-                    if (entry.triggers.isNotEmpty()) {
+                    val metadata = buildList {
+                        entry.category?.takeIf(String::isNotBlank)?.let(::add)
+                        if (entry.triggers.isNotEmpty()) add(entry.triggers.joinToString(" · "))
+                    }.joinToString(" · ")
+                    if (metadata.isNotBlank()) {
                         Text(
-                            entry.triggers.joinToString(" · "),
+                            metadata,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -302,6 +321,9 @@ private fun VaultEditorDialog(
     var triggerText by remember(initial?.id) {
         mutableStateOf(initial?.triggers?.joinToString("\n").orEmpty())
     }
+    var category by remember(initial?.id) {
+        mutableStateOf(initial?.category.orEmpty())
+    }
     var tagsText by remember(initial?.id) {
         mutableStateOf(initial?.tags?.joinToString(", ").orEmpty())
     }
@@ -348,6 +370,23 @@ private fun VaultEditorDialog(
                                 ),
                             )
                         },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                item {
+                    OutlinedTextField(
+                        value = category,
+                        onValueChange = { category = it },
+                        label = { Text(tr("Category", "Categoría")) },
+                        supportingText = {
+                            Text(
+                                tr(
+                                    "Entries with the same category are grouped together.",
+                                    "Las entradas con la misma categoría se agrupan juntas.",
+                                ),
+                            )
+                        },
+                        singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -461,6 +500,7 @@ private fun VaultEditorDialog(
                                 .filter(String::isNotBlank)
                                 .distinct(),
                             fields = fields,
+                            category = category,
                             tags = tagsText
                                 .split(",")
                                 .map(String::trim)
