@@ -3913,8 +3913,21 @@ class ExpansionAccessibilityService : AccessibilityService() {
 
         val footer = overlayCancelFooter(
             ui,
-            localizedSelectionUi(settings, "Close", "Cerrar"),
-        ) { hideFormOverlay() }
+            if (categoryName.isNullOrBlank()) {
+                localizedSelectionUi(settings, "Close", "Cerrar")
+            } else {
+                localizedSelectionUi(settings, "Back", "Volver")
+            },
+        ) {
+            if (categoryName.isNullOrBlank()) {
+                hideFormOverlay()
+            } else {
+                showVaultOverlay(
+                    anchor = resolvedAnchor,
+                    insertionCursor = resolvedCursor,
+                )
+            }
+        }
         val bounds = displayBounds(windowManager)
         val root = buildPickerOverlayRoot(
             content = content,
@@ -4445,8 +4458,14 @@ class ExpansionAccessibilityService : AccessibilityService() {
         val footer = overlayActionFooter(
             ui = ui,
             primaryLabel = copyLabel,
-            cancelLabel = localizedSelectionUi(settings, "Close", "Cerrar"),
-            onCancel = { hideFormOverlay() },
+            cancelLabel = localizedSelectionUi(settings, "Back", "Volver"),
+            onCancel = {
+                showVaultOverlay(
+                    categoryName = entry.category,
+                    anchor = anchor,
+                    insertionCursor = insertionCursor,
+                )
+            },
             onPrimary = {
                 val valuesOnly = copyFields.joinToString("\n", transform = VaultField::value)
                 writeVaultClipboard(valuesOnly, copyFields.any(VaultField::sensitive))
@@ -4538,6 +4557,52 @@ class ExpansionAccessibilityService : AccessibilityService() {
             )
         }
 
+        lateinit var bulkToggle: TextView
+        fun syncBulkToggle() {
+            val allSelected = entry.fields.isNotEmpty() &&
+                entry.fields.all { it.id in selectedIds }
+            bulkToggle.text = localizedSelectionUi(
+                settings,
+                if (allSelected) "Deselect all" else "Select all",
+                if (allSelected) "Deseleccionar todo" else "Seleccionar todo",
+            )
+            bulkToggle.setCompoundDrawablesWithIntrinsicBounds(
+                if (allSelected) R.drawable.ic_deselect_all_fine else R.drawable.ic_select_all_fine,
+                0,
+                0,
+                0,
+            )
+            bulkToggle.compoundDrawablePadding = dp(8)
+            bulkToggle.compoundDrawableTintList =
+                android.content.res.ColorStateList.valueOf(ui.theme.onSurface)
+            bulkToggle.contentDescription = bulkToggle.text
+        }
+
+        bulkToggle = ui.compactButton(
+            localizedSelectionUi(settings, "Select all", "Seleccionar todo"),
+            primary = false,
+        ) {
+            val shouldSelectAll = entry.fields.any { it.id !in selectedIds }
+            checkboxes.values.forEach { checkbox ->
+                checkbox.isChecked = shouldSelectAll
+            }
+            if (shouldSelectAll) {
+                selectedIds.clear()
+                selectedIds += entry.fields.map(VaultField::id)
+            } else {
+                selectedIds.clear()
+            }
+            syncBulkToggle()
+        }
+        syncBulkToggle()
+        content.addView(
+            bulkToggle,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(48),
+            ).apply { bottomMargin = dp(8) },
+        )
+
         entry.fields.forEach { field ->
             val checkbox = CheckBox(this).apply {
                 text = field.label
@@ -4547,6 +4612,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 setPadding(dp(6), 0, dp(6), 0)
                 setOnCheckedChangeListener { _, checked ->
                     if (checked) selectedIds += field.id else selectedIds -= field.id
+                    syncBulkToggle()
                 }
             }
             checkboxes[field.id] = checkbox
