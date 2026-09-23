@@ -2592,8 +2592,8 @@ private fun SnippetEditorScreen(
     var selectionMode by remember(initial) { mutableStateOf(initial?.selectionMode ?: TemplateSelectionMode.FIRST) }
     var label by remember(initial) { mutableStateOf(initial?.label.orEmpty()) }
     var tags by remember(initial) { mutableStateOf(initial?.tags.orEmpty()) }
-    var instant by remember(initial) {
-        mutableStateOf(initial?.options?.activation?.let { it == TriggerActivation.IMMEDIATE } ?: true)
+    var activation by remember(initial) {
+        mutableStateOf(initial?.options?.activation ?: TriggerActivation.IMMEDIATE)
     }
     var caseSensitive by remember(initial) { mutableStateOf(initial?.options?.caseSensitive ?: true) }
     var leftWord by remember(initial) { mutableStateOf(initial?.options?.leftWord ?: false) }
@@ -2729,7 +2729,7 @@ private fun SnippetEditorScreen(
                             onClick = {
                                 val replacements = replacementFields.map { it.text }
                                 val caseOptions = MatchOptions(
-                                    activation = if (instant) TriggerActivation.IMMEDIATE else TriggerActivation.DELIMITER,
+                                    activation = activation,
                                     delimiters = delimiters,
                                     caseSensitive = caseSensitive,
                                     leftWord = leftWord,
@@ -2892,8 +2892,8 @@ private fun SnippetEditorScreen(
             if (showAdvanced) {
                 item {
                     SnippetMatchingOptionsCard(
-                        immediate = instant,
-                        onImmediateChanged = { instant = it },
+                        activation = activation,
+                        onActivationChanged = { activation = it },
                         delimiters = delimiters,
                         onDelimitersChanged = { delimiters = it },
                         alternativeTriggers = otherTriggers,
