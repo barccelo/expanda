@@ -3030,7 +3030,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         onCancel: () -> Unit,
         onPrimary: () -> Unit,
         onPrimaryLongClick: (() -> Unit)? = null,
-        onPrimarySwipe: (() -> Unit)? = null,
+        onPrimarySwipe: ((PrimarySwipeDirection) -> Unit)? = null,
     ): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.END or Gravity.CENTER_VERTICAL
@@ -3053,42 +3053,87 @@ class ExpansionAccessibilityService : AccessibilityService() {
         if (onPrimarySwipe != null) {
             var downX = 0f
             var downY = 0f
-            var swipeHandled = false
+            var activeDirection: PrimarySwipeDirection? = null
             val swipeThreshold = maxOf(
                 ViewConfiguration.get(this@ExpansionAccessibilityService).scaledTouchSlop * 3,
                 dp(24),
-            )
+            ).toFloat()
+            val travel = dp(14).toFloat()
+
+            fun resetSwipeVisual() {
+                primaryButton.animate()
+                    .translationX(0f)
+                    .translationY(0f)
+                    .setDuration(120L)
+                    .start()
+                primaryButton.setCompoundDrawablesWithIntrinsicBounds(0, 0, 0, 0)
+            }
+
+            fun showDirection(direction: PrimarySwipeDirection?) {
+                if (direction == activeDirection) return
+                activeDirection = direction
+                primaryButton.setCompoundDrawablesWithIntrinsicBounds(
+                    if (direction == PrimarySwipeDirection.LEFT) android.R.drawable.ic_menu_copy else 0,
+                    if (direction == PrimarySwipeDirection.UP) android.R.drawable.ic_menu_copy else 0,
+                    if (direction == PrimarySwipeDirection.RIGHT) android.R.drawable.ic_menu_copy else 0,
+                    0,
+                )
+                primaryButton.compoundDrawablePadding = if (direction == null) 0 else dp(6)
+                if (direction != null) {
+                    primaryButton.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+                }
+            }
+
             primaryButton.setOnTouchListener { _, event ->
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
+                        primaryButton.animate().cancel()
                         downX = event.rawX
                         downY = event.rawY
-                        swipeHandled = false
+                        activeDirection = null
                         false
                     }
                     MotionEvent.ACTION_MOVE -> {
                         val dx = event.rawX - downX
                         val dy = event.rawY - downY
-                        if (
-                            !swipeHandled &&
-                            kotlin.math.abs(dx) >= swipeThreshold &&
-                            kotlin.math.abs(dx) > kotlin.math.abs(dy)
-                        ) {
-                            swipeHandled = true
-                            onPrimarySwipe()
+                        val horizontal = kotlin.math.abs(dx) > kotlin.math.abs(dy)
+                        val candidate = when {
+                            !horizontal && dy <= -swipeThreshold -> PrimarySwipeDirection.UP
+                            horizontal && dx <= -swipeThreshold -> PrimarySwipeDirection.LEFT
+                            horizontal && dx >= swipeThreshold -> PrimarySwipeDirection.RIGHT
+                            else -> null
+                        }
+                        if (horizontal) {
+                            primaryButton.translationX = dx.coerceIn(-travel, travel)
+                            primaryButton.translationY = 0f
+                        } else if (dy < 0f) {
+                            primaryButton.translationX = 0f
+                            primaryButton.translationY = dy.coerceIn(-travel, 0f)
+                        } else {
+                            primaryButton.translationX = 0f
+                            primaryButton.translationY = 0f
+                        }
+                        showDirection(candidate)
+                        candidate != null
+                    }
+                    MotionEvent.ACTION_UP -> {
+                        val direction = activeDirection
+                        resetSwipeVisual()
+                        activeDirection = null
+                        if (direction != null) {
+                            onPrimarySwipe(direction)
                             true
                         } else {
-                            swipeHandled
+                            false
                         }
                     }
-                    MotionEvent.ACTION_UP,
-                    MotionEvent.ACTION_CANCEL,
-                    -> {
-                        val consume = swipeHandled
-                        swipeHandled = false
+                    MotionEvent.ACTION_CANCEL -> {
+                        val consume = activeDirection != null
+                        resetSwipeVisual()
+                        activeDirection = null
                         consume
                     }
-                    else -> swipeHandled
+                    else -> activeDirection != null
                 }
             }
         }
