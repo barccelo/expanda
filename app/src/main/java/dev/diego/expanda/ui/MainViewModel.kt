@@ -30,6 +30,7 @@ import dev.diego.expanda.data.SnippetSortMode
 import dev.diego.expanda.data.SelectionActionGroupConfig
 import dev.diego.expanda.data.ThemeMode
 import dev.diego.expanda.data.TemplateVariable
+import dev.diego.expanda.data.VaultCategory
 import dev.diego.expanda.data.VaultEntry
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -48,6 +49,7 @@ data class MainUiState(
     val settings: AppSettings = AppSettings(),
     val clipboardEntries: List<ClipboardEntry> = emptyList(),
     val vaultEntries: List<VaultEntry> = emptyList(),
+    val vaultCategories: List<VaultCategory> = emptyList(),
     val enabledActionIds: Set<String> = emptySet(),
     val actionTriggerOverrides: Map<String, List<String>> = emptyMap(),
     val matchesLoaded: Boolean = false,
@@ -122,7 +124,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val privateContent = combine(
         clipboardRepository.entries,
         vaultRepository.entries,
-    ) { clipboard, vault -> clipboard to vault }
+        vaultRepository.categories,
+    ) { clipboard, vault, categories -> Triple(clipboard, vault, categories) }
 
     val uiState: StateFlow<MainUiState> = combine(
         matchContent,
@@ -136,6 +139,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             settings = settings,
             clipboardEntries = privateData.first,
             vaultEntries = privateData.second,
+            vaultCategories = privateData.third,
             enabledActionIds = actions.first,
             actionTriggerOverrides = actions.second,
             matchesLoaded = content.second,
@@ -343,6 +347,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun deleteVaultEntry(id: Long) = viewModelScope.launch {
         vaultRepository.delete(id)
+    }
+
+    fun saveVaultCategory(
+        category: VaultCategory,
+        onResult: (Result<Long>) -> Unit = {},
+    ) = viewModelScope.launch {
+        onResult(runCatching { vaultRepository.saveCategory(category) })
+    }
+
+    fun deleteVaultCategory(
+        id: Long,
+        onResult: (Boolean) -> Unit = {},
+    ) = viewModelScope.launch {
+        onResult(vaultRepository.deleteCategory(id))
     }
 
     fun updateVaultFieldFromClipboard(
