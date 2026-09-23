@@ -67,6 +67,7 @@ import dev.diego.expanda.data.DisplayLanguage
 import dev.diego.expanda.data.SettingsRepository
 import dev.diego.expanda.data.TextMatch
 import dev.diego.expanda.data.TemplateSelectionMode
+import dev.diego.expanda.data.VaultCategory
 import dev.diego.expanda.data.VaultEntry
 import dev.diego.expanda.data.VaultField
 import dev.diego.expanda.service.overlay.OverlayViews
@@ -87,6 +88,11 @@ import java.lang.ref.WeakReference
 import kotlin.math.roundToInt
 
 class ExpansionAccessibilityService : AccessibilityService() {
+    private sealed interface VaultTriggerTarget {
+        data class Entry(val entry: VaultEntry) : VaultTriggerTarget
+        data class Category(val category: VaultCategory) : VaultTriggerTarget
+    }
+
     private sealed interface PopupSuggestion {
         val shortcut: String
         val matchedText: String
@@ -340,7 +346,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 if (ExpansionUndoPolicy.isRestoredText(suppressed, activeAnchor, text)) return
             }
             if (text == lastAppliedText && SystemClock.elapsedRealtime() - lastAppliedAt < REENTRANCY_WINDOW_MS) return
-            findVaultEntryTrigger(text, cursor)?.let { (entry, trigger) ->
+            findVaultTrigger(text, cursor)?.let { (target, trigger) ->
                 val triggerStart = cursor - trigger.length
                 val withoutTrigger = text.removeRange(triggerStart, cursor)
                 suppressedExpansion = null
@@ -356,11 +362,18 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 ) {
                     lastAppliedText = withoutTrigger
                     lastAppliedAt = SystemClock.elapsedRealtime()
-                    showVaultOverlay(
-                        entryId = entry.id,
-                        anchor = activeAnchor,
-                        insertionCursor = triggerStart,
-                    )
+                    when (target) {
+                        is VaultTriggerTarget.Entry -> showVaultOverlay(
+                            entryId = target.entry.id,
+                            anchor = activeAnchor,
+                            insertionCursor = triggerStart,
+                        )
+                        is VaultTriggerTarget.Category -> showVaultOverlay(
+                            categoryName = target.category.name,
+                            anchor = activeAnchor,
+                            insertionCursor = triggerStart,
+                        )
+                    }
                 }
                 return
             }
@@ -3396,14 +3409,25 @@ class ExpansionAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun findVaultEntryTrigger(
+    private fun findVaultTrigger(
         text: String,
         cursor: Int,
-    ): Pair<VaultEntry, String>? {
+    ): Pair<VaultTriggerTarget, String>? {
         if (cursor !in 0..text.length) return null
-        return vaultRepository.entries.value
+        val candidates = buildList {
+            vaultRepository.entries.value.forEach { entry ->
+                entry.triggers.forEach { trigger ->
+                    add(VaultTriggerTarget.Entry(entry) to trigger)
+                }
+            }
+            vaultRepository.categories.value.forEach { category ->
+                category.triggers.forEach { trigger ->
+                    add(VaultTriggerTarget.Category(category) to trigger)
+                }
+            }
+        }
+        return candidates
             .asSequence()
-            .flatMap { entry -> entry.triggers.asSequence().map { trigger -> entry to trigger } }
             .filter { (_, trigger) -> trigger.isNotBlank() && trigger.length <= cursor }
             .sortedByDescending { (_, trigger) -> trigger.length }
             .firstOrNull { (_, trigger) ->
@@ -3413,11 +3437,17 @@ class ExpansionAccessibilityService : AccessibilityService() {
 
     private fun showVaultOverlay(
         entryId: Long? = null,
+        categoryName: String? = null,
         anchor: SuggestionAnchor? = null,
         insertionCursor: Int? = null,
     ) {
         val settings = settingsRepository.settings.value
-        val entries = vaultRepository.entries.value
+        val allEntries = vaultRepository.entries.value
+        val entries = if (categoryName.isNullOrBlank()) {
+            allEntries
+        } else {
+            allEntries.filter { it.category?.equals(categoryName, ignoreCase = true) == true }
+        }
         val editor = if (anchor == null || insertionCursor == null) {
             rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
         } else {
@@ -3447,9 +3477,14 @@ class ExpansionAccessibilityService : AccessibilityService() {
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(14), dp(12), dp(14), dp(8))
-            addView(ui.title(localizedSelectionUi(settings, "Vault", "Bóveda")).apply {
-                setPadding(dp(6), dp(2), dp(6), dp(4))
-            })
+            addView(
+                ui.title(
+                    categoryName?.takeIf(String::isNotBlank)
+                        ?: localizedSelectionUi(settings, "Vault", "Bóveda"),
+                ).apply {
+                    setPadding(dp(6), dp(2), dp(6), dp(4))
+                },
+            )
             addView(
                 ui.body(
                     localizedSelectionUi(
