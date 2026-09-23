@@ -16,6 +16,7 @@ class CsvCodecTest {
             label = "Greeting",
             tags = setOf("personal", "email"),
             searchTerms = setOf("hello"),
+            suggestionEnabled = false,
             options = MatchOptions(
                 caseSensitive = true,
                 activation = TriggerActivation.IMMEDIATE,
