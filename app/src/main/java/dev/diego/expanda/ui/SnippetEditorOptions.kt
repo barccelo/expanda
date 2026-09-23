@@ -168,7 +168,7 @@ internal fun SnippetMatchingOptionsCard(
                                         } else {
                                             delimiters + option.value
                                         }
-                                        onDelimitersChanged(next.distinct().joinToString(""))
+                                        onDelimitersChanged(next.toList().distinct().joinToString(""))
                                     },
                                     label = { Text(option.label) },
                                 )
@@ -184,6 +184,7 @@ internal fun SnippetMatchingOptionsCard(
                                 val selectedKnown = delimiters.filter { it in knownCharacters }
                                 onDelimitersChanged(
                                     (selectedKnown + updatedCustom)
+                                        .toList()
                                         .distinct()
                                         .joinToString(""),
                                 )
