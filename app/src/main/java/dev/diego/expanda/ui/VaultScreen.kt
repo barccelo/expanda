@@ -46,14 +46,18 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import dev.diego.expanda.data.VaultCategory
 import dev.diego.expanda.data.VaultEntry
 import dev.diego.expanda.data.VaultField
 
 @Composable
 fun VaultScreen(
     entries: List<VaultEntry>,
+    categories: List<VaultCategory>,
     onSave: (VaultEntry) -> Unit,
     onDelete: (Long) -> Unit,
+    onSaveCategory: (VaultCategory) -> Unit,
+    onDeleteCategory: (Long) -> Unit,
     onCopy: (String, Boolean) -> Unit,
     onUpdateFromClipboard: (Long, String, String) -> Unit,
 ) {
@@ -61,6 +65,7 @@ fun VaultScreen(
     var viewing by remember { mutableStateOf<VaultEntry?>(null) }
     var editing by remember { mutableStateOf<VaultEntry?>(null) }
     var creating by remember { mutableStateOf(false) }
+    var editingCategory by remember { mutableStateOf<VaultCategory?>(null) }
 
     val visible = entries
         .filter { entry ->
@@ -124,13 +129,39 @@ fun VaultScreen(
                 ) {
                     grouped.forEach { (category, categoryEntries) ->
                         item(key = "category:${category ?: "__none__"}") {
-                            Text(
-                                category ?: tr("Uncategorized", "Sin categoría"),
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(top = 8.dp, start = 4.dp, bottom = 2.dp),
-                            )
+                            val categoryEntity = category?.let { name ->
+                                categories.firstOrNull { it.name.equals(name, ignoreCase = true) }
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp, start = 4.dp, bottom = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        category ?: tr("Uncategorized", "Sin categoría"),
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                    if (categoryEntity != null && categoryEntity.triggers.isNotEmpty()) {
+                                        Text(
+                                            categoryEntity.triggers.joinToString(" · "),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
+                                if (categoryEntity != null) {
+                                    IconButton(onClick = { editingCategory = categoryEntity }) {
+                                        Icon(
+                                            Icons.Default.Edit,
+                                            tr("Edit category", "Editar categoría"),
+                                        )
+                                    }
+                                }
+                            }
                         }
                         items(categoryEntries, key = VaultEntry::id) { entry ->
                             Card(
@@ -208,6 +239,21 @@ fun VaultScreen(
                 onSave(entry)
                 creating = false
                 editing = null
+            },
+        )
+    }
+
+    editingCategory?.let { category ->
+        VaultCategoryEditorDialog(
+            initial = categories.firstOrNull { it.id == category.id } ?: category,
+            onDismiss = { editingCategory = null },
+            onSave = {
+                onSaveCategory(it)
+                editingCategory = null
+            },
+            onDelete = {
+                onDeleteCategory(it.id)
+                editingCategory = null
             },
         )
     }
@@ -516,6 +562,86 @@ private fun VaultEditorDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(tr("Cancel", "Cancelar")) }
+        },
+    )
+}
+
+@Composable
+private fun VaultCategoryEditorDialog(
+    initial: VaultCategory,
+    onDismiss: () -> Unit,
+    onSave: (VaultCategory) -> Unit,
+    onDelete: (VaultCategory) -> Unit,
+) {
+    var name by remember(initial.id) { mutableStateOf(initial.name) }
+    var triggerText by remember(initial.id) {
+        mutableStateOf(initial.triggers.joinToString("\n"))
+    }
+    val valid = name.isNotBlank()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(tr("Edit category", "Editar categoría")) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text(tr("Category name", "Nombre de la categoría")) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = triggerText,
+                    onValueChange = { triggerText = it },
+                    label = {
+                        Text(
+                            tr(
+                                "Category triggers — one per line",
+                                "Triggers de categoría — uno por línea",
+                            ),
+                        )
+                    },
+                    supportingText = {
+                        Text(
+                            tr(
+                                "A category trigger opens this category directly.",
+                                "Un trigger de categoría abre directamente esta categoría.",
+                            ),
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                enabled = valid,
+                onClick = {
+                    onSave(
+                        initial.copy(
+                            name = name,
+                            triggers = triggerText
+                                .split("\n")
+                                .filter(String::isNotBlank)
+                                .distinct(),
+                        ),
+                    )
+                },
+            ) {
+                Text(tr("Save", "Guardar"))
+            }
+        },
+        dismissButton = {
+            Row {
+                TextButton(onClick = { onDelete(initial) }) {
+                    Icon(Icons.Default.Delete, null)
+                    Text(tr("Delete category", "Eliminar categoría"))
+                }
+                TextButton(onClick = onDismiss) {
+                    Text(tr("Cancel", "Cancelar"))
+                }
+            }
         },
     )
 }
