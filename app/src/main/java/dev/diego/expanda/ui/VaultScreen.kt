@@ -722,6 +722,9 @@ private fun VaultEditorDialog(
     var triggerText by remember(initial?.id) {
         mutableStateOf(initial?.triggers?.joinToString("\n").orEmpty())
     }
+    var caseSensitive by remember(initial?.id) {
+        mutableStateOf(initial?.caseSensitive ?: false)
+    }
     var category by remember(initial?.id) {
         mutableStateOf(initial?.category.orEmpty())
     }
@@ -773,6 +776,28 @@ private fun VaultEditorDialog(
                         },
                         modifier = Modifier.fillMaxWidth(),
                     )
+                }
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(tr("Match letter case exactly", "Distinguir mayúsculas y minúsculas"))
+                            Text(
+                                tr(
+                                    "Off: bb also matches BB, Bb and bB.",
+                                    "Desactivado: bb también reconoce BB, Bb y bB.",
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Switch(
+                            checked = caseSensitive,
+                            onCheckedChange = { caseSensitive = it },
+                        )
+                    }
                 }
                 item {
                     OutlinedTextField(
@@ -900,6 +925,7 @@ private fun VaultEditorDialog(
                                 .split("\n")
                                 .filter(String::isNotBlank)
                                 .distinct(),
+                            caseSensitive = caseSensitive,
                             fields = fields,
                             category = category,
                             tags = tagsText
@@ -931,6 +957,9 @@ private fun VaultCategoryEditorDialog(
     var name by remember(initial.id) { mutableStateOf(initial.name) }
     var triggerText by remember(initial.id) {
         mutableStateOf(initial.triggers.joinToString("\n"))
+    }
+    var caseSensitive by remember(initial.id) {
+        mutableStateOf(initial.caseSensitive)
     }
     val valid = name.isNotBlank()
 
@@ -967,6 +996,26 @@ private fun VaultCategoryEditorDialog(
                     },
                     modifier = Modifier.fillMaxWidth(),
                 )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(tr("Match letter case exactly", "Distinguir mayúsculas y minúsculas"))
+                        Text(
+                            tr(
+                                "Off: the trigger ignores capitalization.",
+                                "Desactivado: el trigger ignora las mayúsculas.",
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(
+                        checked = caseSensitive,
+                        onCheckedChange = { caseSensitive = it },
+                    )
+                }
             }
         },
         confirmButton = {
@@ -980,6 +1029,7 @@ private fun VaultCategoryEditorDialog(
                                 .split("\n")
                                 .filter(String::isNotBlank)
                                 .distinct(),
+                            caseSensitive = caseSensitive,
                         ),
                     )
                 },
