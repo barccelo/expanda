@@ -170,7 +170,7 @@ internal fun SnippetMatchingOptionsCard(
                                         }
                                         onDelimitersChanged(next.toList().distinct().joinToString(""))
                                     },
-                                    label = { Text(option.label) },
+                                    label = { Text(tr(option.englishLabel, option.spanishLabel)) },
                                 )
                             }
                         }
@@ -457,11 +457,12 @@ private data class ActivationOption(
 
 private data class DelimiterOption(
     val value: String,
-    val label: String,
+    val englishLabel: String,
+    val spanishLabel: String = englishLabel,
 )
 
 private val DELIMITER_OPTIONS = listOf(
-    DelimiterOption(" ", "Espacio"),
+    DelimiterOption(" ", "Space", "Espacio"),
     DelimiterOption("\n", "Enter"),
     DelimiterOption("\t", "Tab"),
     DelimiterOption(".", "."),
