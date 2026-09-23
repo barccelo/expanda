@@ -3059,27 +3059,39 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 ViewConfiguration.get(this@ExpansionAccessibilityService).scaledTouchSlop * 3,
                 dp(24),
             ).toFloat()
-            val travel = dp(14).toFloat()
+            // Keep the gesture discoverable without letting the button leave
+            // its visual slot or collide with the adjacent Cancel pill.
+            val travel = dp(4).toFloat()
+            val dragResistance = 0.12f
 
             fun resetSwipeVisual() {
                 primaryButton.animate()
                     .translationX(0f)
                     .translationY(0f)
+                    .scaleX(1f)
+                    .scaleY(1f)
                     .setDuration(120L)
                     .start()
                 primaryButton.setCompoundDrawablesWithIntrinsicBounds(0, 0, 0, 0)
+                primaryButton.compoundDrawablePadding = 0
             }
 
             fun showDirection(direction: PrimarySwipeDirection?) {
                 if (direction == activeDirection) return
                 activeDirection = direction
+                // Always keep the icon inline with the label. Putting it above
+                // the text inside a fixed 48dp button caused the label to clip
+                // during upward swipes.
                 primaryButton.setCompoundDrawablesWithIntrinsicBounds(
-                    if (direction == PrimarySwipeDirection.LEFT) R.drawable.ic_copy_fine else 0,
-                    if (direction == PrimarySwipeDirection.UP) R.drawable.ic_copy_fine else 0,
-                    if (direction == PrimarySwipeDirection.RIGHT) R.drawable.ic_copy_fine else 0,
+                    if (direction != null) R.drawable.ic_copy_fine else 0,
+                    0,
+                    0,
                     0,
                 )
                 primaryButton.compoundDrawablePadding = if (direction == null) 0 else dp(6)
+                val activeScale = if (direction == null) 1f else 0.98f
+                primaryButton.scaleX = activeScale
+                primaryButton.scaleY = activeScale
                 if (direction != null && swipeHapticEnabled) {
                     primaryButton.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
                 }
@@ -3105,11 +3117,13 @@ class ExpansionAccessibilityService : AccessibilityService() {
                             else -> null
                         }
                         if (horizontal) {
-                            primaryButton.translationX = dx.coerceIn(-travel, travel)
+                            primaryButton.translationX =
+                                (dx * dragResistance).coerceIn(-travel, travel)
                             primaryButton.translationY = 0f
                         } else if (dy < 0f) {
                             primaryButton.translationX = 0f
-                            primaryButton.translationY = dy.coerceIn(-travel, 0f)
+                            primaryButton.translationY =
+                                (dy * dragResistance).coerceIn(-travel, 0f)
                         } else {
                             primaryButton.translationX = 0f
                             primaryButton.translationY = 0f
