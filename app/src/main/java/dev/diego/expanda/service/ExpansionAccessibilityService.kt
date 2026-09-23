@@ -83,6 +83,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.ArrayDeque
@@ -108,10 +109,28 @@ class ExpansionAccessibilityService : AccessibilityService() {
             override val shortcut: String get() = suggestionTrigger
         }
 
+        data class VaultEntryItem(
+            val entry: VaultEntry,
+            val suggestionTrigger: String,
+            override val matchedText: String,
+        ) : PopupSuggestion {
+            override val shortcut: String get() = suggestionTrigger
+        }
+
+        data class VaultCategoryItem(
+            val category: VaultCategory,
+            val suggestionTrigger: String,
+            override val matchedText: String,
+        ) : PopupSuggestion {
+            override val shortcut: String get() = suggestionTrigger
+        }
+
         data class Action(val definition: ActionDefinition, override val matchedText: String) : PopupSuggestion {
             override val shortcut: String get() = definition.shortcut
         }
     }
+
+    private enum class PrimarySwipeDirection { LEFT, RIGHT, UP }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val engine = ExpansionEngine()
