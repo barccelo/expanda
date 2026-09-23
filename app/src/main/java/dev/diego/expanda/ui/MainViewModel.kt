@@ -397,6 +397,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
+    fun moveVaultTriggers(
+        triggers: Set<String>,
+        targetCategoryId: Long? = null,
+        targetEntryId: Long? = null,
+        onResult: (Result<Int>) -> Unit = {},
+    ) = viewModelScope.launch {
+        onResult(
+            runCatching {
+                var moved = 0
+                for (trigger in triggers) {
+                    if (
+                        vaultRepository.moveTrigger(
+                            trigger = trigger,
+                            targetCategoryId = targetCategoryId,
+                            targetEntryId = targetEntryId,
+                        )
+                    ) {
+                        moved++
+                    }
+                }
+                moved
+            },
+        )
+    }
+
     fun captureClipboard(text: String) = viewModelScope.launch { clipboardRepository.add(text) }
     fun deleteClipboard(id: Long) = viewModelScope.launch { clipboardRepository.delete(id) }
     fun clearClipboard() = viewModelScope.launch { clipboardRepository.clear() }
