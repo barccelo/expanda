@@ -32,6 +32,27 @@ class ExpansionEngineTest {
         assertEquals(applied.text.length, applied.cursor)
     }
 
+    @Test fun `space activation expands only after a literal space and preserves it`() {
+        val match = textMatch(
+            triggers = listOf("addr"),
+            replacement = "Main Street",
+            options = MatchOptions(activation = TriggerActivation.SPACE),
+        )
+
+        assertNull(engine.findMatch("addr", 4, listOf(match), ""))
+        assertNull(engine.findMatch("addr.", 5, listOf(match), ""))
+
+        val found = engine.findMatch("addr ", 5, listOf(match), "")!!
+        assertEquals(" ", found.trailingDelimiter)
+        val applied = engine.applyMatch(
+            "addr ",
+            found,
+            RenderedTemplate(match.replace, match.replace.length),
+        )
+        assertEquals("Main Street ", applied.text)
+        assertEquals(applied.text.length, applied.cursor)
+    }
+
     @Test fun `immediate literal expansion works without delimiter`() {
         val match = textMatch(
             triggers = listOf("addr"),
