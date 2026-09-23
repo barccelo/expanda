@@ -3011,6 +3011,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         onCancel: () -> Unit,
         onPrimary: () -> Unit,
         onPrimaryLongClick: (() -> Unit)? = null,
+        onPrimarySwipe: (() -> Unit)? = null,
     ): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.END or Gravity.CENTER_VERTICAL
@@ -3028,6 +3029,48 @@ class ExpansionAccessibilityService : AccessibilityService() {
             primaryButton.setOnLongClickListener {
                 onPrimaryLongClick()
                 true
+            }
+        }
+        if (onPrimarySwipe != null) {
+            var downX = 0f
+            var downY = 0f
+            var swipeHandled = false
+            val swipeThreshold = maxOf(
+                ViewConfiguration.get(this@ExpansionAccessibilityService).scaledTouchSlop * 3,
+                dp(24),
+            )
+            primaryButton.setOnTouchListener { _, event ->
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        downX = event.rawX
+                        downY = event.rawY
+                        swipeHandled = false
+                        false
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        val dx = event.rawX - downX
+                        val dy = event.rawY - downY
+                        if (
+                            !swipeHandled &&
+                            kotlin.math.abs(dx) >= swipeThreshold &&
+                            kotlin.math.abs(dx) > kotlin.math.abs(dy)
+                        ) {
+                            swipeHandled = true
+                            onPrimarySwipe()
+                            true
+                        } else {
+                            swipeHandled
+                        }
+                    }
+                    MotionEvent.ACTION_UP,
+                    MotionEvent.ACTION_CANCEL,
+                    -> {
+                        val consume = swipeHandled
+                        swipeHandled = false
+                        consume
+                    }
+                    else -> swipeHandled
+                }
             }
         }
         addView(
