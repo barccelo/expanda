@@ -210,7 +210,7 @@ class VaultRepository(
         true
     }
 
-    suspend fun updateFieldFromClipboard(entryId: Long, fieldId: String, value: String): Boolean =
+    suspend fun updateFieldValue(entryId: Long, fieldId: String, value: String): Boolean =
         withContext(io) {
             val entry = mutableEntries.value.firstOrNull { it.id == entryId } ?: return@withContext false
             val updatedFields = entry.fields.map { field ->
@@ -222,6 +222,9 @@ class VaultRepository(
             reloadEntries()
             true
         }
+
+    suspend fun updateFieldFromClipboard(entryId: Long, fieldId: String, value: String): Boolean =
+        updateFieldValue(entryId, fieldId, value)
 
     fun findByTrigger(trigger: String): VaultEntry? = entries.value.firstOrNull { entry ->
         entry.triggers.any { stored ->
