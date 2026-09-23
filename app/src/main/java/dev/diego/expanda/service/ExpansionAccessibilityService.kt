@@ -16,6 +16,7 @@ import android.os.VibratorManager
 import android.os.Handler
 import android.os.Looper
 import android.os.PersistableBundle
+import android.provider.Settings
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Rect
@@ -2884,26 +2885,30 @@ class ExpansionAccessibilityService : AccessibilityService() {
         if (!vaultOverlayActive || formOverlay == null) return
         if (SystemClock.elapsedRealtime() - vaultOverlayShownAt < VAULT_SYSTEM_UI_GRACE_MS) return
 
-        val packageName = event.packageName?.toString().orEmpty()
-        val className = event.className?.toString().orEmpty()
-        if (packageName.isBlank()) return
-        if (packageName == applicationContext.packageName) return
-        if (packageName == vaultOverlayOriginPackage) return
+        val eventPackage = event.packageName?.toString().orEmpty()
+        val activePackage = rootInActiveWindow?.let { node ->
+            try {
+                node.packageName?.toString().orEmpty()
+            } finally {
+                @Suppress("DEPRECATION")
+                node.recycle()
+            }
+        }.orEmpty().ifBlank { eventPackage }
 
-        val packageLower = packageName.lowercase(Locale.ROOT)
-        val classLower = className.lowercase(Locale.ROOT)
-        val isSystemUi = packageLower == "com.android.systemui"
-        val isRecentsLike =
-            "recents" in classLower ||
-                "overview" in classLower ||
-                "quickstep" in classLower
-        val isLauncher =
-            "launcher" in packageLower &&
-                ("launcher" in classLower || isRecentsLike)
+        if (activePackage.isBlank()) return
+        if (activePackage == applicationContext.packageName) return
+        if (activePackage == vaultOverlayOriginPackage) return
 
-        if (isSystemUi || isRecentsLike || isLauncher) {
-            hideFormOverlay()
-        }
+        val imePackage = runCatching {
+            Settings.Secure.getString(contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)
+                ?.substringBefore('/')
+                .orEmpty()
+        }.getOrDefault("")
+        if (activePackage == imePackage) return
+
+        // The active window has genuinely moved away from the app that opened
+        // the vault (notification target, recents, launcher, another app, etc.).
+        hideFormOverlay()
     }
 
     private fun vaultSystemBarInsets(windowManager: WindowManager): Pair<Int, Int> {
@@ -2948,7 +2953,15 @@ class ExpansionAccessibilityService : AccessibilityService() {
 
     private fun markVaultOverlayShown(anchor: SuggestionAnchor?) {
         vaultOverlayActive = true
-        vaultOverlayOriginPackage = anchor?.packageName
+        val fallbackPackage = rootInActiveWindow?.let { node ->
+            try {
+                node.packageName?.toString()
+            } finally {
+                @Suppress("DEPRECATION")
+                node.recycle()
+            }
+        }
+        vaultOverlayOriginPackage = anchor?.packageName ?: fallbackPackage
         vaultOverlayShownAt = SystemClock.elapsedRealtime()
     }
 
@@ -4322,8 +4335,23 @@ class ExpansionAccessibilityService : AccessibilityService() {
             val triggerRow = LinearLayout(this@ExpansionAccessibilityService).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
-                setPadding(dp(6), 0, dp(6), dp(8))
+                setPadding(dp(48), 0, dp(6), dp(8))
                 background = android.graphics.drawable.ColorDrawable(ui.theme.surface)
+                isClickable = true
+                isFocusable = true
+                contentDescription = localizedSelectionUi(
+                    settings,
+                    "Edit triggers",
+                    "Editar triggers",
+                )
+                setOnClickListener {
+                    showVaultTriggerEditOverlay(
+                        entry = entry,
+                        anchor = anchor,
+                        insertionCursor = insertionCursor,
+                        settings = settings,
+                    )
+                }
             }
             val triggerLabel = if (entry.triggers.isEmpty()) {
                 localizedSelectionUi(settings, "No trigger", "Sin trigger")
@@ -4341,31 +4369,22 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     1f,
                 ),
             )
-            addView(
-                vaultSwipeEditCard(
-                    front = triggerRow,
-                    ui = ui,
-                    settings = settings,
-                    editDescription = localizedSelectionUi(
-                        settings,
-                        "Edit triggers",
-                        "Editar triggers",
-                    ),
-                ) {
-                    showVaultTriggerEditOverlay(
-                        entry = entry,
-                        anchor = anchor,
-                        insertionCursor = insertionCursor,
-                        settings = settings,
-                    )
+            triggerRow.addView(
+                ui.body("›", sizeSp = 19f, secondary = true).apply {
+                    gravity = Gravity.CENTER
+                    setPadding(dp(8), 0, dp(2), 0)
                 },
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    dp(32),
+                ),
+            )
+            addView(
+                triggerRow,
                 LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT,
-                ).apply {
-                    marginStart = dp(42)
-                    bottomMargin = dp(8)
-                },
+                ),
             )
         }
 
@@ -4639,7 +4658,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
             var directionLock = 0
 
             private fun updateDrag(event: MotionEvent) {
-                val dx = event.x - downX
+                val dx = event.rawX - downX
                 val clamped = when (directionLock) {
                     1 -> dx.coerceIn(0f, maxTravel)
                     -1 -> dx.coerceIn(-maxTravel, 0f)
@@ -4671,8 +4690,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
             override fun dispatchTouchEvent(event: MotionEvent): Boolean {
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
-                        downX = event.x
-                        downY = event.y
+                        downX = event.rawX
+                        downY = event.rawY
                         dragging = false
                         armed = false
                         directionLock = 0
@@ -4680,8 +4699,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     }
 
                     MotionEvent.ACTION_MOVE -> {
-                        val dx = event.x - downX
-                        val dy = event.y - downY
+                        val dx = event.rawX - downX
+                        val dy = event.rawY - downY
                         if (
                             !dragging &&
                             kotlin.math.abs(dx) > touchSlop &&
