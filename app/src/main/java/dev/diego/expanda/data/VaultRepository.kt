@@ -102,6 +102,105 @@ class VaultRepository(
         true
     }
 
+    suspend fun moveEntries(
+        entryIds: Set<Long>,
+        categoryName: String?,
+    ): Int = withContext(io) {
+        if (entryIds.isEmpty()) return@withContext 0
+        val normalizedCategory = categoryName?.trim()?.takeIf(String::isNotBlank)
+        normalizedCategory?.let(::ensureCategory)
+        val now = System.currentTimeMillis()
+        val affected = mutableEntries.value.filter { it.id in entryIds }
+        affected.forEach { entry ->
+            writeEntry(
+                entry.copy(
+                    category = normalizedCategory,
+                    updatedAt = now,
+                ),
+            )
+        }
+        reloadEntries()
+        affected.size
+    }
+
+    suspend fun moveTrigger(
+        trigger: String,
+        targetCategoryId: Long? = null,
+        targetEntryId: Long? = null,
+    ): Boolean = withContext(io) {
+        require((targetCategoryId == null) xor (targetEntryId == null)) {
+            "Choose exactly one target for the trigger"
+        }
+        val normalizedTrigger = trigger.takeIf(String::isNotBlank) ?: return@withContext false
+
+        val sourceEntry = mutableEntries.value.firstOrNull { normalizedTrigger in it.triggers }
+        val sourceCategory = mutableCategories.value.firstOrNull { normalizedTrigger in it.triggers }
+
+        val targetEntry = targetEntryId?.let { id ->
+            mutableEntries.value.firstOrNull { it.id == id }
+                ?: throw IllegalArgumentException("Vault entry not found")
+        }
+        val targetCategory = targetCategoryId?.let { id ->
+            mutableCategories.value.firstOrNull { it.id == id }
+                ?: throw IllegalArgumentException("Vault category not found")
+        }
+
+        if (sourceEntry?.id == targetEntry?.id || sourceCategory?.id == targetCategory?.id) {
+            return@withContext true
+        }
+
+        val now = System.currentTimeMillis()
+
+        sourceEntry?.let { entry ->
+            writeEntry(
+                entry.copy(
+                    triggers = entry.triggers.filterNot { it == normalizedTrigger },
+                    updatedAt = now,
+                ),
+            )
+        }
+        sourceCategory?.let { category ->
+            database.upsertVaultCategoryRow(
+                id = category.id,
+                payload = crypto.encrypt(
+                    encodeCategory(
+                        category.copy(
+                            triggers = category.triggers.filterNot { it == normalizedTrigger },
+                            updatedAt = now,
+                        ),
+                    ),
+                ),
+                createdAt = category.createdAt,
+                updatedAt = now,
+            )
+        }
+
+        targetEntry?.let { entry ->
+            writeEntry(
+                entry.copy(
+                    triggers = (entry.triggers + normalizedTrigger).distinct(),
+                    updatedAt = now,
+                ),
+            )
+        }
+        targetCategory?.let { category ->
+            val updated = category.copy(
+                triggers = (category.triggers + normalizedTrigger).distinct(),
+                updatedAt = now,
+            )
+            database.upsertVaultCategoryRow(
+                id = category.id,
+                payload = crypto.encrypt(encodeCategory(updated)),
+                createdAt = category.createdAt,
+                updatedAt = now,
+            )
+        }
+
+        reloadEntries()
+        reloadCategories()
+        true
+    }
+
     suspend fun updateFieldFromClipboard(entryId: Long, fieldId: String, value: String): Boolean =
         withContext(io) {
             val entry = mutableEntries.value.firstOrNull { it.id == entryId } ?: return@withContext false
