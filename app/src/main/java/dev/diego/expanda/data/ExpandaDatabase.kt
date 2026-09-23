@@ -167,6 +167,18 @@ class ExpandaDatabase(private val context: Context) :
         )
     }
 
+    /** Changes suggestion visibility without making the match look newly edited. */
+    fun setSuggestionEnabled(match: TextMatch, enabled: Boolean) {
+        writableDatabase.update(
+            "matches",
+            ContentValues().apply {
+                put("payload", MatchJsonCodec.encode(match.copy(suggestionEnabled = enabled)))
+            },
+            "id = ?",
+            arrayOf(match.id.toString()),
+        )
+    }
+
     fun recordExpansion(
         matchId: Long,
         packageName: String,
