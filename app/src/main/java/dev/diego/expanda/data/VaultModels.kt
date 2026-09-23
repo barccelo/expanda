@@ -14,6 +14,7 @@ data class VaultEntry(
     val title: String,
     val triggers: List<String> = emptyList(),
     val fields: List<VaultField> = emptyList(),
+    val category: String? = null,
     val tags: Set<String> = emptySet(),
     val favorite: Boolean = false,
     val createdAt: Long = System.currentTimeMillis(),
@@ -23,6 +24,7 @@ data class VaultEntry(
         title = title.trim(),
         triggers = triggers.filter(String::isNotBlank).distinct(),
         fields = fields.filter { it.label.isNotBlank() || it.value.isNotEmpty() },
+        category = category?.trim()?.takeIf(String::isNotBlank),
         tags = tags.map(String::trim).filter(String::isNotBlank).toSet(),
     )
 }
