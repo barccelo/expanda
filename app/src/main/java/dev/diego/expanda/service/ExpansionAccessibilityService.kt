@@ -2885,29 +2885,23 @@ class ExpansionAccessibilityService : AccessibilityService() {
         if (!vaultOverlayActive || formOverlay == null) return
         if (SystemClock.elapsedRealtime() - vaultOverlayShownAt < VAULT_SYSTEM_UI_GRACE_MS) return
 
+        // Use the package reported by the WINDOW event itself. rootInActiveWindow
+        // can remain anchored to the app beneath a TYPE_ACCESSIBILITY_OVERLAY,
+        // which is why Home/Recents/notifications previously failed to dismiss it.
         val eventPackage = event.packageName?.toString().orEmpty()
-        val activePackage = rootInActiveWindow?.let { node ->
-            try {
-                node.packageName?.toString().orEmpty()
-            } finally {
-                @Suppress("DEPRECATION")
-                node.recycle()
-            }
-        }.orEmpty().ifBlank { eventPackage }
-
-        if (activePackage.isBlank()) return
-        if (activePackage == applicationContext.packageName) return
-        if (activePackage == vaultOverlayOriginPackage) return
+        if (eventPackage.isBlank()) return
+        if (eventPackage == applicationContext.packageName) return
+        if (eventPackage == vaultOverlayOriginPackage) return
 
         val imePackage = runCatching {
             Settings.Secure.getString(contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)
                 ?.substringBefore('/')
                 .orEmpty()
         }.getOrDefault("")
-        if (activePackage == imePackage) return
+        if (eventPackage == imePackage) return
 
-        // The active window has genuinely moved away from the app that opened
-        // the vault (notification target, recents, launcher, another app, etc.).
+        // Any other window package means the user left the vault's context:
+        // System UI, launcher, recents, notification target, or another app.
         hideFormOverlay()
     }
 
@@ -4695,7 +4689,13 @@ class ExpansionAccessibilityService : AccessibilityService() {
                         dragging = false
                         armed = false
                         directionLock = 0
-                        return super.dispatchTouchEvent(event)
+
+                        // Always keep ownership of this touch sequence, even when
+                        // ACTION_DOWN lands on a non-clickable area of the card.
+                        // Still forward it so Copy/Insert/Update can behave normally
+                        // when the gesture never becomes a swipe.
+                        super.dispatchTouchEvent(event)
+                        return true
                     }
 
                     MotionEvent.ACTION_MOVE -> {
@@ -4707,12 +4707,11 @@ class ExpansionAccessibilityService : AccessibilityService() {
                             kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.15f
                         ) {
                             dragging = true
-                            directionLock = if (dx >= 0f) 1 else -1
+                            directionLock = if (dx > 0f) 1 else -1
                             parent?.requestDisallowInterceptTouchEvent(true)
 
-                            // A child (Copy/Insert/Update/etc.) may have received
-                            // ACTION_DOWN. Cancel that click as soon as this becomes
-                            // a horizontal card gesture.
+                            // Cancel whichever child received ACTION_DOWN so a swipe
+                            // can never also fire Copy/Insert/Update.
                             val cancel = MotionEvent.obtain(event).apply {
                                 action = MotionEvent.ACTION_CANCEL
                             }
@@ -4722,11 +4721,17 @@ class ExpansionAccessibilityService : AccessibilityService() {
                             updateDrag(event)
                             return true
                         }
+
                         if (dragging) {
                             updateDrag(event)
                             return true
                         }
-                        return super.dispatchTouchEvent(event)
+
+                        // Preserve ordinary child interactions until horizontal
+                        // intent is established. Vertical movement remains free for
+                        // the surrounding ScrollView to intercept.
+                        super.dispatchTouchEvent(event)
+                        return true
                     }
 
                     MotionEvent.ACTION_UP -> {
@@ -4734,7 +4739,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
                             finishDrag(runEdit = true)
                             return true
                         }
-                        return super.dispatchTouchEvent(event)
+                        super.dispatchTouchEvent(event)
+                        return true
                     }
 
                     MotionEvent.ACTION_CANCEL -> {
@@ -4742,10 +4748,13 @@ class ExpansionAccessibilityService : AccessibilityService() {
                             finishDrag(runEdit = false)
                             return true
                         }
-                        return super.dispatchTouchEvent(event)
+                        super.dispatchTouchEvent(event)
+                        return true
                     }
                 }
-                return if (dragging) true else super.dispatchTouchEvent(event)
+
+                if (!dragging) super.dispatchTouchEvent(event)
+                return true
             }
         }.apply {
             clipChildren = true
