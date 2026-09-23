@@ -5135,6 +5135,36 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     ui = ui,
                     browseMode = showAll,
                 )
+                is PopupSuggestion.VaultEntryItem -> createVaultSuggestionRow(
+                    title = suggestion.entry.title,
+                    subtitle = localizedSelectionUi(settings, "Vault entry", "Entrada de bóveda"),
+                    trigger = suggestion.suggestionTrigger,
+                    typed = suggestion.matchedText,
+                    settings = settings,
+                    ui = ui,
+                    onClick = {
+                        applyVaultSuggestion(
+                            target = VaultTriggerTarget.Entry(suggestion.entry),
+                            trigger = suggestion.suggestionTrigger,
+                            browseMode = showAll,
+                        )
+                    },
+                )
+                is PopupSuggestion.VaultCategoryItem -> createVaultSuggestionRow(
+                    title = suggestion.category.name,
+                    subtitle = localizedSelectionUi(settings, "Vault category", "Categoría de bóveda"),
+                    trigger = suggestion.suggestionTrigger,
+                    typed = suggestion.matchedText,
+                    settings = settings,
+                    ui = ui,
+                    onClick = {
+                        applyVaultSuggestion(
+                            target = VaultTriggerTarget.Category(suggestion.category),
+                            trigger = suggestion.suggestionTrigger,
+                            browseMode = showAll,
+                        )
+                    },
+                )
                 is PopupSuggestion.Action -> createActionSuggestionRow(
                     definition = suggestion.definition,
                     typed = suggestion.matchedText,
@@ -5254,6 +5284,51 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 setPadding(0, dp(4), 0, 0)
             })
         }
+    }
+
+    private fun createVaultSuggestionRow(
+        title: String,
+        subtitle: String,
+        trigger: String,
+        typed: String,
+        settings: AppSettings,
+        ui: OverlayViews,
+        onClick: () -> Unit,
+    ): View = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        setPadding(dp(8), dp(7), dp(10), dp(7))
+        isClickable = true
+        isFocusable = true
+        background = ui.surface(SuggestionOverlaySpec.ROW_RADIUS_DP)
+        contentDescription = "$subtitle $trigger: $title"
+        setOnClickListener { onClick() }
+
+        addView(TextView(this@ExpansionAccessibilityService).apply {
+            text = "▣"
+            gravity = Gravity.CENTER
+            setTextColor(ui.theme.primary)
+            textSize = ui.scaled(17f)
+            background = ui.surface(9, emphasized = true)
+        }, LinearLayout.LayoutParams(dp(34), dp(34)).apply { marginEnd = dp(9) })
+
+        addView(LinearLayout(this@ExpansionAccessibilityService).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(TextView(this@ExpansionAccessibilityService).apply {
+                text = highlightedShortcut(trigger, typed, settings.matchFromBeginning, ui.theme)
+                setTextColor(ui.theme.onSurface)
+                textSize = ui.scaled(14f)
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            })
+            addView(TextView(this@ExpansionAccessibilityService).apply {
+                text = "$subtitle · $title"
+                setTextColor(ui.theme.onSurfaceVariant)
+                textSize = ui.scaled(12f)
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            })
+        }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
     }
 
     private fun createActionSuggestionRow(
