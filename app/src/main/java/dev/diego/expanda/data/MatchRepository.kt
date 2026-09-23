@@ -63,6 +63,14 @@ class MatchRepository(
         mutableMatches.value = database.readMatches()
     }
 
+    suspend fun setSuggestionEnabled(ids: Set<Long>, enabled: Boolean) = withContext(io) {
+        if (ids.isEmpty()) return@withContext
+        matches.value.filter { it.id in ids }.forEach { match ->
+            database.setSuggestionEnabled(match, enabled)
+        }
+        mutableMatches.value = database.readMatches()
+    }
+
     suspend fun recordExpansion(match: TextMatch, packageName: String, collectStatistics: Boolean = true) = withContext(io) {
         database.recordExpansion(
             match.id,
