@@ -2832,7 +2832,7 @@ private fun SnippetEditorScreen(
                                 IconButton(
                                     onClick = {
                                         triggerKind = if (triggerKind == TriggerKind.REGEX) TriggerKind.TEXT else TriggerKind.REGEX
-                                        if (triggerKind == TriggerKind.REGEX) instant = true
+                                        if (triggerKind == TriggerKind.REGEX) activation = TriggerActivation.IMMEDIATE
                                     },
                                     modifier = Modifier.semantics {
                                         contentDescription = if (triggerKind == TriggerKind.REGEX) {
