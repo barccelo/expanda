@@ -652,6 +652,7 @@ class EspansoSourceRepository(
             id = metadata.id,
             tags = metadata.tags,
             enabled = metadata.enabled,
+            suggestionEnabled = metadata.suggestionEnabled,
             excludedPackages = metadata.excludedPackages,
             options = sourceMatch.options.copy(
                 activation = metadata.options.activation,
