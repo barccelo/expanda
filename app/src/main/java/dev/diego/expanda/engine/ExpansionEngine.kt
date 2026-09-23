@@ -113,8 +113,15 @@ class ExpansionEngine {
 
     private fun matchOne(text: String, cursor: Int, match: TextMatch): ExpansionMatch? {
         val options = match.options
-        val delimiter = trailingDelimiter(text, cursor, options.activation, options.delimiters)
-        if (options.activation == TriggerActivation.DELIMITER && delimiter.isEmpty()) return null
+        if (!TriggerMatcher.activationSatisfied(text, cursor, options.activation, options.delimiters)) {
+            return null
+        }
+        val delimiter = TriggerMatcher.activationSuffix(
+            text,
+            cursor,
+            options.activation,
+            options.delimiters,
+        )
 
         val candidateEnd = cursor - delimiter.length
         if (candidateEnd < 0) return null
@@ -151,7 +158,14 @@ class ExpansionEngine {
     ): ExpansionMatch? {
         val start = candidateEnd - pattern.length
         if (start < 0) return null
-        if (!text.regionMatches(start, pattern, 0, pattern.length, ignoreCase = !match.options.caseSensitive)) {
+        if (
+            TriggerMatcher.matchLiteralSuffix(
+                text = text,
+                cursor = candidateEnd,
+                triggers = listOf(pattern),
+                caseSensitive = match.options.caseSensitive,
+            ) == null
+        ) {
             return null
         }
         val delimiterLength = trailingDelimiterLength(text, candidateEnd, match)
@@ -209,27 +223,17 @@ class ExpansionEngine {
         return leftOk && rightOk
     }
 
-    private fun trailingDelimiter(
-        text: String,
-        cursor: Int,
-        activation: TriggerActivation,
-        delimiters: String,
-    ): String = if (
-        activation == TriggerActivation.DELIMITER &&
-        cursor > 0 &&
-        text[cursor - 1] in delimiters
-    ) {
-        text[cursor - 1].toString()
-    } else {
-        ""
-    }
-
     private fun trailingDelimiterLength(text: String, candidateEnd: Int, match: TextMatch): Int =
-        if (
-            match.options.activation == TriggerActivation.DELIMITER &&
-            candidateEnd < text.length &&
-            text[candidateEnd] in match.options.delimiters
-        ) 1 else 0
+        when (match.options.activation) {
+            TriggerActivation.IMMEDIATE -> 0
+            TriggerActivation.SPACE ->
+                if (candidateEnd < text.length && text[candidateEnd] == ' ') 1 else 0
+            TriggerActivation.DELIMITER ->
+                if (
+                    candidateEnd < text.length &&
+                    text[candidateEnd] in match.options.delimiters
+                ) 1 else 0
+        }
 
     private fun isWordCharacter(character: Char): Boolean = character == '_' || character.isLetterOrDigit()
 
