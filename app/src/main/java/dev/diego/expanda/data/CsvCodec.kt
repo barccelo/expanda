@@ -10,7 +10,7 @@ object CsvCodec {
 
     private val header = listOf(
         "trigger", "replace", "triggerKinds", "label", "tags", "searchTerms",
-        "enabled", "caseSensitive", "activation", "delimiters", "leftWord", "rightWord",
+        "enabled", "suggestionEnabled", "caseSensitive", "activation", "delimiters", "leftWord", "rightWord",
         "propagateCase", "uppercaseStyle", "excludedPackages", "vars", "selectionMode",
         "templateIndex", "usageCount", "createdAt", "updatedAt",
     )
@@ -26,6 +26,7 @@ object CsvCodec {
                 encodeList(match.tags.sortedWith(String.CASE_INSENSITIVE_ORDER)),
                 encodeList(match.searchTerms.sortedWith(String.CASE_INSENSITIVE_ORDER)),
                 match.enabled.toString(),
+                match.suggestionEnabled.toString(),
                 match.options.caseSensitive.toString(),
                 match.options.activation.name,
                 match.options.delimiters,
@@ -105,6 +106,7 @@ object CsvCodec {
                     tags = decodeStringList(text(row, "tags").ifBlank { text(row, "folder") }).toSet(),
                     searchTerms = decodeStringList(text(row, "searchTerms")).toSet(),
                     enabled = parseBoolean(text(row, "enabled", "true"), true),
+                    suggestionEnabled = parseBoolean(text(row, "suggestionEnabled", "true"), true),
                     options = MatchOptions(
                         caseSensitive = parseBoolean(text(row, "caseSensitive", "false")),
                         activation = parseActivation(text(row, "activation").ifBlank {
