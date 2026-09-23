@@ -2918,6 +2918,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         cancelLabel: String = "Cancel",
         onCancel: () -> Unit,
         onPrimary: () -> Unit,
+        onPrimaryLongClick: (() -> Unit)? = null,
     ): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.END or Gravity.CENTER_VERTICAL
@@ -2930,8 +2931,15 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 dp(48),
             ).apply { marginEnd = dp(8) },
         )
+        val primaryButton = ui.footerButton(primaryLabel, primary = true, onPrimary)
+        if (onPrimaryLongClick != null) {
+            primaryButton.setOnLongClickListener {
+                onPrimaryLongClick()
+                true
+            }
+        }
         addView(
-            ui.footerButton(primaryLabel, primary = true, onPrimary),
+            primaryButton,
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 dp(48),
@@ -3455,9 +3463,12 @@ class ExpansionAccessibilityService : AccessibilityService() {
         }
 
         val sorted = entries.sortedWith(
-            compareByDescending<VaultEntry> { it.favorite }
+            compareBy<VaultEntry> { it.category.isNullOrBlank() }
+                .thenBy(String.CASE_INSENSITIVE_ORDER) { it.category.orEmpty() }
+                .thenByDescending { it.favorite }
                 .thenBy(String.CASE_INSENSITIVE_ORDER) { it.title },
         )
+        val groupedEntries = sorted.groupBy { it.category?.takeIf(String::isNotBlank) }
         if (sorted.isEmpty()) {
             content.addView(
                 ui.body(
@@ -3470,41 +3481,57 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 ).apply { setPadding(dp(12), dp(16), dp(12), dp(16)) },
             )
         } else {
-            sorted.forEach { entry ->
-                val rowText = buildString {
-                    append(entry.title)
-                    if (entry.triggers.isNotEmpty()) {
-                        append("\n")
-                        append(entry.triggers.joinToString(" · "))
-                    }
-                }
+            groupedEntries.forEach { (category, categoryEntries) ->
                 content.addView(
-                    ui.body(rowText).apply {
-                        setPadding(dp(12), dp(12), dp(12), dp(12))
-                        minimumHeight = dp(52)
-                        background = ui.surface()
-                        isClickable = true
-                        isFocusable = true
-                        contentDescription = localizedSelectionUi(
+                    ui.body(
+                        category ?: localizedSelectionUi(
                             settings,
-                            "Open ${entry.title}",
-                            "Abrir ${entry.title}",
-                        )
-                        setOnClickListener {
-                            hideFormOverlay()
-                            showVaultEntryOverlay(
-                                entry = entry,
-                                anchor = resolvedAnchor,
-                                insertionCursor = resolvedCursor,
-                                settings = settings,
-                            )
-                        }
+                            "Uncategorized",
+                            "Sin categoría",
+                        ),
+                        sizeSp = 13f,
+                        secondary = true,
+                    ).apply {
+                        setPadding(dp(8), dp(10), dp(8), dp(4))
+                        setTextColor(ui.theme.primary)
                     },
-                    LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                    ).apply { bottomMargin = dp(6) },
                 )
+                categoryEntries.forEach { entry ->
+                    val rowText = buildString {
+                        append(entry.title)
+                        if (entry.triggers.isNotEmpty()) {
+                            append("\n")
+                            append(entry.triggers.joinToString(" · "))
+                        }
+                    }
+                    content.addView(
+                        ui.body(rowText).apply {
+                            setPadding(dp(12), dp(12), dp(12), dp(12))
+                            minimumHeight = dp(52)
+                            background = ui.surface()
+                            isClickable = true
+                            isFocusable = true
+                            contentDescription = localizedSelectionUi(
+                                settings,
+                                "Open ${entry.title}",
+                                "Abrir ${entry.title}",
+                            )
+                            setOnClickListener {
+                                hideFormOverlay()
+                                showVaultEntryOverlay(
+                                    entry = entry,
+                                    anchor = resolvedAnchor,
+                                    insertionCursor = resolvedCursor,
+                                    settings = settings,
+                                )
+                            }
+                        },
+                        LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.MATCH_PARENT,
+                            LinearLayout.LayoutParams.WRAP_CONTENT,
+                        ).apply { bottomMargin = dp(6) },
+                    )
+                }
             }
         }
 
@@ -3516,7 +3543,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         val root = buildPickerOverlayRoot(
             content = content,
             footer = footer,
-            itemCount = sorted.size,
+            itemCount = sorted.size + groupedEntries.size,
             maxContentHeightPx = (bounds.height() * 0.58f).toInt().coerceAtLeast(dp(180)),
             background = ui.panel(22),
             ui = ui,
@@ -3544,8 +3571,12 @@ class ExpansionAccessibilityService : AccessibilityService() {
             addView(ui.title(entry.title).apply {
                 setPadding(dp(6), dp(2), dp(6), dp(4))
             })
-            if (entry.triggers.isNotEmpty()) {
-                addView(ui.body(entry.triggers.joinToString(" · "), secondary = true).apply {
+            val metadata = buildList {
+                entry.category?.takeIf(String::isNotBlank)?.let(::add)
+                if (entry.triggers.isNotEmpty()) add(entry.triggers.joinToString(" · "))
+            }.joinToString(" · ")
+            if (metadata.isNotBlank()) {
+                addView(ui.body(metadata, secondary = true).apply {
                     setPadding(dp(6), 0, dp(6), dp(10))
                 })
             }
@@ -3652,8 +3683,13 @@ class ExpansionAccessibilityService : AccessibilityService() {
             cancelLabel = localizedSelectionUi(settings, "Close", "Cerrar"),
             onCancel = { hideFormOverlay() },
             onPrimary = {
-                val all = entry.fields.joinToString("\n") { "${it.label}: ${it.value}" }
-                writeVaultClipboard(all, entry.fields.any(VaultField::sensitive))
+                val valuesOnly = entry.fields.joinToString("\n", transform = VaultField::value)
+                writeVaultClipboard(valuesOnly, entry.fields.any(VaultField::sensitive))
+                if (settings.hapticFeedback) vibrateTick()
+            },
+            onPrimaryLongClick = {
+                val labeled = entry.fields.joinToString("\n") { "${it.label}: ${it.value}" }
+                writeVaultClipboard(labeled, entry.fields.any(VaultField::sensitive))
                 if (settings.hapticFeedback) vibrateTick()
             },
         )
