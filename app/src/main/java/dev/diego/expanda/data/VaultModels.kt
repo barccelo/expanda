@@ -9,6 +9,19 @@ data class VaultField(
     val sensitive: Boolean = false,
 )
 
+data class VaultCategory(
+    val id: Long = 0,
+    val name: String,
+    val triggers: List<String> = emptyList(),
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis(),
+) {
+    fun normalized(): VaultCategory = copy(
+        name = name.trim(),
+        triggers = triggers.filter(String::isNotBlank).distinct(),
+    )
+}
+
 data class VaultEntry(
     val id: Long = 0,
     val title: String,
