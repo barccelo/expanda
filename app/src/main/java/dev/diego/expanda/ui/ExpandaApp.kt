@@ -445,6 +445,7 @@ fun ExpandaApp(
                 )
                 Destination.VAULT -> VaultScreen(
                     entries = state.vaultEntries,
+                    categories = state.vaultCategories,
                     onSave = { entry ->
                         viewModel.saveVaultEntry(entry) { result ->
                             result.exceptionOrNull()?.let { error ->
@@ -457,6 +458,20 @@ fun ExpandaApp(
                         }
                     },
                     onDelete = viewModel::deleteVaultEntry,
+                    onSaveCategory = { category ->
+                        viewModel.saveVaultCategory(category) { result ->
+                            result.exceptionOrNull()?.let { error ->
+                                scope.launch {
+                                    snackbarHostState.showSnackbar(
+                                        error.message ?: vaultSaveErrorText,
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    onDeleteCategory = { id ->
+                        viewModel.deleteVaultCategory(id)
+                    },
                     onCopy = viewModel::copyVaultValue,
                     onUpdateFromClipboard = { entryId, fieldId, value ->
                         viewModel.updateVaultFieldFromClipboard(entryId, fieldId, value)
