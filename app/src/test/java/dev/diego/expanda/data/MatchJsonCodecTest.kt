@@ -5,6 +5,19 @@ import org.junit.Test
 
 class MatchJsonCodecTest {
     @Test
+    fun `suggestion visibility round trips through canonical json`() {
+        val match = TextMatch(
+            triggers = listOf(MatchTrigger("quiet")),
+            replacements = listOf("Hidden from suggestions"),
+            suggestionEnabled = false,
+        )
+
+        val decoded = MatchJsonCodec.decode(MatchJsonCodec.encode(match))
+
+        assertEquals(false, decoded.suggestionEnabled)
+    }
+
+    @Test
     fun `space activation round trips through canonical json`() {
         val match = TextMatch(
             triggers = listOf(MatchTrigger("sig")),
