@@ -404,11 +404,17 @@ object EspansoYamlCodec {
                 "Disabled Expanda matches cannot be represented in an Espanso match.",
             )
         }
-        if (options.activation == TriggerActivation.DELIMITER) {
+        if (options.activation != TriggerActivation.IMMEDIATE) {
             issues += CompatibilityIssue(
                 CompatibilitySeverity.INFO,
                 source,
-                "Expanda delimiter activation has no exact per-match Espanso equivalent.",
+                when (options.activation) {
+                    TriggerActivation.SPACE ->
+                        "Expanda space activation has no exact per-match Espanso equivalent."
+                    TriggerActivation.DELIMITER ->
+                        "Expanda delimiter activation has no exact per-match Espanso equivalent."
+                    TriggerActivation.IMMEDIATE -> error("Immediate activation is portable")
+                },
             )
         }
 
