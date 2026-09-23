@@ -20,6 +20,7 @@ object MatchJsonCodec {
         put("tags", JSONArray(match.tags.sortedWith(String.CASE_INSENSITIVE_ORDER)))
         put("searchTerms", JSONArray(match.searchTerms.sortedWith(String.CASE_INSENSITIVE_ORDER)))
         put("enabled", match.enabled)
+        put("suggestionEnabled", match.suggestionEnabled)
         put("options", JSONObject().apply {
             put("caseSensitive", match.options.caseSensitive)
             put("activation", match.options.activation.name)
@@ -59,6 +60,7 @@ object MatchJsonCodec {
             tags = json.optJSONArray("tags").strings().toSet(),
             searchTerms = json.optJSONArray("searchTerms").strings().toSet(),
             enabled = json.optBoolean("enabled", true),
+            suggestionEnabled = json.optBoolean("suggestionEnabled", true),
             options = MatchOptions(
                 caseSensitive = options.optBoolean("caseSensitive", true),
                 activation = enumOrDefault(options.optString("activation"), TriggerActivation.IMMEDIATE),
