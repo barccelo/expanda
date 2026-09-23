@@ -71,6 +71,8 @@ fun VaultScreen(
     var viewing by remember { mutableStateOf<VaultEntry?>(null) }
     var editing by remember { mutableStateOf<VaultEntry?>(null) }
     var creating by remember { mutableStateOf(false) }
+    var creatingInCategory by remember { mutableStateOf<String?>(null) }
+    var creatingCategory by remember { mutableStateOf(false) }
     var editingCategory by remember { mutableStateOf<VaultCategory?>(null) }
     var selectedIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var showMoveDialog by remember { mutableStateOf(false) }
@@ -92,6 +94,20 @@ fun VaultScreen(
                 .thenBy(String.CASE_INSENSITIVE_ORDER) { it.title },
         )
     val grouped = visible.groupBy { it.category?.takeIf(String::isNotBlank) }
+    val knownCategoryNames = (
+        categories.map(VaultCategory::name) +
+            visible.mapNotNull(VaultEntry::category)
+        )
+        .distinctBy { it.lowercase() }
+        .filter { search.isBlank() || it.contains(search, ignoreCase = true) || grouped[it].orEmpty().isNotEmpty() }
+        .sortedWith(String.CASE_INSENSITIVE_ORDER)
+    val sections = buildList<Pair<String?, List<VaultEntry>>> {
+        knownCategoryNames.forEach { name ->
+            add(name to visible.filter { it.category?.equals(name, ignoreCase = true) == true })
+        }
+        val uncategorized = visible.filter { it.category.isNullOrBlank() }
+        if (uncategorized.isNotEmpty()) add(null to uncategorized)
+    }
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
@@ -141,6 +157,10 @@ fun VaultScreen(
                         .padding(horizontal = 12.dp),
                     horizontalArrangement = Arrangement.End,
                 ) {
+                    TextButton(onClick = { creatingCategory = true }) {
+                        Icon(Icons.Default.Add, null)
+                        Text(tr("Category", "Categoría"))
+                    }
                     TextButton(onClick = { showTriggerManager = true }) {
                         Text(tr("Manage triggers", "Administrar triggers"))
                     }
@@ -179,7 +199,7 @@ fun VaultScreen(
                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 96.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    grouped.forEach { (category, categoryEntries) ->
+                    sections.forEach { (category, categoryEntries) ->
                         item(key = "category:${category ?: "__none__"}") {
                             val categoryEntity = category?.let { name ->
                                 categories.firstOrNull { it.name.equals(name, ignoreCase = true) }
@@ -206,6 +226,17 @@ fun VaultScreen(
                                     }
                                 }
                                 if (categoryEntity != null) {
+                                    IconButton(
+                                        onClick = {
+                                            creatingInCategory = categoryEntity.name
+                                            creating = true
+                                        },
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Add,
+                                            tr("New entry in category", "Nueva entrada en categoría"),
+                                        )
+                                    }
                                     IconButton(onClick = { editingCategory = categoryEntity }) {
                                         Icon(
                                             Icons.Default.Edit,
@@ -287,7 +318,10 @@ fun VaultScreen(
         }
 
         FloatingActionButton(
-            onClick = { creating = true },
+            onClick = {
+                creatingInCategory = null
+                creating = true
+            },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(20.dp),
@@ -316,15 +350,30 @@ fun VaultScreen(
     if (creating || editing != null) {
         VaultEditorDialog(
             initial = editing,
+            presetCategory = if (editing == null) creatingInCategory else null,
             onDismiss = {
                 creating = false
+                creatingInCategory = null
                 editing = null
             },
             onSave = { entry ->
                 onSave(entry)
                 creating = false
+                creatingInCategory = null
                 editing = null
             },
+        )
+    }
+
+    if (creatingCategory) {
+        VaultCategoryEditorDialog(
+            initial = VaultCategory(name = ""),
+            onDismiss = { creatingCategory = false },
+            onSave = {
+                onSaveCategory(it)
+                creatingCategory = false
+            },
+            onDelete = {},
         )
     }
 
@@ -715,6 +764,7 @@ private fun VaultEntryDialog(
 @Composable
 private fun VaultEditorDialog(
     initial: VaultEntry?,
+    presetCategory: String? = null,
     onDismiss: () -> Unit,
     onSave: (VaultEntry) -> Unit,
 ) {
@@ -725,8 +775,8 @@ private fun VaultEditorDialog(
     var caseSensitive by remember(initial?.id) {
         mutableStateOf(initial?.caseSensitive ?: false)
     }
-    var category by remember(initial?.id) {
-        mutableStateOf(initial?.category.orEmpty())
+    var category by remember(initial?.id, presetCategory) {
+        mutableStateOf(initial?.category ?: presetCategory.orEmpty())
     }
     var tagsText by remember(initial?.id) {
         mutableStateOf(initial?.tags?.joinToString(", ").orEmpty())
@@ -965,7 +1015,12 @@ private fun VaultCategoryEditorDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(tr("Edit category", "Editar categoría")) },
+        title = {
+            Text(
+                if (initial.id == 0L) tr("New category", "Nueva categoría")
+                else tr("Edit category", "Editar categoría"),
+            )
+        },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(
@@ -1039,9 +1094,11 @@ private fun VaultCategoryEditorDialog(
         },
         dismissButton = {
             Row {
-                TextButton(onClick = { onDelete(initial) }) {
-                    Icon(Icons.Default.Delete, null)
-                    Text(tr("Delete category", "Eliminar categoría"))
+                if (initial.id != 0L) {
+                    TextButton(onClick = { onDelete(initial) }) {
+                        Icon(Icons.Default.Delete, null)
+                        Text(tr("Delete category", "Eliminar categoría"))
+                    }
                 }
                 TextButton(onClick = onDismiss) {
                     Text(tr("Cancel", "Cancelar"))
