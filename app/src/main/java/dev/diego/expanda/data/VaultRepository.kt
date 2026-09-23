@@ -224,11 +224,18 @@ class VaultRepository(
         }
 
     fun findByTrigger(trigger: String): VaultEntry? = entries.value.firstOrNull { entry ->
-        entry.triggers.any { it == trigger }
+        entry.triggers.any { stored ->
+            if (entry.caseSensitive) stored == trigger else stored.equals(trigger, ignoreCase = true)
+        }
     }
 
     fun findCategoryByTrigger(trigger: String): VaultCategory? =
-        categories.value.firstOrNull { category -> category.triggers.any { it == trigger } }
+        categories.value.firstOrNull { category ->
+            category.triggers.any { stored ->
+                if (category.caseSensitive) stored == trigger
+                else stored.equals(trigger, ignoreCase = true)
+            }
+        }
 
     private fun validateEntryTriggers(entry: VaultEntry) {
         entry.triggers.forEach { trigger ->
