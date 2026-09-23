@@ -3631,45 +3631,116 @@ class ExpansionAccessibilityService : AccessibilityService() {
             fieldBox.addView(ui.body(field.label).apply {
                 setTextColor(ui.theme.primary)
             })
+
             var revealed = !field.sensitive
             val valueView = ui.body(if (revealed) field.value else "••••••••").apply {
-                setPadding(0, dp(4), 0, dp(6))
+                setPadding(0, dp(4), dp(6), dp(4))
                 maxLines = 3
             }
-            fieldBox.addView(valueView)
+            val valueRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            valueRow.addView(
+                valueView,
+                LinearLayout.LayoutParams(
+                    0,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    1f,
+                ),
+            )
+
+            if (field.sensitive) {
+                lateinit var revealControl: TextView
+                revealControl = ui.body(
+                    localizedSelectionUi(settings, "Show", "Mostrar"),
+                    sizeSp = 12.5f,
+                    secondary = true,
+                ).apply {
+                    gravity = Gravity.CENTER
+                    minWidth = dp(48)
+                    minimumWidth = dp(48)
+                    minHeight = dp(48)
+                    minimumHeight = dp(48)
+                    setPadding(dp(6), 0, dp(6), 0)
+                    isClickable = true
+                    isFocusable = true
+                    contentDescription = localizedSelectionUi(
+                        settings,
+                        "Show sensitive value",
+                        "Mostrar valor sensible",
+                    )
+                    setOnClickListener {
+                        revealed = !revealed
+                        valueView.text = if (revealed) field.value else "••••••••"
+                        revealControl.text = localizedSelectionUi(
+                            settings,
+                            if (revealed) "Hide" else "Show",
+                            if (revealed) "Ocultar" else "Mostrar",
+                        )
+                    }
+                }
+                valueRow.addView(revealControl)
+            }
+
+            val editControl = ui.body("✎", sizeSp = 19f).apply {
+                setTextColor(ui.theme.primary)
+                gravity = Gravity.CENTER
+                minWidth = dp(48)
+                minimumWidth = dp(48)
+                minHeight = dp(48)
+                minimumHeight = dp(48)
+                isClickable = true
+                isFocusable = true
+                contentDescription = localizedSelectionUi(
+                    settings,
+                    "Edit ${field.label}",
+                    "Editar ${field.label}",
+                )
+                setOnClickListener {
+                    showVaultFieldEditOverlay(
+                        entry = entry,
+                        field = field,
+                        anchor = anchor,
+                        insertionCursor = insertionCursor,
+                        settings = settings,
+                    )
+                }
+            }
+            valueRow.addView(editControl)
+            fieldBox.addView(valueRow)
 
             val actions = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.END or Gravity.CENTER_VERTICAL
+                setPadding(0, dp(2), 0, 0)
             }
-            if (field.sensitive) {
-                lateinit var revealButton: TextView
-                revealButton = ui.footerButton(
-                    localizedSelectionUi(settings, "Show", "Mostrar"),
-                    primary = false,
-                ) {
-                    revealed = !revealed
-                    valueView.text = if (revealed) field.value else "••••••••"
-                    revealButton.text = localizedSelectionUi(
-                        settings,
-                        if (revealed) "Hide" else "Show",
-                        if (revealed) "Ocultar" else "Mostrar",
-                    )
-                }
-                actions.addView(revealButton)
+
+            fun addActionButton(button: TextView, addStartMargin: Boolean = true) {
+                actions.addView(
+                    button,
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        dp(48),
+                    ).apply {
+                        if (addStartMargin) marginStart = dp(8)
+                    },
+                )
             }
-            actions.addView(
-                ui.footerButton(
+
+            addActionButton(
+                ui.compactButton(
                     localizedSelectionUi(settings, "Copy", "Copiar"),
                     primary = false,
                 ) {
                     writeVaultClipboard(field.value, field.sensitive)
                     if (settings.hapticFeedback) vibrateTick()
                 },
+                addStartMargin = false,
             )
             if (anchor != null && insertionCursor != null) {
-                actions.addView(
-                    ui.footerButton(
+                addActionButton(
+                    ui.compactButton(
                         localizedSelectionUi(settings, "Insert", "Insertar"),
                         primary = true,
                     ) {
@@ -3683,14 +3754,14 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     },
                 )
             }
-            actions.addView(
-                ui.footerButton(
+            addActionButton(
+                ui.compactButton(
                     localizedSelectionUi(settings, "Update", "Actualizar"),
                     primary = false,
                 ) {
                     val clipboard = readClipboardTextOrNull()
                         ?: clipboardMonitor.cachedText
-                        ?: return@footerButton
+                        ?: return@compactButton
                     scope.launch {
                         if (vaultRepository.updateFieldFromClipboard(entry.id, field.id, clipboard)) {
                             if (settings.hapticFeedback) vibrate()
@@ -3707,13 +3778,14 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     }
                 },
             )
+
             fieldBox.addView(actions)
             content.addView(
                 fieldBox,
                 LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT,
-                ).apply { bottomMargin = dp(6) },
+                ).apply { bottomMargin = dp(8) },
             )
         }
 
@@ -3747,6 +3819,87 @@ class ExpansionAccessibilityService : AccessibilityService() {
             val overlayRoot = dismissibleOverlayRoot(root, windowManager)
             windowManager.addView(overlayRoot, params)
             formOverlay = overlayRoot
+        }
+    }
+
+    private fun showVaultFieldEditOverlay(
+        entry: VaultEntry,
+        field: VaultField,
+        anchor: SuggestionAnchor?,
+        insertionCursor: Int?,
+        settings: AppSettings,
+    ) {
+        hideFormOverlay()
+        val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        val ui = OverlayViews(this, resolveNativeTheme(this, settings))
+        val valueInput = ui.input(field.label, field.value).apply {
+            setSingleLine(false)
+            minLines = 1
+            maxLines = 5
+        }
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(16), dp(18), dp(8))
+            addView(
+                ui.title(
+                    localizedSelectionUi(
+                        settings,
+                        "Edit ${field.label}",
+                        "Editar ${field.label}",
+                    ),
+                ),
+            )
+            addView(
+                ui.body(entry.title, secondary = true).apply {
+                    setPadding(0, dp(4), 0, dp(10))
+                },
+            )
+            addView(ui.fieldGroup(field.label, valueInput))
+        }
+
+        fun returnToEntry() {
+            val latest = vaultRepository.entries.value.firstOrNull { it.id == entry.id } ?: entry
+            showVaultEntryOverlay(
+                entry = latest,
+                anchor = anchor,
+                insertionCursor = insertionCursor,
+                settings = settings,
+            )
+        }
+
+        val footer = overlayActionFooter(
+            ui = ui,
+            primaryLabel = localizedSelectionUi(settings, "Save", "Guardar"),
+            cancelLabel = localizedSelectionUi(settings, "Cancel", "Cancelar"),
+            onCancel = { returnToEntry() },
+            onPrimary = {
+                val newValue = valueInput.text.toString()
+                hideFormOverlay()
+                scope.launch {
+                    val changed = vaultRepository.updateFieldValue(entry.id, field.id, newValue)
+                    if (changed && settings.hapticFeedback) vibrate()
+                    returnToEntry()
+                }
+            },
+        )
+        val root = buildOverlayRoot(panel, footer, ui.panel(22), ui)
+        val params = overlayDialogParams(windowManager, softInput = true)
+        runCatching {
+            val overlayRoot = dismissibleOverlayRoot(
+                card = root,
+                windowManager = windowManager,
+                onDismiss = { returnToEntry() },
+            )
+            windowManager.addView(overlayRoot, params)
+            formOverlay = overlayRoot
+            valueInput.requestFocus()
+            valueInput.selectAll()
+            valueInput.postDelayed({
+                (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager)
+                    .showSoftInput(valueInput, InputMethodManager.SHOW_IMPLICIT)
+            }, 120L)
+        }.onFailure {
+            formOverlay = null
         }
     }
 
