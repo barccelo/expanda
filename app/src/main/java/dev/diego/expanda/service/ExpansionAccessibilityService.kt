@@ -3770,9 +3770,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 setColorFilter(ui.theme.primary)
                 scaleType = ImageView.ScaleType.CENTER
                 setPadding(dp(13), dp(13), dp(13), dp(13))
-                minWidth = dp(48)
                 minimumWidth = dp(48)
-                minHeight = dp(48)
                 minimumHeight = dp(48)
                 isClickable = true
                 isFocusable = true
