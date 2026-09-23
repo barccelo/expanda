@@ -3082,8 +3082,15 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 // Always keep the icon inline with the label. Putting it above
                 // the text inside a fixed 48dp button caused the label to clip
                 // during upward swipes.
+                val gestureIcon = when (direction) {
+                    PrimarySwipeDirection.LEFT,
+                    PrimarySwipeDirection.RIGHT,
+                    -> R.drawable.ic_select_fine
+                    PrimarySwipeDirection.UP -> R.drawable.ic_copy_fine
+                    null -> 0
+                }
                 primaryButton.setCompoundDrawablesWithIntrinsicBounds(
-                    if (direction != null) R.drawable.ic_copy_fine else 0,
+                    gestureIcon,
                     0,
                     0,
                     0,
@@ -3120,11 +3127,10 @@ class ExpansionAccessibilityService : AccessibilityService() {
                             primaryButton.translationX =
                                 (dx * dragResistance).coerceIn(-travel, travel)
                             primaryButton.translationY = 0f
-                        } else if (dy < 0f) {
-                            primaryButton.translationX = 0f
-                            primaryButton.translationY =
-                                (dy * dragResistance).coerceIn(-travel, 0f)
                         } else {
+                            // Never translate the pill vertically: the footer is
+                            // height-constrained and clips translated children.
+                            // Upward feedback is conveyed by icon + scale only.
                             primaryButton.translationX = 0f
                             primaryButton.translationY = 0f
                         }
