@@ -4801,14 +4801,26 @@ class ExpansionAccessibilityService : AccessibilityService() {
     ) {
         if (fields.isEmpty()) return
         scope.launch {
-            // Copy from bottom to top so Gboard's newest-first history preserves
-            // the same visual order as the fields shown in Expanda.
+            // Gboard keeps clipboard history newest-first. Write bottom-to-top
+            // so the resulting cards preserve the field order shown in Expanda.
+            //
+            // This gesture explicitly means "copy as separate clipboard-history
+            // items", so sensitive fields are still suppressed from Expanda's
+            // own history but are not tagged IS_SENSITIVE for the system clip;
+            // keyboards may intentionally omit IS_SENSITIVE clips from history.
             fields.asReversed().forEachIndexed { index, field ->
-                writeVaultClipboard(field.value, field.sensitive)
-                if (index < fields.lastIndex) delay(140L)
+                writeVaultClipboardHistoryItem(field.value, field.sensitive)
+                if (index < fields.lastIndex) delay(VAULT_GBOARD_COPY_INTERVAL_MS)
             }
             if (settings.hapticFeedback) vibrate()
         }
+    }
+
+    private fun writeVaultClipboardHistoryItem(text: String, sensitive: Boolean) {
+        if (text.isEmpty()) return
+        val manager = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+        if (sensitive) clipboardMonitor.suppressHistoryOnce(text)
+        manager.setPrimaryClip(ClipData.newPlainText("Expanda vault item", text))
     }
 
     private fun writeVaultClipboard(text: String, sensitive: Boolean) {
@@ -6147,6 +6159,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         private const val PROGRAMMATIC_SELECTION_GRACE_MS = 900L
         private const val SMART_CURSOR_CASE_TIMEOUT_MS = 15_000L
         private const val CLIPBOARD_RESTORE_DELAY_MS = 250L
+        private const val VAULT_GBOARD_COPY_INTERVAL_MS = 650L
         private const val VAULT_CLIPBOARD_CLEAR_MS = 60_000L
         private const val VAULT_SYSTEM_UI_GRACE_MS = 250L
         /** Two frames at 60 Hz — enough for Blink to finish applying ACTION_SET_TEXT. */
