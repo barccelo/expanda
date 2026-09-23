@@ -22,6 +22,7 @@ class ExpandaDatabase(private val context: Context) :
         createMatchTables(db)
         createClipboardTable(db)
         createVaultTable(db)
+        createVaultCategoryTable(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -40,6 +41,9 @@ class ExpandaDatabase(private val context: Context) :
         }
         if (oldVersion < 6) {
             createVaultTable(db)
+        }
+        if (oldVersion < 7) {
+            createVaultCategoryTable(db)
         }
     }
 
@@ -304,6 +308,59 @@ class ExpandaDatabase(private val context: Context) :
         writableDatabase.delete("vault_entries", "id = ?", arrayOf(id.toString()))
     }
 
+    data class VaultCategoryRow(
+        val id: Long,
+        val payload: String,
+        val createdAt: Long,
+        val updatedAt: Long,
+    )
+
+    fun readVaultCategoryRows(): List<VaultCategoryRow> = readableDatabase.query(
+        "vault_categories",
+        arrayOf("id", "payload", "created_at", "updated_at"),
+        null,
+        null,
+        null,
+        null,
+        "updated_at DESC",
+    ).use { cursor ->
+        buildList {
+            while (cursor.moveToNext()) {
+                add(
+                    VaultCategoryRow(
+                        id = cursor.getLong(cursor.getColumnIndexOrThrow("id")),
+                        payload = cursor.getString(cursor.getColumnIndexOrThrow("payload")),
+                        createdAt = cursor.getLong(cursor.getColumnIndexOrThrow("created_at")),
+                        updatedAt = cursor.getLong(cursor.getColumnIndexOrThrow("updated_at")),
+                    ),
+                )
+            }
+        }
+    }
+
+    fun upsertVaultCategoryRow(
+        id: Long,
+        payload: String,
+        createdAt: Long,
+        updatedAt: Long,
+    ): Long {
+        val values = ContentValues().apply {
+            put("payload", payload)
+            put("created_at", createdAt)
+            put("updated_at", updatedAt)
+        }
+        return if (id == 0L) {
+            writableDatabase.insertOrThrow("vault_categories", null, values)
+        } else {
+            writableDatabase.update("vault_categories", values, "id = ?", arrayOf(id.toString()))
+            id
+        }
+    }
+
+    fun deleteVaultCategory(id: Long) {
+        writableDatabase.delete("vault_categories", "id = ?", arrayOf(id.toString()))
+    }
+
     private fun queryMatches(db: SQLiteDatabase): List<TextMatch> = db.query(
         "matches", null, null, null, null, null, "updated_at DESC",
     ).use { cursor ->
@@ -461,7 +518,7 @@ class ExpandaDatabase(private val context: Context) :
 
     companion object {
         private const val DATABASE_NAME = "expanda.db"
-        private const val DATABASE_VERSION = 6
+        private const val DATABASE_VERSION = 7
         private const val UPGRADE_PREFS = "expanda_upgrade"
         private const val KEY_PENDING_TUTORIAL_V03 = "pending_tutorial_v03"
         private const val SEPARATOR = "\u001F"
@@ -496,6 +553,22 @@ class ExpandaDatabase(private val context: Context) :
 
         private fun createMatchIndexes(db: SQLiteDatabase) {
             db.execSQL("CREATE INDEX idx_expansion_log_time ON expansion_log(expanded_at DESC)")
+        }
+
+        private fun createVaultCategoryTable(db: SQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS vault_categories (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    payload TEXT NOT NULL,
+                    created_at INTEGER NOT NULL,
+                    updated_at INTEGER NOT NULL
+                )
+                """.trimIndent(),
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS idx_vault_categories_updated ON vault_categories(updated_at DESC)",
+            )
         }
 
         private fun createVaultTable(db: SQLiteDatabase) {
