@@ -62,6 +62,7 @@ import dev.diego.expanda.engine.RenderedTemplate
 import dev.diego.expanda.engine.TemplateFieldInputType
 import dev.diego.expanda.engine.TemplateFieldRequest
 import dev.diego.expanda.engine.TemplateSelector
+import dev.diego.expanda.engine.TriggerMatcher
 import dev.diego.expanda.data.AppSettings
 import dev.diego.expanda.data.DisplayLanguage
 import dev.diego.expanda.data.SettingsRepository
@@ -3416,23 +3417,27 @@ class ExpansionAccessibilityService : AccessibilityService() {
         if (cursor !in 0..text.length) return null
         val candidates = buildList {
             vaultRepository.entries.value.forEach { entry ->
-                entry.triggers.forEach { trigger ->
-                    add(VaultTriggerTarget.Entry(entry) to trigger)
+                TriggerMatcher.matchLiteralSuffix(
+                    text = text,
+                    cursor = cursor,
+                    triggers = entry.triggers,
+                    caseSensitive = entry.caseSensitive,
+                )?.let { match ->
+                    add(VaultTriggerTarget.Entry(entry) to match.trigger)
                 }
             }
             vaultRepository.categories.value.forEach { category ->
-                category.triggers.forEach { trigger ->
-                    add(VaultTriggerTarget.Category(category) to trigger)
+                TriggerMatcher.matchLiteralSuffix(
+                    text = text,
+                    cursor = cursor,
+                    triggers = category.triggers,
+                    caseSensitive = category.caseSensitive,
+                )?.let { match ->
+                    add(VaultTriggerTarget.Category(category) to match.trigger)
                 }
             }
         }
-        return candidates
-            .asSequence()
-            .filter { (_, trigger) -> trigger.isNotBlank() && trigger.length <= cursor }
-            .sortedByDescending { (_, trigger) -> trigger.length }
-            .firstOrNull { (_, trigger) ->
-                text.regionMatches(cursor - trigger.length, trigger, 0, trigger.length)
-            }
+        return candidates.maxByOrNull { (_, trigger) -> trigger.length }
     }
 
     private fun showVaultOverlay(
