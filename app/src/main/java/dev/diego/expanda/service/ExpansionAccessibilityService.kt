@@ -3031,6 +3031,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         onPrimary: () -> Unit,
         onPrimaryLongClick: (() -> Unit)? = null,
         onPrimarySwipe: ((PrimarySwipeDirection) -> Unit)? = null,
+        swipeHapticEnabled: Boolean = false,
     ): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.END or Gravity.CENTER_VERTICAL
@@ -3079,7 +3080,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     0,
                 )
                 primaryButton.compoundDrawablePadding = if (direction == null) 0 else dp(6)
-                if (direction != null) {
+                if (direction != null && swipeHapticEnabled) {
                     primaryButton.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
                 }
             }
@@ -4408,6 +4409,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 writeVaultClipboard(labeled, copyFields.any(VaultField::sensitive))
                 if (settings.hapticFeedback) vibrateTick()
             },
+            swipeHapticEnabled = settings.hapticFeedback,
             onPrimarySwipe = if (entry.fields.size > 1) {
                 { direction ->
                     when (direction) {
