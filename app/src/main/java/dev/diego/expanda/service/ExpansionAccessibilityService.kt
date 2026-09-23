@@ -4297,6 +4297,24 @@ class ExpansionAccessibilityService : AccessibilityService() {
             )
         }
 
+        content.addView(
+            ui.compactButton(
+                localizedSelectionUi(settings, "Add field", "Agregar campo"),
+                primary = false,
+            ) {
+                showVaultFieldCreateOverlay(
+                    entry = entry,
+                    anchor = anchor,
+                    insertionCursor = insertionCursor,
+                    settings = settings,
+                )
+            },
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(48),
+            ).apply { bottomMargin = dp(8) },
+        )
+
         val preferredIds = entry.preferredCopyFieldIds?.toSet()
         val copyFields = entry.fields
             .filter { preferredIds == null || it.id in preferredIds }
@@ -4466,6 +4484,127 @@ class ExpansionAccessibilityService : AccessibilityService() {
             formOverlay = overlayRoot
             markVaultOverlayShown(anchor)
         }.onFailure { formOverlay = null }
+    }
+
+    private fun showVaultFieldCreateOverlay(
+        entry: VaultEntry,
+        anchor: SuggestionAnchor?,
+        insertionCursor: Int?,
+        settings: AppSettings,
+    ) {
+        hideFormOverlay()
+        val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        val ui = OverlayViews(this, resolveNativeTheme(this, settings))
+        val labelInput = ui.input(
+            localizedSelectionUi(settings, "Field name", "Nombre del campo"),
+            "",
+        ).apply { setSingleLine(true) }
+        val valueInput = ui.input(
+            localizedSelectionUi(settings, "Value", "Valor"),
+            "",
+        ).apply {
+            setSingleLine(false)
+            minLines = 1
+            maxLines = 5
+        }
+        val sensitive = CheckBox(this).apply {
+            text = localizedSelectionUi(settings, "Sensitive", "Sensible")
+            setTextColor(ui.theme.onSurface)
+        }
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(16), dp(18), dp(8))
+            addView(
+                ui.title(
+                    localizedSelectionUi(
+                        settings,
+                        "New field",
+                        "Nuevo campo",
+                    ),
+                ),
+            )
+            addView(
+                ui.body(entry.title, secondary = true).apply {
+                    setPadding(0, dp(4), 0, dp(10))
+                },
+            )
+            addView(
+                ui.fieldGroup(
+                    localizedSelectionUi(settings, "Field", "Campo"),
+                    labelInput,
+                ),
+            )
+            addView(
+                ui.fieldGroup(
+                    localizedSelectionUi(settings, "Value", "Valor"),
+                    valueInput,
+                ),
+            )
+            addView(sensitive)
+        }
+
+        fun returnToEntry() {
+            val latest = vaultRepository.entries.value.firstOrNull { it.id == entry.id } ?: entry
+            showVaultEntryOverlay(
+                entry = latest,
+                anchor = anchor,
+                insertionCursor = insertionCursor,
+                settings = settings,
+            )
+        }
+
+        val footer = overlayActionFooter(
+            ui = ui,
+            primaryLabel = localizedSelectionUi(settings, "Save", "Guardar"),
+            cancelLabel = localizedSelectionUi(settings, "Cancel", "Cancelar"),
+            onCancel = { returnToEntry() },
+            onPrimary = {
+                val rawLabel = labelInput.text.toString()
+                val value = valueInput.text.toString()
+                if (rawLabel.isBlank() && value.isEmpty()) return@overlayActionFooter
+                val label = rawLabel.trim().ifBlank {
+                    localizedSelectionUi(settings, "Value", "Valor")
+                }
+                hideFormOverlay()
+                scope.launch {
+                    runCatching {
+                        vaultRepository.save(
+                            entry.copy(
+                                fields = entry.fields + VaultField(
+                                    label = label,
+                                    value = value,
+                                    sensitive = sensitive.isChecked,
+                                ),
+                            ),
+                        )
+                    }.onSuccess {
+                        if (settings.hapticFeedback) vibrate()
+                    }.onFailure {
+                        Log.w(TAG, "Failed to add vault field", it)
+                    }
+                    returnToEntry()
+                }
+            },
+        )
+        val root = buildOverlayRoot(panel, footer, ui.panel(22), ui)
+        val params = vaultOverlayDialogParams(windowManager, softInput = true)
+        runCatching {
+            val overlayRoot = dismissibleOverlayRoot(
+                card = root,
+                windowManager = windowManager,
+                onDismiss = { returnToEntry() },
+            )
+            windowManager.addView(overlayRoot, params)
+            formOverlay = overlayRoot
+            markVaultOverlayShown(anchor)
+            labelInput.requestFocus()
+            labelInput.postDelayed({
+                (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager)
+                    .showSoftInput(labelInput, InputMethodManager.SHOW_IMPLICIT)
+            }, 120L)
+        }.onFailure {
+            formOverlay = null
+        }
     }
 
     private fun showVaultFieldEditOverlay(
