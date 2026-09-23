@@ -3719,14 +3719,50 @@ class ExpansionAccessibilityService : AccessibilityService() {
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(14), dp(12), dp(14), dp(8))
-            addView(
-                ui.title(
-                    categoryName?.takeIf(String::isNotBlank)
-                        ?: localizedSelectionUi(settings, "Vault", "Bóveda"),
-                ).apply {
-                    setPadding(dp(6), dp(2), dp(6), dp(4))
-                },
-            )
+            val headerRow = LinearLayout(this@ExpansionAccessibilityService).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                if (!categoryName.isNullOrBlank()) {
+                    addView(
+                        ImageView(this@ExpansionAccessibilityService).apply {
+                            setImageResource(R.drawable.ic_back_fine)
+                            setColorFilter(ui.theme.onSurface)
+                            scaleType = ImageView.ScaleType.CENTER
+                            setPadding(dp(10), dp(10), dp(10), dp(10))
+                            isClickable = true
+                            isFocusable = true
+                            contentDescription = localizedSelectionUi(
+                                settings,
+                                "Back to vault",
+                                "Volver a la bóveda",
+                            )
+                            setOnClickListener {
+                                showVaultOverlay(
+                                    anchor = resolvedAnchor,
+                                    insertionCursor = resolvedCursor,
+                                )
+                            }
+                        },
+                        LinearLayout.LayoutParams(dp(40), dp(40)).apply {
+                            marginEnd = dp(2)
+                        },
+                    )
+                }
+                addView(
+                    ui.title(
+                        categoryName?.takeIf(String::isNotBlank)
+                            ?: localizedSelectionUi(settings, "Vault", "Bóveda"),
+                    ).apply {
+                        setPadding(dp(6), dp(2), dp(6), dp(4))
+                    },
+                    LinearLayout.LayoutParams(
+                        0,
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        1f,
+                    ),
+                )
+            }
+            addView(headerRow)
             addView(
                 ui.body(
                     localizedSelectionUi(
@@ -3735,7 +3771,14 @@ class ExpansionAccessibilityService : AccessibilityService() {
                         "Cifrada en este dispositivo",
                     ),
                     secondary = true,
-                ).apply { setPadding(dp(6), 0, dp(6), dp(10)) },
+                ).apply {
+                    setPadding(
+                        if (categoryName.isNullOrBlank()) dp(6) else dp(48),
+                        0,
+                        dp(6),
+                        dp(10),
+                    )
+                },
             )
         }
 
@@ -3913,21 +3956,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
 
         val footer = overlayCancelFooter(
             ui,
-            if (categoryName.isNullOrBlank()) {
-                localizedSelectionUi(settings, "Close", "Cerrar")
-            } else {
-                localizedSelectionUi(settings, "Back", "Volver")
-            },
-        ) {
-            if (categoryName.isNullOrBlank()) {
-                hideFormOverlay()
-            } else {
-                showVaultOverlay(
-                    anchor = resolvedAnchor,
-                    insertionCursor = resolvedCursor,
-                )
-            }
-        }
+            localizedSelectionUi(settings, "Close", "Cerrar"),
+        ) { hideFormOverlay() }
         val bounds = displayBounds(windowManager)
         val root = buildPickerOverlayRoot(
             content = content,
@@ -4239,18 +4269,102 @@ class ExpansionAccessibilityService : AccessibilityService() {
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(14), dp(12), dp(14), dp(8))
-            addView(ui.title(entry.title).apply {
-                setPadding(dp(6), dp(2), dp(6), dp(4))
-            })
-            val metadata = buildList {
-                entry.category?.takeIf(String::isNotBlank)?.let(::add)
-                if (entry.triggers.isNotEmpty()) add(entry.triggers.joinToString(" · "))
-            }.joinToString(" · ")
-            if (metadata.isNotBlank()) {
-                addView(ui.body(metadata, secondary = true).apply {
-                    setPadding(dp(6), 0, dp(6), dp(10))
-                })
+
+            val headerRow = LinearLayout(this@ExpansionAccessibilityService).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                addView(
+                    ImageView(this@ExpansionAccessibilityService).apply {
+                        setImageResource(R.drawable.ic_back_fine)
+                        setColorFilter(ui.theme.onSurface)
+                        scaleType = ImageView.ScaleType.CENTER
+                        setPadding(dp(10), dp(10), dp(10), dp(10))
+                        isClickable = true
+                        isFocusable = true
+                        contentDescription = localizedSelectionUi(
+                            settings,
+                            "Back",
+                            "Volver",
+                        )
+                        setOnClickListener {
+                            showVaultOverlay(
+                                categoryName = entry.category,
+                                anchor = anchor,
+                                insertionCursor = insertionCursor,
+                            )
+                        }
+                    },
+                    LinearLayout.LayoutParams(dp(40), dp(40)).apply {
+                        marginEnd = dp(2)
+                    },
+                )
+                addView(
+                    ui.title(entry.title).apply {
+                        setPadding(dp(6), dp(2), dp(6), dp(4))
+                    },
+                    LinearLayout.LayoutParams(
+                        0,
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        1f,
+                    ),
+                )
             }
+            addView(headerRow)
+
+            entry.category?.takeIf(String::isNotBlank)?.let { category ->
+                addView(
+                    ui.body(category, secondary = true).apply {
+                        setPadding(dp(48), 0, dp(6), dp(1))
+                    },
+                )
+            }
+
+            val triggerRow = LinearLayout(this@ExpansionAccessibilityService).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(48), 0, dp(2), dp(8))
+            }
+            val triggerLabel = if (entry.triggers.isEmpty()) {
+                localizedSelectionUi(settings, "No trigger", "Sin trigger")
+            } else {
+                entry.triggers.joinToString(" · ")
+            }
+            triggerRow.addView(
+                ui.body(triggerLabel, secondary = true).apply {
+                    maxLines = 2
+                    ellipsize = TextUtils.TruncateAt.END
+                },
+                LinearLayout.LayoutParams(
+                    0,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    1f,
+                ),
+            )
+            triggerRow.addView(
+                ImageView(this@ExpansionAccessibilityService).apply {
+                    setImageResource(R.drawable.ic_edit_fine)
+                    setColorFilter(ui.theme.onSurfaceVariant)
+                    scaleType = ImageView.ScaleType.CENTER
+                    setPadding(dp(9), dp(9), dp(9), dp(9))
+                    isClickable = true
+                    isFocusable = true
+                    contentDescription = localizedSelectionUi(
+                        settings,
+                        "Edit triggers",
+                        "Editar triggers",
+                    )
+                    setOnClickListener {
+                        showVaultTriggerEditOverlay(
+                            entry = entry,
+                            anchor = anchor,
+                            insertionCursor = insertionCursor,
+                            settings = settings,
+                        )
+                    }
+                },
+                LinearLayout.LayoutParams(dp(36), dp(36)),
+            )
+            addView(triggerRow)
         }
 
         entry.fields.forEach { field ->
@@ -4458,14 +4572,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
         val footer = overlayActionFooter(
             ui = ui,
             primaryLabel = copyLabel,
-            cancelLabel = localizedSelectionUi(settings, "Back", "Volver"),
-            onCancel = {
-                showVaultOverlay(
-                    categoryName = entry.category,
-                    anchor = anchor,
-                    insertionCursor = insertionCursor,
-                )
-            },
+            cancelLabel = localizedSelectionUi(settings, "Close", "Cerrar"),
+            onCancel = { hideFormOverlay() },
             onPrimary = {
                 val valuesOnly = copyFields.joinToString("\n", transform = VaultField::value)
                 writeVaultClipboard(valuesOnly, copyFields.any(VaultField::sensitive))
@@ -4515,6 +4623,125 @@ class ExpansionAccessibilityService : AccessibilityService() {
             windowManager.addView(overlayRoot, params)
             formOverlay = overlayRoot
             markVaultOverlayShown(anchor)
+        }
+    }
+
+    private fun showVaultTriggerEditOverlay(
+        entry: VaultEntry,
+        anchor: SuggestionAnchor?,
+        insertionCursor: Int?,
+        settings: AppSettings,
+    ) {
+        hideFormOverlay()
+        val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        val ui = OverlayViews(this, resolveNativeTheme(this, settings))
+        val triggersInput = ui.input(
+            localizedSelectionUi(settings, "Triggers", "Triggers"),
+            entry.triggers.joinToString("\n"),
+        ).apply {
+            setSingleLine(false)
+            minLines = 2
+            maxLines = 5
+        }
+        val caseSensitive = CheckBox(this).apply {
+            text = localizedSelectionUi(
+                settings,
+                "Match letter case exactly",
+                "Distinguir mayúsculas y minúsculas",
+            )
+            isChecked = entry.caseSensitive
+            setTextColor(ui.theme.onSurface)
+        }
+
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(16), dp(18), dp(8))
+            addView(
+                ui.title(
+                    localizedSelectionUi(
+                        settings,
+                        "Edit triggers",
+                        "Editar triggers",
+                    ),
+                ),
+            )
+            addView(
+                ui.body(entry.title, secondary = true).apply {
+                    setPadding(0, dp(4), 0, dp(10))
+                },
+            )
+            addView(
+                ui.fieldGroup(
+                    localizedSelectionUi(
+                        settings,
+                        "Triggers — one per line",
+                        "Triggers — uno por línea",
+                    ),
+                    triggersInput,
+                ),
+            )
+            addView(caseSensitive)
+        }
+
+        fun returnToEntry() {
+            val latest = vaultRepository.entries.value.firstOrNull { it.id == entry.id } ?: entry
+            showVaultEntryOverlay(
+                entry = latest,
+                anchor = anchor,
+                insertionCursor = insertionCursor,
+                settings = settings,
+            )
+        }
+
+        val footer = overlayActionFooter(
+            ui = ui,
+            primaryLabel = localizedSelectionUi(settings, "Save", "Guardar"),
+            cancelLabel = localizedSelectionUi(settings, "Cancel", "Cancelar"),
+            onCancel = { returnToEntry() },
+            onPrimary = {
+                val triggers = triggersInput.text.toString()
+                    .lines()
+                    .map(String::trim)
+                    .filter(String::isNotBlank)
+                    .distinct()
+                hideFormOverlay()
+                scope.launch {
+                    runCatching {
+                        vaultRepository.save(
+                            entry.copy(
+                                triggers = triggers,
+                                caseSensitive = caseSensitive.isChecked,
+                            ),
+                        )
+                    }.onSuccess {
+                        if (settings.hapticFeedback) vibrateTick()
+                    }.onFailure {
+                        Log.w(TAG, "Failed to update vault triggers", it)
+                    }
+                    returnToEntry()
+                }
+            },
+        )
+
+        val root = buildOverlayRoot(panel, footer, ui.panel(22), ui)
+        val params = vaultOverlayDialogParams(windowManager, softInput = true)
+        runCatching {
+            val overlayRoot = dismissibleOverlayRoot(
+                card = root,
+                windowManager = windowManager,
+                onDismiss = { returnToEntry() },
+            )
+            windowManager.addView(overlayRoot, params)
+            formOverlay = overlayRoot
+            markVaultOverlayShown(anchor)
+            triggersInput.requestFocus()
+            triggersInput.setSelection(triggersInput.text.length)
+            triggersInput.postDelayed({
+                (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager)
+                    .showSoftInput(triggersInput, InputMethodManager.SHOW_IMPLICIT)
+            }, 120L)
+        }.onFailure {
+            formOverlay = null
         }
     }
 
