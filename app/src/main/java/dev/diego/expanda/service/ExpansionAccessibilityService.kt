@@ -4409,14 +4409,23 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 if (settings.hapticFeedback) vibrateTick()
             },
             onPrimarySwipe = if (entry.fields.size > 1) {
-                {
-                    if (settings.hapticFeedback) vibrateTick()
-                    showVaultCopyFieldSelectorOverlay(
-                        entry = entry,
-                        anchor = anchor,
-                        insertionCursor = insertionCursor,
-                        settings = settings,
-                    )
+                { direction ->
+                    when (direction) {
+                        PrimarySwipeDirection.LEFT,
+                        PrimarySwipeDirection.RIGHT,
+                        -> {
+                            if (settings.hapticFeedback) vibrateTick()
+                            showVaultCopyFieldSelectorOverlay(
+                                entry = entry,
+                                anchor = anchor,
+                                insertionCursor = insertionCursor,
+                                settings = settings,
+                            )
+                        }
+                        PrimarySwipeDirection.UP -> {
+                            copyVaultFieldsIndividually(copyFields, settings)
+                        }
+                    }
                 }
             } else {
                 null
@@ -4781,6 +4790,22 @@ class ExpansionAccessibilityService : AccessibilityService() {
         } finally {
             @Suppress("DEPRECATION")
             node.recycle()
+        }
+    }
+
+    private fun copyVaultFieldsIndividually(
+        fields: List<VaultField>,
+        settings: AppSettings,
+    ) {
+        if (fields.isEmpty()) return
+        scope.launch {
+            // Copy from bottom to top so Gboard's newest-first history preserves
+            // the same visual order as the fields shown in Expanda.
+            fields.asReversed().forEachIndexed { index, field ->
+                writeVaultClipboard(field.value, field.sensitive)
+                if (index < fields.lastIndex) delay(140L)
+            }
+            if (settings.hapticFeedback) vibrate()
         }
     }
 
