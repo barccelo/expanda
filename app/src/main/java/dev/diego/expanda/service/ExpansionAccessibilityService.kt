@@ -3045,7 +3045,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
             ).apply { marginEnd = dp(8) },
         )
         val primaryButton = ui.footerButton(primaryLabel, primary = true, onPrimary)
-        if (onPrimaryLongClick != null) {
+        if (onPrimaryLongClick != null && onPrimarySwipe == null) {
             primaryButton.setOnLongClickListener {
                 onPrimaryLongClick()
                 true
@@ -3054,7 +3054,11 @@ class ExpansionAccessibilityService : AccessibilityService() {
         if (onPrimarySwipe != null) {
             var downX = 0f
             var downY = 0f
+            var downAt = 0L
+            var gestureMoved = false
             var activeDirection: PrimarySwipeDirection? = null
+            val touchSlop = ViewConfiguration.get(this@ExpansionAccessibilityService).scaledTouchSlop
+            val longPressTimeout = ViewConfiguration.getLongPressTimeout().toLong()
             val swipeThreshold = maxOf(
                 ViewConfiguration.get(this@ExpansionAccessibilityService).scaledTouchSlop * 3,
                 dp(24),
@@ -3110,12 +3114,22 @@ class ExpansionAccessibilityService : AccessibilityService() {
                         primaryButton.animate().cancel()
                         downX = event.rawX
                         downY = event.rawY
+                        downAt = SystemClock.uptimeMillis()
+                        gestureMoved = false
                         activeDirection = null
+                        primaryButton.cancelLongPress()
                         false
                     }
                     MotionEvent.ACTION_MOVE -> {
                         val dx = event.rawX - downX
                         val dy = event.rawY - downY
+                        if (
+                            !gestureMoved &&
+                            (kotlin.math.abs(dx) > touchSlop || kotlin.math.abs(dy) > touchSlop)
+                        ) {
+                            gestureMoved = true
+                            primaryButton.cancelLongPress()
+                        }
                         val horizontal = kotlin.math.abs(dx) > kotlin.math.abs(dy)
                         val candidate = when {
                             !horizontal && dy <= -swipeThreshold -> PrimarySwipeDirection.UP
@@ -3135,26 +3149,40 @@ class ExpansionAccessibilityService : AccessibilityService() {
                             primaryButton.translationY = 0f
                         }
                         showDirection(candidate)
-                        candidate != null
+                        candidate != null || gestureMoved
                     }
                     MotionEvent.ACTION_UP -> {
                         val direction = activeDirection
+                        val wasMoved = gestureMoved
+                        val shouldLongPress =
+                            direction == null &&
+                                !wasMoved &&
+                                onPrimaryLongClick != null &&
+                                SystemClock.uptimeMillis() - downAt >= longPressTimeout
                         resetSwipeVisual()
                         activeDirection = null
-                        if (direction != null) {
-                            onPrimarySwipe(direction)
-                            true
-                        } else {
-                            false
+                        gestureMoved = false
+                        when {
+                            direction != null -> {
+                                onPrimarySwipe(direction)
+                                true
+                            }
+                            shouldLongPress -> {
+                                onPrimaryLongClick?.invoke()
+                                true
+                            }
+                            wasMoved -> true
+                            else -> false
                         }
                     }
                     MotionEvent.ACTION_CANCEL -> {
-                        val consume = activeDirection != null
+                        val consume = activeDirection != null || gestureMoved
                         resetSwipeVisual()
                         activeDirection = null
+                        gestureMoved = false
                         consume
                     }
-                    else -> activeDirection != null
+                    else -> activeDirection != null || gestureMoved
                 }
             }
         }
