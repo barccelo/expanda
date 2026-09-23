@@ -4340,31 +4340,33 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     1f,
                 ),
             )
-            triggerRow.addView(
-                ImageView(this@ExpansionAccessibilityService).apply {
-                    setImageResource(R.drawable.ic_edit_fine)
-                    setColorFilter(ui.theme.onSurfaceVariant)
-                    scaleType = ImageView.ScaleType.CENTER
-                    setPadding(dp(9), dp(9), dp(9), dp(9))
-                    isClickable = true
-                    isFocusable = true
-                    contentDescription = localizedSelectionUi(
+            triggerRow.background = ui.surface(10)
+            addView(
+                vaultSwipeEditCard(
+                    front = triggerRow,
+                    ui = ui,
+                    settings = settings,
+                    editDescription = localizedSelectionUi(
                         settings,
                         "Edit triggers",
                         "Editar triggers",
+                    ),
+                ) {
+                    showVaultTriggerEditOverlay(
+                        entry = entry,
+                        anchor = anchor,
+                        insertionCursor = insertionCursor,
+                        settings = settings,
                     )
-                    setOnClickListener {
-                        showVaultTriggerEditOverlay(
-                            entry = entry,
-                            anchor = anchor,
-                            insertionCursor = insertionCursor,
-                            settings = settings,
-                        )
-                    }
                 },
-                LinearLayout.LayoutParams(dp(36), dp(36)),
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply {
+                    marginStart = dp(42)
+                    bottomMargin = dp(8)
+                },
             )
-            addView(triggerRow)
         }
 
         entry.fields.forEach { field ->
@@ -4428,34 +4430,6 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 valueRow.addView(revealControl)
             }
 
-            val editControl = ImageView(this).apply {
-                setImageResource(R.drawable.ic_edit_fine)
-                setColorFilter(ui.theme.primary)
-                scaleType = ImageView.ScaleType.CENTER
-                setPadding(dp(13), dp(13), dp(13), dp(13))
-                minimumWidth = dp(48)
-                minimumHeight = dp(48)
-                isClickable = true
-                isFocusable = true
-                contentDescription = localizedSelectionUi(
-                    settings,
-                    "Edit ${field.label}",
-                    "Editar ${field.label}",
-                )
-                setOnClickListener {
-                    showVaultFieldEditOverlay(
-                        entry = entry,
-                        field = field,
-                        anchor = anchor,
-                        insertionCursor = insertionCursor,
-                        settings = settings,
-                    )
-                }
-            }
-            valueRow.addView(
-                editControl,
-                LinearLayout.LayoutParams(dp(48), dp(48)),
-            )
             fieldBox.addView(valueRow)
 
             val actions = LinearLayout(this).apply {
@@ -4529,7 +4503,24 @@ class ExpansionAccessibilityService : AccessibilityService() {
 
             fieldBox.addView(actions)
             content.addView(
-                fieldBox,
+                vaultSwipeEditCard(
+                    front = fieldBox,
+                    ui = ui,
+                    settings = settings,
+                    editDescription = localizedSelectionUi(
+                        settings,
+                        "Edit ${field.label}",
+                        "Editar ${field.label}",
+                    ),
+                ) {
+                    showVaultFieldEditOverlay(
+                        entry = entry,
+                        field = field,
+                        anchor = anchor,
+                        insertionCursor = insertionCursor,
+                        settings = settings,
+                    )
+                },
                 LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -4624,6 +4615,134 @@ class ExpansionAccessibilityService : AccessibilityService() {
             formOverlay = overlayRoot
             markVaultOverlayShown(anchor)
         }
+    }
+
+    private fun vaultSwipeEditCard(
+        front: View,
+        ui: OverlayViews,
+        settings: AppSettings,
+        editDescription: String,
+        onEdit: () -> Unit,
+    ): View {
+        val revealWidth = dp(70).toFloat()
+        val commitThreshold = dp(46).toFloat()
+        val maxTravel = dp(86).toFloat()
+        val touchSlop = ViewConfiguration.get(this).scaledTouchSlop.toFloat()
+
+        val container = object : FrameLayout(this) {
+            var downX = 0f
+            var downY = 0f
+            var dragging = false
+            var armed = false
+
+            override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        downX = event.x
+                        downY = event.y
+                        dragging = false
+                        armed = false
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        val dx = event.x - downX
+                        val dy = event.y - downY
+                        if (
+                            !dragging &&
+                            kotlin.math.abs(dx) > touchSlop &&
+                            kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.15f
+                        ) {
+                            dragging = true
+                            parent?.requestDisallowInterceptTouchEvent(true)
+                            return true
+                        }
+                    }
+                }
+                return dragging
+            }
+
+            override fun onTouchEvent(event: MotionEvent): Boolean {
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_MOVE -> {
+                        val dx = event.x - downX
+                        val clamped = dx.coerceIn(-maxTravel, maxTravel)
+                        front.translationX = clamped
+                        val nowArmed = kotlin.math.abs(clamped) >= commitThreshold
+                        if (nowArmed && !armed && settings.hapticFeedback) {
+                            vibrateTick()
+                        }
+                        armed = nowArmed
+                        return true
+                    }
+                    MotionEvent.ACTION_UP -> {
+                        val shouldEdit = dragging && armed
+                        dragging = false
+                        armed = false
+                        parent?.requestDisallowInterceptTouchEvent(false)
+                        front.animate()
+                            .translationX(0f)
+                            .setDuration(120L)
+                            .withEndAction {
+                                if (shouldEdit) onEdit()
+                            }
+                            .start()
+                        return true
+                    }
+                    MotionEvent.ACTION_CANCEL -> {
+                        dragging = false
+                        armed = false
+                        parent?.requestDisallowInterceptTouchEvent(false)
+                        front.animate().translationX(0f).setDuration(120L).start()
+                        return true
+                    }
+                }
+                return true
+            }
+        }.apply {
+            clipChildren = true
+            clipToPadding = true
+            background = ui.surface(14, emphasized = true)
+            contentDescription = editDescription
+        }
+
+        fun editAffordance(): TextView = ui.body(
+            localizedSelectionUi(settings, "Edit", "Editar"),
+            sizeSp = 12.5f,
+            secondary = false,
+        ).apply {
+            gravity = Gravity.CENTER
+            setTextColor(ui.theme.primary)
+            setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_edit_fine, 0, 0, 0)
+            compoundDrawablePadding = dp(4)
+            compoundDrawableTintList =
+                android.content.res.ColorStateList.valueOf(ui.theme.primary)
+            isClickable = false
+            isFocusable = false
+        }
+
+        container.addView(
+            editAffordance(),
+            FrameLayout.LayoutParams(
+                revealWidth.toInt(),
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                Gravity.START,
+            ),
+        )
+        container.addView(
+            editAffordance(),
+            FrameLayout.LayoutParams(
+                revealWidth.toInt(),
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                Gravity.END,
+            ),
+        )
+        container.addView(
+            front,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+            ),
+        )
+        return container
     }
 
     private fun showVaultTriggerEditOverlay(
