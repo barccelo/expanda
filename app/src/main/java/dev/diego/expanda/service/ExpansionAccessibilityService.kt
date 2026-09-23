@@ -3594,7 +3594,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         editor?.recycle()
 
         if (entryId != null) {
-            entries.firstOrNull { it.id == entryId }?.let { entry ->
+            allEntries.firstOrNull { it.id == entryId }?.let { entry ->
                 showVaultEntryOverlay(entry, resolvedAnchor, resolvedCursor, settings)
             }
             return
@@ -3626,33 +3626,114 @@ class ExpansionAccessibilityService : AccessibilityService() {
             )
         }
 
-        val sorted = entries.sortedWith(
-            compareBy<VaultEntry> { it.category.isNullOrBlank() }
-                .thenBy(String.CASE_INSENSITIVE_ORDER) { it.category.orEmpty() }
-                .thenByDescending { it.favorite }
-                .thenBy(String.CASE_INSENSITIVE_ORDER) { it.title },
-        )
-        val groupedEntries = sorted.groupBy { it.category?.takeIf(String::isNotBlank) }
-        if (sorted.isEmpty()) {
+        if (categoryName.isNullOrBlank()) {
             content.addView(
-                ui.body(
-                    localizedSelectionUi(
-                        settings,
-                        "The vault is empty. Add entries from Expanda.",
-                        "La bóveda está vacía. Agrega entradas desde Expanda.",
-                    ),
-                    secondary = true,
-                ).apply { setPadding(dp(12), dp(16), dp(12), dp(16)) },
+                ui.compactButton(
+                    localizedSelectionUi(settings, "Add category", "Agregar categoría"),
+                    primary = false,
+                ) {
+                    showVaultCategoryCreateOverlay(
+                        anchor = resolvedAnchor,
+                        insertionCursor = resolvedCursor,
+                        settings = settings,
+                    )
+                },
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    dp(48),
+                ).apply { bottomMargin = dp(10) },
             )
         } else {
-            groupedEntries.forEach { (category, categoryEntries) ->
+            content.addView(
+                ui.compactButton(
+                    localizedSelectionUi(settings, "Add entry", "Agregar entrada"),
+                    primary = false,
+                ) {
+                    showVaultEntryCreateOverlay(
+                        categoryName = categoryName,
+                        anchor = resolvedAnchor,
+                        insertionCursor = resolvedCursor,
+                        settings = settings,
+                    )
+                },
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    dp(48),
+                ).apply { bottomMargin = dp(10) },
+            )
+        }
+
+        var renderedItems = 0
+        if (categoryName.isNullOrBlank()) {
+            val categoryNames = (
+                vaultRepository.categories.value.map(VaultCategory::name) +
+                    allEntries.mapNotNull(VaultEntry::category)
+                )
+                .distinctBy { it.lowercase(Locale.ROOT) }
+                .sortedWith(String.CASE_INSENSITIVE_ORDER)
+
+            categoryNames.forEach { name ->
+                val category = vaultRepository.categories.value.firstOrNull {
+                    it.name.equals(name, ignoreCase = true)
+                }
+                val categoryEntries = allEntries
+                    .filter { it.category?.equals(name, ignoreCase = true) == true }
+                    .sortedWith(
+                        compareByDescending<VaultEntry> { it.favorite }
+                            .thenBy(String.CASE_INSENSITIVE_ORDER) { it.title },
+                    )
+                val subtitle = buildString {
+                    append(
+                        localizedSelectionUi(
+                            settings,
+                            "${categoryEntries.size} entries",
+                            "${categoryEntries.size} entradas",
+                        ),
+                    )
+                    if (category?.triggers?.isNotEmpty() == true) {
+                        append(" · ")
+                        append(category.triggers.joinToString(" · "))
+                    }
+                }
+                content.addView(
+                    ui.body("$name\n$subtitle").apply {
+                        setPadding(dp(12), dp(10), dp(12), dp(10))
+                        minimumHeight = dp(54)
+                        background = ui.surface()
+                        isClickable = true
+                        isFocusable = true
+                        setTextColor(ui.theme.primary)
+                        contentDescription = localizedSelectionUi(
+                            settings,
+                            "Open category $name",
+                            "Abrir categoría $name",
+                        )
+                        setOnClickListener {
+                            showVaultOverlay(
+                                categoryName = name,
+                                anchor = resolvedAnchor,
+                                insertionCursor = resolvedCursor,
+                            )
+                        }
+                    },
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                    ).apply { bottomMargin = dp(6) },
+                )
+                renderedItems++
+            }
+
+            val uncategorized = allEntries
+                .filter { it.category.isNullOrBlank() }
+                .sortedWith(
+                    compareByDescending<VaultEntry> { it.favorite }
+                        .thenBy(String.CASE_INSENSITIVE_ORDER) { it.title },
+                )
+            if (uncategorized.isNotEmpty()) {
                 content.addView(
                     ui.body(
-                        category ?: localizedSelectionUi(
-                            settings,
-                            "Uncategorized",
-                            "Sin categoría",
-                        ),
+                        localizedSelectionUi(settings, "Uncategorized", "Sin categoría"),
                         sizeSp = 13f,
                         secondary = true,
                     ).apply {
@@ -3660,41 +3741,59 @@ class ExpansionAccessibilityService : AccessibilityService() {
                         setTextColor(ui.theme.primary)
                     },
                 )
-                categoryEntries.forEach { entry ->
-                    val rowText = buildString {
-                        append(entry.title)
-                        if (entry.triggers.isNotEmpty()) {
-                            append("\n")
-                            append(entry.triggers.joinToString(" · "))
-                        }
-                    }
-                    content.addView(
-                        ui.body(rowText).apply {
-                            setPadding(dp(12), dp(12), dp(12), dp(12))
-                            minimumHeight = dp(52)
-                            background = ui.surface()
-                            isClickable = true
-                            isFocusable = true
-                            contentDescription = localizedSelectionUi(
-                                settings,
-                                "Open ${entry.title}",
-                                "Abrir ${entry.title}",
-                            )
-                            setOnClickListener {
-                                hideFormOverlay()
-                                showVaultEntryOverlay(
-                                    entry = entry,
-                                    anchor = resolvedAnchor,
-                                    insertionCursor = resolvedCursor,
-                                    settings = settings,
-                                )
-                            }
-                        },
-                        LinearLayout.LayoutParams(
-                            LinearLayout.LayoutParams.MATCH_PARENT,
-                            LinearLayout.LayoutParams.WRAP_CONTENT,
-                        ).apply { bottomMargin = dp(6) },
+                renderedItems++
+                uncategorized.forEach { entry ->
+                    addVaultEntryRow(
+                        content = content,
+                        entry = entry,
+                        ui = ui,
+                        settings = settings,
+                        anchor = resolvedAnchor,
+                        insertionCursor = resolvedCursor,
                     )
+                    renderedItems++
+                }
+            }
+
+            if (categoryNames.isEmpty() && uncategorized.isEmpty()) {
+                content.addView(
+                    ui.body(
+                        localizedSelectionUi(
+                            settings,
+                            "The vault is empty. Add a category to get started.",
+                            "La bóveda está vacía. Agrega una categoría para comenzar.",
+                        ),
+                        secondary = true,
+                    ).apply { setPadding(dp(12), dp(16), dp(12), dp(16)) },
+                )
+            }
+        } else {
+            val sorted = entries.sortedWith(
+                compareByDescending<VaultEntry> { it.favorite }
+                    .thenBy(String.CASE_INSENSITIVE_ORDER) { it.title },
+            )
+            if (sorted.isEmpty()) {
+                content.addView(
+                    ui.body(
+                        localizedSelectionUi(
+                            settings,
+                            "This category has no entries yet.",
+                            "Esta categoría todavía no tiene entradas.",
+                        ),
+                        secondary = true,
+                    ).apply { setPadding(dp(12), dp(16), dp(12), dp(16)) },
+                )
+            } else {
+                sorted.forEach { entry ->
+                    addVaultEntryRow(
+                        content = content,
+                        entry = entry,
+                        ui = ui,
+                        settings = settings,
+                        anchor = resolvedAnchor,
+                        insertionCursor = resolvedCursor,
+                    )
+                    renderedItems++
                 }
             }
         }
@@ -3707,7 +3806,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         val root = buildPickerOverlayRoot(
             content = content,
             footer = footer,
-            itemCount = sorted.size + groupedEntries.size,
+            itemCount = renderedItems + 1,
             maxContentHeightPx = (bounds.height() * 0.58f).toInt().coerceAtLeast(dp(180)),
             background = ui.panel(22),
             ui = ui,
@@ -3719,6 +3818,287 @@ class ExpansionAccessibilityService : AccessibilityService() {
             formOverlay = overlayRoot
             markVaultOverlayShown(resolvedAnchor)
         }
+    }
+
+    private fun addVaultEntryRow(
+        content: LinearLayout,
+        entry: VaultEntry,
+        ui: OverlayViews,
+        settings: AppSettings,
+        anchor: SuggestionAnchor?,
+        insertionCursor: Int?,
+    ) {
+        val rowText = buildString {
+            append(entry.title)
+            if (entry.triggers.isNotEmpty()) {
+                append("\n")
+                append(entry.triggers.joinToString(" · "))
+            }
+        }
+        content.addView(
+            ui.body(rowText).apply {
+                setPadding(dp(12), dp(12), dp(12), dp(12))
+                minimumHeight = dp(52)
+                background = ui.surface()
+                isClickable = true
+                isFocusable = true
+                contentDescription = localizedSelectionUi(
+                    settings,
+                    "Open ${entry.title}",
+                    "Abrir ${entry.title}",
+                )
+                setOnClickListener {
+                    showVaultEntryOverlay(
+                        entry = entry,
+                        anchor = anchor,
+                        insertionCursor = insertionCursor,
+                        settings = settings,
+                    )
+                }
+            },
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { bottomMargin = dp(6) },
+        )
+    }
+
+    private fun showVaultCategoryCreateOverlay(
+        anchor: SuggestionAnchor?,
+        insertionCursor: Int?,
+        settings: AppSettings,
+    ) {
+        hideFormOverlay()
+        val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        val ui = OverlayViews(this, resolveNativeTheme(this, settings))
+        val nameInput = ui.input(
+            localizedSelectionUi(settings, "Category name", "Nombre de la categoría"),
+            "",
+        ).apply { setSingleLine(true) }
+        val triggersInput = ui.input(
+            localizedSelectionUi(settings, "Triggers", "Triggers"),
+            "",
+        ).apply {
+            setSingleLine(false)
+            minLines = 2
+            maxLines = 4
+        }
+        val caseSensitive = CheckBox(this).apply {
+            text = localizedSelectionUi(
+                settings,
+                "Match letter case exactly",
+                "Distinguir mayúsculas y minúsculas",
+            )
+            setTextColor(ui.theme.onSurface)
+        }
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(16), dp(18), dp(8))
+            addView(ui.title(localizedSelectionUi(settings, "New category", "Nueva categoría")))
+            addView(ui.fieldGroup(localizedSelectionUi(settings, "Name", "Nombre"), nameInput))
+            addView(ui.fieldGroup(localizedSelectionUi(settings, "Triggers — one per line", "Triggers — uno por línea"), triggersInput))
+            addView(caseSensitive)
+        }
+
+        fun returnToVault() {
+            showVaultOverlay(anchor = anchor, insertionCursor = insertionCursor)
+        }
+
+        val footer = overlayActionFooter(
+            ui = ui,
+            primaryLabel = localizedSelectionUi(settings, "Save", "Guardar"),
+            cancelLabel = localizedSelectionUi(settings, "Cancel", "Cancelar"),
+            onCancel = { returnToVault() },
+            onPrimary = {
+                val name = nameInput.text.toString().trim()
+                if (name.isBlank()) return@overlayActionFooter
+                val triggers = triggersInput.text.toString()
+                    .lines()
+                    .filter(String::isNotBlank)
+                    .distinct()
+                hideFormOverlay()
+                scope.launch {
+                    runCatching {
+                        vaultRepository.saveCategory(
+                            VaultCategory(
+                                name = name,
+                                triggers = triggers,
+                                caseSensitive = caseSensitive.isChecked,
+                            ),
+                        )
+                    }.onFailure { Log.w(TAG, "Failed to create vault category", it) }
+                    returnToVault()
+                }
+            },
+        )
+        val root = buildOverlayRoot(panel, footer, ui.panel(22), ui)
+        val params = vaultOverlayDialogParams(windowManager, softInput = true)
+        runCatching {
+            val overlayRoot = dismissibleOverlayRoot(
+                card = root,
+                windowManager = windowManager,
+                onDismiss = { returnToVault() },
+            )
+            windowManager.addView(overlayRoot, params)
+            formOverlay = overlayRoot
+            markVaultOverlayShown(anchor)
+            nameInput.requestFocus()
+            nameInput.postDelayed({
+                (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager)
+                    .showSoftInput(nameInput, InputMethodManager.SHOW_IMPLICIT)
+            }, 120L)
+        }.onFailure { formOverlay = null }
+    }
+
+    private fun showVaultEntryCreateOverlay(
+        categoryName: String,
+        anchor: SuggestionAnchor?,
+        insertionCursor: Int?,
+        settings: AppSettings,
+    ) {
+        hideFormOverlay()
+        val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        val ui = OverlayViews(this, resolveNativeTheme(this, settings))
+        val titleInput = ui.input(localizedSelectionUi(settings, "Entry name", "Nombre de la entrada"), "").apply {
+            setSingleLine(true)
+        }
+        val triggersInput = ui.input(localizedSelectionUi(settings, "Triggers", "Triggers"), "").apply {
+            setSingleLine(false)
+            minLines = 2
+            maxLines = 4
+        }
+        val caseSensitive = CheckBox(this).apply {
+            text = localizedSelectionUi(
+                settings,
+                "Match letter case exactly",
+                "Distinguir mayúsculas y minúsculas",
+            )
+            setTextColor(ui.theme.onSurface)
+        }
+        val fieldsContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        val fieldInputs = mutableListOf<Triple<EditText, EditText, CheckBox>>()
+
+        fun addField() {
+            val labelInput = ui.input(localizedSelectionUi(settings, "Field name", "Nombre del campo"), "")
+                .apply { setSingleLine(true) }
+            val valueInput = ui.input(localizedSelectionUi(settings, "Value", "Valor"), "")
+                .apply {
+                    setSingleLine(false)
+                    minLines = 1
+                    maxLines = 4
+                }
+            val sensitive = CheckBox(this).apply {
+                text = localizedSelectionUi(settings, "Sensitive", "Sensible")
+                setTextColor(ui.theme.onSurface)
+            }
+            val group = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(0, dp(4), 0, dp(8))
+                addView(ui.fieldGroup(localizedSelectionUi(settings, "Field", "Campo"), labelInput))
+                addView(ui.fieldGroup(localizedSelectionUi(settings, "Value", "Valor"), valueInput))
+                addView(sensitive)
+            }
+            fieldsContainer.addView(group)
+            fieldInputs += Triple(labelInput, valueInput, sensitive)
+        }
+        addField()
+
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(16), dp(18), dp(8))
+            addView(ui.title(localizedSelectionUi(settings, "New entry", "Nueva entrada")))
+            addView(ui.body(categoryName, secondary = true).apply {
+                setPadding(0, dp(4), 0, dp(10))
+            })
+            addView(ui.fieldGroup(localizedSelectionUi(settings, "Name", "Nombre"), titleInput))
+            addView(ui.fieldGroup(localizedSelectionUi(settings, "Triggers — one per line", "Triggers — uno por línea"), triggersInput))
+            addView(caseSensitive)
+            addView(fieldsContainer)
+            addView(
+                ui.compactButton(
+                    localizedSelectionUi(settings, "Add field", "Agregar campo"),
+                    primary = false,
+                ) { addField() },
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    dp(48),
+                ).apply { topMargin = dp(4) },
+            )
+        }
+
+        fun returnToCategory() {
+            showVaultOverlay(
+                categoryName = categoryName,
+                anchor = anchor,
+                insertionCursor = insertionCursor,
+            )
+        }
+
+        val footer = overlayActionFooter(
+            ui = ui,
+            primaryLabel = localizedSelectionUi(settings, "Save", "Guardar"),
+            cancelLabel = localizedSelectionUi(settings, "Cancel", "Cancelar"),
+            onCancel = { returnToCategory() },
+            onPrimary = {
+                val title = titleInput.text.toString().trim()
+                val fields = fieldInputs.mapNotNull { (labelInput, valueInput, sensitive) ->
+                    val value = valueInput.text.toString()
+                    val label = labelInput.text.toString().trim().ifBlank {
+                        localizedSelectionUi(settings, "Value", "Valor")
+                    }
+                    if (value.isEmpty() && labelInput.text.toString().isBlank()) {
+                        null
+                    } else {
+                        VaultField(label = label, value = value, sensitive = sensitive.isChecked)
+                    }
+                }
+                if (title.isBlank() || fields.isEmpty()) return@overlayActionFooter
+                val triggers = triggersInput.text.toString()
+                    .lines()
+                    .filter(String::isNotBlank)
+                    .distinct()
+                hideFormOverlay()
+                scope.launch {
+                    runCatching {
+                        vaultRepository.save(
+                            VaultEntry(
+                                title = title,
+                                triggers = triggers,
+                                caseSensitive = caseSensitive.isChecked,
+                                fields = fields,
+                                category = categoryName,
+                            ),
+                        )
+                    }.onFailure { Log.w(TAG, "Failed to create vault entry", it) }
+                    returnToCategory()
+                }
+            },
+        )
+        val root = buildScrollableOverlayRoot(
+            content = panel,
+            footer = footer,
+            maxContentHeightPx = (displayBounds(windowManager).height() * 0.62f).toInt(),
+            background = ui.panel(22),
+            ui = ui,
+        )
+        val params = vaultOverlayDialogParams(windowManager, softInput = true)
+        runCatching {
+            val overlayRoot = dismissibleOverlayRoot(
+                card = root,
+                windowManager = windowManager,
+                onDismiss = { returnToCategory() },
+            )
+            windowManager.addView(overlayRoot, params)
+            formOverlay = overlayRoot
+            markVaultOverlayShown(anchor)
+            titleInput.requestFocus()
+            titleInput.postDelayed({
+                (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager)
+                    .showSoftInput(titleInput, InputMethodManager.SHOW_IMPLICIT)
+            }, 120L)
+        }.onFailure { formOverlay = null }
     }
 
     private fun showVaultEntryOverlay(
