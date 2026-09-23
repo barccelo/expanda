@@ -226,6 +226,26 @@ class VaultRepository(
     suspend fun updateFieldFromClipboard(entryId: Long, fieldId: String, value: String): Boolean =
         updateFieldValue(entryId, fieldId, value)
 
+    suspend fun updateCopyFieldSelection(
+        entryId: Long,
+        fieldIds: List<String>,
+    ): Boolean = withContext(io) {
+        val entry = mutableEntries.value.firstOrNull { it.id == entryId } ?: return@withContext false
+        val validIds = entry.fields.mapTo(linkedSetOf(), VaultField::id)
+        val normalized = fieldIds.filter { it in validIds }.distinct()
+        if (normalized.isEmpty()) return@withContext false
+        if (entry.preferredCopyFieldIds == normalized) return@withContext true
+        val now = System.currentTimeMillis()
+        writeEntry(
+            entry.copy(
+                preferredCopyFieldIds = normalized,
+                updatedAt = now,
+            ),
+        )
+        reloadEntries()
+        true
+    }
+
     fun findByTrigger(trigger: String): VaultEntry? = entries.value.firstOrNull { entry ->
         entry.triggers.any { stored ->
             if (entry.caseSensitive) stored == trigger else stored.equals(trigger, ignoreCase = true)
@@ -347,6 +367,7 @@ class VaultRepository(
         put("category", entry.category)
         put("tags", JSONArray(entry.tags.sorted()))
         put("favorite", entry.favorite)
+        entry.preferredCopyFieldIds?.let { put("preferredCopyFieldIds", JSONArray(it)) }
         put("fields", JSONArray().apply {
             entry.fields.forEach { field ->
                 put(
@@ -393,6 +414,8 @@ class VaultRepository(
             triggers = json.optJSONArray("triggers").strings(),
             caseSensitive = json.optBoolean("caseSensitive", false),
             fields = fields,
+            preferredCopyFieldIds = json.optJSONArray("preferredCopyFieldIds").strings()
+                .takeIf { it.isNotEmpty() },
             category = json.optString("category").takeIf(String::isNotBlank),
             tags = json.optJSONArray("tags").strings().toSet(),
             favorite = json.optBoolean("favorite"),
