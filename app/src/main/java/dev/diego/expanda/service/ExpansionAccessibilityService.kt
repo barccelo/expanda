@@ -31,12 +31,14 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.WindowManager
+import android.view.WindowInsets
 import android.view.ContextThemeWrapper
 import android.view.inputmethod.InputMethodManager
 import android.widget.Spinner
 import android.widget.EditText
 import android.widget.CheckBox
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -131,6 +133,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private var suggestionValidation: Runnable? = null
     private var suggestionAnchor: SuggestionAnchor? = null
     private var formOverlay: View? = null
+    private var vaultOverlayActive = false
+    private var vaultOverlayOriginPackage: String? = null
+    private var vaultOverlayShownAt = 0L
     private var pendingFormNode: AccessibilityNodeInfo? = null
     private var pendingFormApply: Runnable? = null
     private var activeFieldDialog: Dialog? = null
@@ -244,6 +249,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
                 AccessibilityEvent.TYPE_WINDOWS_CHANGED,
                 -> {
+                    dismissVaultOverlayForSystemContext(event)
                     // Adding/removing our TYPE_ACCESSIBILITY_OVERLAY also emits a
                     // windows-changed event. Do not immediately tear down the
                     // selection toolbar we just created; validate its anchored
@@ -2855,6 +2861,78 @@ class ExpansionAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun dismissVaultOverlayForSystemContext(event: AccessibilityEvent) {
+        if (!vaultOverlayActive || formOverlay == null) return
+        if (SystemClock.elapsedRealtime() - vaultOverlayShownAt < VAULT_SYSTEM_UI_GRACE_MS) return
+
+        val packageName = event.packageName?.toString().orEmpty()
+        val className = event.className?.toString().orEmpty()
+        if (packageName.isBlank()) return
+        if (packageName == applicationContext.packageName) return
+        if (packageName == vaultOverlayOriginPackage) return
+
+        val packageLower = packageName.lowercase(Locale.ROOT)
+        val classLower = className.lowercase(Locale.ROOT)
+        val isSystemUi = packageLower == "com.android.systemui"
+        val isRecentsLike =
+            "recents" in classLower ||
+                "overview" in classLower ||
+                "quickstep" in classLower
+        val isLauncher =
+            "launcher" in packageLower &&
+                ("launcher" in classLower || isRecentsLike)
+
+        if (isSystemUi || isRecentsLike || isLauncher) {
+            hideFormOverlay()
+        }
+    }
+
+    private fun vaultSystemBarInsets(windowManager: WindowManager): Pair<Int, Int> {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val insets = windowManager.currentWindowMetrics.windowInsets
+                .getInsetsIgnoringVisibility(WindowInsets.Type.systemBars())
+            return insets.top to insets.bottom
+        }
+        val statusId = resources.getIdentifier("status_bar_height", "dimen", "android")
+        val navId = resources.getIdentifier("navigation_bar_height", "dimen", "android")
+        val top = if (statusId != 0) resources.getDimensionPixelSize(statusId) else 0
+        val bottom = if (navId != 0) resources.getDimensionPixelSize(navId) else 0
+        return top to bottom
+    }
+
+    private fun vaultOverlayDialogParams(
+        windowManager: WindowManager,
+        softInput: Boolean,
+    ): WindowManager.LayoutParams {
+        val bounds = displayBounds(windowManager)
+        val (topInset, bottomInset) = vaultSystemBarInsets(windowManager)
+        val usableHeight = (bounds.height() - topInset - bottomInset)
+            .coerceAtLeast(dp(220))
+        return WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            usableHeight,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_DIM_BEHIND or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+            PixelFormat.TRANSLUCENT,
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            x = 0
+            y = topInset
+            dimAmount = 0.35f
+            if (softInput) {
+                @Suppress("DEPRECATION")
+                softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+            }
+        }
+    }
+
+    private fun markVaultOverlayShown(anchor: SuggestionAnchor?) {
+        vaultOverlayActive = true
+        vaultOverlayOriginPackage = anchor?.packageName
+        vaultOverlayShownAt = SystemClock.elapsedRealtime()
+    }
+
     private fun overlayDialogParams(windowManager: WindowManager, softInput: Boolean): WindowManager.LayoutParams =
         WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
@@ -3211,6 +3289,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
         activeFieldDialog = null
         val overlay = formOverlay
         formOverlay = null
+        vaultOverlayActive = false
+        vaultOverlayOriginPackage = null
+        vaultOverlayShownAt = 0L
         if (overlay != null) runCatching { (getSystemService(WINDOW_SERVICE) as WindowManager).removeView(overlay) }
         pendingFormNode?.let {
             @Suppress("DEPRECATION")
@@ -3588,11 +3669,12 @@ class ExpansionAccessibilityService : AccessibilityService() {
             background = ui.panel(22),
             ui = ui,
         )
-        val params = overlayDialogParams(windowManager, softInput = false)
+        val params = vaultOverlayDialogParams(windowManager, softInput = false)
         runCatching {
             val overlayRoot = dismissibleOverlayRoot(root, windowManager)
             windowManager.addView(overlayRoot, params)
             formOverlay = overlayRoot
+            markVaultOverlayShown(resolvedAnchor)
         }
     }
 
@@ -3683,9 +3765,11 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 valueRow.addView(revealControl)
             }
 
-            val editControl = ui.body("✎", sizeSp = 19f).apply {
-                setTextColor(ui.theme.primary)
-                gravity = Gravity.CENTER
+            val editControl = ImageView(this).apply {
+                setImageResource(R.drawable.ic_edit_fine)
+                setColorFilter(ui.theme.primary)
+                scaleType = ImageView.ScaleType.CENTER
+                setPadding(dp(13), dp(13), dp(13), dp(13))
                 minWidth = dp(48)
                 minimumWidth = dp(48)
                 minHeight = dp(48)
@@ -3707,7 +3791,10 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     )
                 }
             }
-            valueRow.addView(editControl)
+            valueRow.addView(
+                editControl,
+                LinearLayout.LayoutParams(dp(48), dp(48)),
+            )
             fieldBox.addView(valueRow)
 
             val actions = LinearLayout(this).apply {
@@ -3814,11 +3901,12 @@ class ExpansionAccessibilityService : AccessibilityService() {
             background = ui.panel(22),
             ui = ui,
         )
-        val params = overlayDialogParams(windowManager, softInput = false)
+        val params = vaultOverlayDialogParams(windowManager, softInput = false)
         runCatching {
             val overlayRoot = dismissibleOverlayRoot(root, windowManager)
             windowManager.addView(overlayRoot, params)
             formOverlay = overlayRoot
+            markVaultOverlayShown(anchor)
         }
     }
 
@@ -3883,7 +3971,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
             },
         )
         val root = buildOverlayRoot(panel, footer, ui.panel(22), ui)
-        val params = overlayDialogParams(windowManager, softInput = true)
+        val params = vaultOverlayDialogParams(windowManager, softInput = true)
         runCatching {
             val overlayRoot = dismissibleOverlayRoot(
                 card = root,
@@ -3892,6 +3980,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
             )
             windowManager.addView(overlayRoot, params)
             formOverlay = overlayRoot
+            markVaultOverlayShown(anchor)
             valueInput.requestFocus()
             valueInput.selectAll()
             valueInput.postDelayed({
@@ -5093,6 +5182,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         private const val SMART_CURSOR_CASE_TIMEOUT_MS = 15_000L
         private const val CLIPBOARD_RESTORE_DELAY_MS = 250L
         private const val VAULT_CLIPBOARD_CLEAR_MS = 60_000L
+        private const val VAULT_SYSTEM_UI_GRACE_MS = 250L
         /** Two frames at 60 Hz — enough for Blink to finish applying ACTION_SET_TEXT. */
         private const val WEBVIEW_SELECTION_RETRY_DELAY_MS = 32L
         private const val MAX_SUGGESTIONS = 24
