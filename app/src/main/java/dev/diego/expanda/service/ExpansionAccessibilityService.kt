@@ -4903,14 +4903,59 @@ class ExpansionAccessibilityService : AccessibilityService() {
             hideSuggestions()
             return
         }
+        fun shortcutMatches(shortcut: String, caseSensitive: Boolean = false): Boolean {
+            if (showAll) return true
+            if (!caseSensitive) {
+                return SuggestionMatcher.matchRange(
+                    shortcut,
+                    typed,
+                    settings.matchFromBeginning,
+                ) != null
+            }
+            if (typed.isEmpty()) return false
+            return if (settings.matchFromBeginning) {
+                shortcut.startsWith(typed)
+            } else {
+                shortcut.contains(typed)
+            }
+        }
+
+        fun suggestionTypeOrder(item: PopupSuggestion): Int = when (item) {
+            is PopupSuggestion.TextSnippet -> 0
+            is PopupSuggestion.VaultEntryItem -> 1
+            is PopupSuggestion.VaultCategoryItem -> 2
+            is PopupSuggestion.Action -> 3
+        }
+
         val suggestions = buildList<PopupSuggestion> {
             repository.matches.value.asSequence()
-                .filter { it.enabled && it.runsOnAndroid && packageName !in it.excludedPackages }
-                .flatMap { match -> match.textTriggers().asSequence().map { match to it } }
-                .filter { (_, trigger) ->
-                    showAll || SuggestionMatcher.matchRange(trigger, typed, settings.matchFromBeginning) != null
+                .filter {
+                    it.enabled &&
+                        it.suggestionEnabled &&
+                        it.runsOnAndroid &&
+                        packageName !in it.excludedPackages
                 }
+                .flatMap { match -> match.textTriggers().asSequence().map { match to it } }
+                .filter { (_, trigger) -> shortcutMatches(trigger) }
                 .mapTo(this) { (match, trigger) -> PopupSuggestion.TextSnippet(match, trigger, typed) }
+
+            if (settings.suggestionShowVault) {
+                vaultRepository.entries.value.asSequence()
+                    .flatMap { entry -> entry.triggers.asSequence().map { entry to it } }
+                    .filter { (_, trigger) -> trigger.isNotBlank() }
+                    .filter { (entry, trigger) -> shortcutMatches(trigger, entry.caseSensitive) }
+                    .mapTo(this) { (entry, trigger) ->
+                        PopupSuggestion.VaultEntryItem(entry, trigger, typed)
+                    }
+                vaultRepository.categories.value.asSequence()
+                    .flatMap { category -> category.triggers.asSequence().map { category to it } }
+                    .filter { (_, trigger) -> trigger.isNotBlank() }
+                    .filter { (category, trigger) -> shortcutMatches(trigger, category.caseSensitive) }
+                    .mapTo(this) { (category, trigger) ->
+                        PopupSuggestion.VaultCategoryItem(category, trigger, typed)
+                    }
+            }
+
             if (settings.suggestionShowActions && !showAll) {
                 val enabledActions = actionSettingsStore.enabledIds.value
                 val triggerOverrides = actionSettingsStore.triggerOverrides.value
@@ -4936,13 +4981,13 @@ class ExpansionAccessibilityService : AccessibilityService() {
         }.let { candidates ->
             if (showAll) {
                 candidates.sortedWith(
-                    compareBy<PopupSuggestion> { if (it is PopupSuggestion.TextSnippet) 0 else 1 }
+                    compareBy<PopupSuggestion>(::suggestionTypeOrder)
                         .thenBy { it.shortcut.lowercase() },
                 ).take(MAX_BROWSE_SUGGESTIONS)
             } else {
                 candidates.sortedWith(
                     compareBy<PopupSuggestion> { it.shortcut.length }
-                        .thenBy { if (it is PopupSuggestion.TextSnippet) 0 else 1 }
+                        .thenBy(::suggestionTypeOrder)
                         .thenByDescending { (it as? PopupSuggestion.TextSnippet)?.textMatch?.usageCount ?: 0L },
                 ).take(MAX_SUGGESTIONS)
             }
