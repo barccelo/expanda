@@ -183,6 +183,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private var selectionGestureAnchorCursor = 0
     private var selectionGestureLastTarget = -1
     private var selectionGestureDirectionLock = 0
+    private var selectionGestureRelayRestore: Runnable? = null
+    private var selectionGestureRelayGeneration = 0L
     private val selectionUndoHistory = ArrayDeque<SelectionUndoEntry>()
     private var pendingSmartCursorCase: PendingSmartCursorCase? = null
 
@@ -4105,31 +4107,46 @@ class ExpansionAccessibilityService : AccessibilityService() {
         windowManager: WindowManager,
         params: WindowManager.LayoutParams,
     ) {
+        selectionGestureRelayRestore?.let(mainHandler::removeCallbacks)
+        selectionGestureRelayRestore = null
+
+        val generation = ++selectionGestureRelayGeneration
         val centerX = params.x + params.width / 2f
         val centerY = params.y + params.height / 2f
-        val originalFlags = params.flags
-        params.flags = originalFlags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+        val normalFlags = params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+
+        params.flags = normalFlags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
         runCatching { windowManager.updateViewLayout(hotspot, params) }
 
-        var restored = false
         fun restoreTouchability() {
-            if (restored || selectionGestureHotspot !== hotspot) return
-            restored = true
-            params.flags = originalFlags
+            if (generation != selectionGestureRelayGeneration) return
+            selectionGestureRelayRestore?.let(mainHandler::removeCallbacks)
+            selectionGestureRelayRestore = null
+            if (selectionGestureHotspot !== hotspot) return
+            params.flags = normalFlags
             runCatching { windowManager.updateViewLayout(hotspot, params) }
         }
 
-        // Always restore even if Android never calls GestureResultCallback.
-        // Keeping the hotspot untouchable briefly also lets a physical second tap
-        // reach Gboard natively, preserving Shift double-tap / Caps Lock.
+        val failsafe = Runnable(::restoreTouchability)
+        selectionGestureRelayRestore = failsafe
         mainHandler.postDelayed(
-            ::restoreTouchability,
-            SELECTION_GESTURE_DOUBLE_TAP_BYPASS_MS,
+            failsafe,
+            SELECTION_GESTURE_RELAY_FAILSAFE_MS,
         )
 
+        // Only keep the overlay untouchable long enough for WindowManager to
+        // commit the flag before dispatching the synthetic tap. As soon as that
+        // tap finishes, restore the hotspot so a second physical tap is captured
+        // and relayed as a second Shift tap too.
         mainHandler.postDelayed(
             {
-                if (selectionGestureHotspot !== hotspot) return@postDelayed
+                if (
+                    generation != selectionGestureRelayGeneration ||
+                    selectionGestureHotspot !== hotspot
+                ) {
+                    return@postDelayed
+                }
+
                 val path = Path().apply { moveTo(centerX, centerY) }
                 val gesture = GestureDescription.Builder()
                     .addStroke(
@@ -4142,9 +4159,21 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     .build()
 
                 val callback = object : GestureResultCallback() {
-                    override fun onCompleted(gestureDescription: GestureDescription?) = Unit
-                    override fun onCancelled(gestureDescription: GestureDescription?) = Unit
+                    override fun onCompleted(gestureDescription: GestureDescription?) {
+                        mainHandler.postDelayed(
+                            ::restoreTouchability,
+                            SELECTION_GESTURE_RESTORE_AFTER_TAP_MS,
+                        )
+                    }
+
+                    override fun onCancelled(gestureDescription: GestureDescription?) {
+                        mainHandler.postDelayed(
+                            ::restoreTouchability,
+                            SELECTION_GESTURE_RESTORE_AFTER_TAP_MS,
+                        )
+                    }
                 }
+
                 if (!dispatchGesture(gesture, callback, mainHandler)) {
                     restoreTouchability()
                 }
@@ -4155,6 +4184,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
 
     private fun hideSelectionGestureHotspot() {
         hideSelectionGestureTrackpad()
+        selectionGestureRelayGeneration++
+        selectionGestureRelayRestore?.let(mainHandler::removeCallbacks)
+        selectionGestureRelayRestore = null
         selectionGestureHotspotRefresh?.let(mainHandler::removeCallbacks)
         selectionGestureHotspotRefresh = null
         val view = selectionGestureHotspot
@@ -7342,9 +7374,10 @@ class ExpansionAccessibilityService : AccessibilityService() {
 
     companion object {
         private const val SELECTION_GESTURE_LONG_PRESS_MS = 330L
-        private const val SELECTION_GESTURE_RELAY_TAP_MS = 42L
-        private const val SELECTION_GESTURE_RELAY_ARM_MS = 48L
-        private const val SELECTION_GESTURE_DOUBLE_TAP_BYPASS_MS = 320L
+        private const val SELECTION_GESTURE_RELAY_TAP_MS = 32L
+        private const val SELECTION_GESTURE_RELAY_ARM_MS = 16L
+        private const val SELECTION_GESTURE_RESTORE_AFTER_TAP_MS = 8L
+        private const val SELECTION_GESTURE_RELAY_FAILSAFE_MS = 96L
         private const val SELECTION_GESTURE_CHAR_STEP_DP = 10
         private const val SELECTION_GESTURE_ACCEL_START_DP = 90
         private const val SELECTION_GESTURE_ACCEL_STEP_DP = 6
