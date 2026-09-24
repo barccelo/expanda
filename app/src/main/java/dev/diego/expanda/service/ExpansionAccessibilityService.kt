@@ -3814,7 +3814,6 @@ class ExpansionAccessibilityService : AccessibilityService() {
         var longPressTask: Runnable? = null
         var selectionActive = false
         var directionLock = 0
-        var selectionAnchor: SuggestionAnchor? = null
         var anchorCursor = 0
         var lastTarget = -1
         var movedBeforeActivation = false
@@ -3828,7 +3827,6 @@ class ExpansionAccessibilityService : AccessibilityService() {
             cancelLongPress()
             selectionActive = false
             directionLock = 0
-            selectionAnchor = null
             lastTarget = -1
             movedBeforeActivation = false
         }
@@ -3840,9 +3838,6 @@ class ExpansionAccessibilityService : AccessibilityService() {
             try {
                 val text = editableText(node)
                 val cursor = node.textSelectionEnd.takeIf { it in 0..text.length } ?: return
-                val packageName = node.packageName?.toString().orEmpty()
-                if (packageName.isBlank()) return
-                selectionAnchor = createSuggestionAnchor(node, packageName)
                 anchorCursor = cursor
                 lastTarget = cursor
                 selectionActive = true
@@ -3858,9 +3853,11 @@ class ExpansionAccessibilityService : AccessibilityService() {
         }
 
         fun applyDrag(rawDx: Float) {
-            val anchor = selectionAnchor ?: return
             if (directionLock == 0 && kotlin.math.abs(rawDx) >= touchSlop) {
                 directionLock = if (rawDx < 0f) -1 else 1
+                if (settingsRepository.settings.value.hapticFeedback) {
+                    vibrateTick()
+                }
             }
             if (directionLock == 0) return
 
@@ -3881,18 +3878,30 @@ class ExpansionAccessibilityService : AccessibilityService() {
             }
             val steps = baseSteps + acceleratedSteps
 
-            val node = findAnchoredEditor(anchor, requireActiveWindow = false) ?: return
+            // Do not resolve through SuggestionAnchor here. During a continuous
+            // gesture the accessibility overlay can change window focus/geometry
+            // just enough for anchor validation to reject the same editor.
+            val node = findFocusedEditableForSelectionGesture() ?: return
             try {
+                runCatching { node.refresh() }
                 val textLength = editableText(node).length
                 val target = (anchorCursor + directionLock * steps).coerceIn(0, textLength)
                 if (target == lastTarget) return
+
                 val start = minOf(anchorCursor, target)
                 val end = maxOf(anchorCursor, target)
                 suppressSelectionToolbarUntil =
                     SystemClock.elapsedRealtime() + SELECTION_GESTURE_TOOLBAR_SUPPRESSION_MS
                 programmaticSelectionUntil =
                     SystemClock.elapsedRealtime() + PROGRAMMATIC_SELECTION_GRACE_MS
-                if (setSelection(node, start, end)) {
+
+                var applied = setSelection(node, start, end)
+                if (!applied) {
+                    clearAccessibilityCache()
+                    runCatching { node.refresh() }
+                    applied = setSelection(node, start, end)
+                }
+                if (applied) {
                     lastTarget = target
                 }
             } finally {
