@@ -1797,9 +1797,9 @@ private fun SelectionToolbarSettingsDialog(
                                     supportingContent = {
                                         Text(
                                             if (es) {
-                                                "Mantén Shift con el pulgar izquierdo y desliza con el derecho para seleccionar. Toca para ajustar la zona."
+                                                "Mantén Shift con el pulgar izquierdo. Con el derecho: horizontal selecciona caracteres; vertical selecciona líneas completas."
                                             } else {
-                                                "Hold Shift with your left thumb and slide with your right thumb to select. Tap to adjust the hotspot."
+                                                "Hold Shift with your left thumb. With your right: horizontal selects characters; vertical selects full lines."
                                             },
                                         )
                                     },
@@ -2032,9 +2032,9 @@ private fun SelectionToolbarSettingsDialog(
                                         )
                                         Text(
                                             if (es) {
-                                                "Un toque corto actúa como Shift. Mantén presionado con el pulgar izquierdo para activar el trackpad invisible y desliza con el pulgar derecho."
+                                                "Un toque corto actúa como Shift. Mantén presionado con el pulgar izquierdo para activar el trackpad invisible; con el derecho desliza horizontalmente por caracteres o verticalmente por líneas completas."
                                             } else {
-                                                "A short tap acts as Shift. Hold with your left thumb to arm the invisible trackpad, then slide with your right thumb."
+                                                "A short tap acts as Shift. Hold with your left thumb to arm the invisible trackpad; use your right thumb horizontally for characters or vertically for full lines."
                                             },
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
