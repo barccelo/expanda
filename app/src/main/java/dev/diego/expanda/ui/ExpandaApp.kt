@@ -110,6 +110,7 @@ import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -188,10 +189,12 @@ import dev.diego.expanda.data.UppercaseStyle
 import dev.diego.expanda.engine.TemplateTokenEditor
 import dev.diego.expanda.engine.TemplateTokenSpan
 import dev.diego.expanda.ui.settings.SuggestionSettingsPanel
+import dev.diego.expanda.service.ExpansionAccessibilityService
 import dev.diego.expanda.ui.test.TestScreen
 import dev.diego.expanda.ui.tutorial.WorkspaceOnboardingScreen
 import dev.diego.expanda.ui.tutorial.TutorialScreen
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import dev.diego.expanda.R
 
@@ -1635,9 +1638,38 @@ private fun SelectionToolbarSettingsDialog(
     var page by remember {
         mutableStateOf<SelectionToolbarSettingsPage>(SelectionToolbarSettingsPage.Overview)
     }
+    var calibratingHotspot by remember { mutableStateOf(false) }
+    var calibrationText by remember {
+        mutableStateOf("Expanda · selecciona este texto para probar el gesto")
+    }
+    val calibrationFocusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
     val es = usesSpanish(settings.displayLanguage)
 
+    DisposableEffect(calibratingHotspot) {
+        if (calibratingHotspot) {
+            ExpansionAccessibilityService.requestSelectionGestureCalibration(true)
+        }
+        onDispose {
+            if (calibratingHotspot) {
+                ExpansionAccessibilityService.requestSelectionGestureCalibration(false)
+            }
+        }
+    }
+
+    LaunchedEffect(calibratingHotspot) {
+        if (calibratingHotspot) {
+            delay(140L)
+            calibrationFocusRequester.requestFocus()
+            keyboardController?.show()
+        }
+    }
+
     fun goBack() {
+        if (calibratingHotspot) {
+            calibratingHotspot = false
+            return
+        }
         page = when (page) {
             is SelectionToolbarSettingsPage.Group -> SelectionToolbarSettingsPage.QuickActions
             SelectionToolbarSettingsPage.Overview -> SelectionToolbarSettingsPage.Overview
@@ -1645,8 +1677,20 @@ private fun SelectionToolbarSettingsDialog(
         }
     }
 
+    fun closeDialog() {
+        calibratingHotspot = false
+        ExpansionAccessibilityService.requestSelectionGestureCalibration(false)
+        onDismiss()
+    }
+
     BackHandler {
-        if (page == SelectionToolbarSettingsPage.Overview) onDismiss() else goBack()
+        if (calibratingHotspot) {
+            calibratingHotspot = false
+        } else if (page == SelectionToolbarSettingsPage.Overview) {
+            closeDialog()
+        } else {
+            goBack()
+        }
     }
 
     val title = when (val current = page) {
@@ -1675,7 +1719,7 @@ private fun SelectionToolbarSettingsDialog(
     }
 
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = ::closeDialog,
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
         Surface(
@@ -1712,7 +1756,7 @@ private fun SelectionToolbarSettingsDialog(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    IconButton(onClick = onDismiss) {
+                    IconButton(onClick = ::closeDialog) {
                         Icon(Icons.Default.Close, tr("Close"))
                     }
                 }
@@ -1862,7 +1906,7 @@ private fun SelectionToolbarSettingsDialog(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(horizontal = 20.dp),
-                                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp),
                                 ) {
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
@@ -1875,78 +1919,127 @@ private fun SelectionToolbarSettingsDialog(
                                             onCheckedChange = onGestureHotspotEnabledChanged,
                                         )
                                     }
-                                    Text(
-                                        if (es) {
-                                            "La posición y el tamaño se calculan dentro de los límites reales del teclado."
-                                        } else {
-                                            "Position and size are calculated inside the keyboard's actual bounds."
-                                        },
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                    Text(if (es) "Posición horizontal" else "Horizontal position")
-                                    Slider(
-                                        value = settings.selectionGestureHotspotXFraction,
-                                        onValueChange = {
-                                            onGestureHotspotLayoutChanged(
-                                                it,
-                                                settings.selectionGestureHotspotYFraction,
-                                                settings.selectionGestureHotspotWidthFraction,
-                                                settings.selectionGestureHotspotHeightFraction,
+
+                                    if (calibratingHotspot) {
+                                        Text(
+                                            if (es) {
+                                                "Arrastra la zona violeta directamente sobre el teclado hasta colocarla donde quieras. Suelta para guardar la posición."
+                                            } else {
+                                                "Drag the violet hotspot directly over the keyboard. Release to save its position."
+                                            },
+                                            style = MaterialTheme.typography.bodyMedium,
+                                        )
+                                        OutlinedTextField(
+                                            value = calibrationText,
+                                            onValueChange = { calibrationText = it },
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .focusRequester(calibrationFocusRequester),
+                                            label = {
+                                                Text(
+                                                    if (es) "Campo de prueba"
+                                                    else "Test field",
+                                                )
+                                            },
+                                            singleLine = true,
+                                        )
+                                        Text(
+                                            if (es) {
+                                                "El teclado debe permanecer abierto mientras posicionas la zona."
+                                            } else {
+                                                "Keep the keyboard open while positioning the hotspot."
+                                            },
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                        Button(
+                                            onClick = {
+                                                calibratingHotspot = false
+                                                keyboardController?.hide()
+                                            },
+                                            modifier = Modifier.fillMaxWidth(),
+                                        ) {
+                                            Text(if (es) "Listo" else "Done")
+                                        }
+                                    } else {
+                                        Text(
+                                            if (es) {
+                                                "La zona es invisible durante el uso normal. Para colocarla con precisión, abre el teclado y arrástrala directamente."
+                                            } else {
+                                                "The hotspot is invisible during normal use. Open the keyboard and drag it directly to position it precisely."
+                                            },
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                        Button(
+                                            onClick = { calibratingHotspot = true },
+                                            modifier = Modifier.fillMaxWidth(),
+                                        ) {
+                                            Text(
+                                                if (es) "Posicionar sobre el teclado"
+                                                else "Position over keyboard",
                                             )
-                                        },
-                                        valueRange = 0f..0.84f,
-                                    )
-                                    Text(if (es) "Posición vertical" else "Vertical position")
-                                    Slider(
-                                        value = settings.selectionGestureHotspotYFraction,
-                                        onValueChange = {
-                                            onGestureHotspotLayoutChanged(
-                                                settings.selectionGestureHotspotXFraction,
-                                                it,
-                                                settings.selectionGestureHotspotWidthFraction,
-                                                settings.selectionGestureHotspotHeightFraction,
+                                        }
+                                        OutlinedButton(
+                                            onClick = {
+                                                onGestureHotspotLayoutChanged(
+                                                    SettingsRepository.DEFAULT_SELECTION_GESTURE_X,
+                                                    SettingsRepository.DEFAULT_SELECTION_GESTURE_Y,
+                                                    settings.selectionGestureHotspotWidthFraction,
+                                                    settings.selectionGestureHotspotHeightFraction,
+                                                )
+                                            },
+                                            modifier = Modifier.fillMaxWidth(),
+                                        ) {
+                                            Text(
+                                                if (es) "Restablecer posición sobre Shift"
+                                                else "Reset position over Shift",
                                             )
-                                        },
-                                        valueRange = 0f..0.81f,
-                                    )
-                                    Text(if (es) "Ancho" else "Width")
-                                    Slider(
-                                        value = settings.selectionGestureHotspotWidthFraction,
-                                        onValueChange = {
-                                            onGestureHotspotLayoutChanged(
-                                                settings.selectionGestureHotspotXFraction,
-                                                settings.selectionGestureHotspotYFraction,
-                                                it,
-                                                settings.selectionGestureHotspotHeightFraction,
-                                            )
-                                        },
-                                        valueRange = SettingsRepository.MIN_SELECTION_GESTURE_SIZE..
-                                            SettingsRepository.MAX_SELECTION_GESTURE_SIZE,
-                                    )
-                                    Text(if (es) "Alto" else "Height")
-                                    Slider(
-                                        value = settings.selectionGestureHotspotHeightFraction,
-                                        onValueChange = {
-                                            onGestureHotspotLayoutChanged(
-                                                settings.selectionGestureHotspotXFraction,
-                                                settings.selectionGestureHotspotYFraction,
-                                                settings.selectionGestureHotspotWidthFraction,
-                                                it,
-                                            )
-                                        },
-                                        valueRange = SettingsRepository.MIN_SELECTION_GESTURE_SIZE..
-                                            SettingsRepository.MAX_SELECTION_GESTURE_SIZE,
-                                    )
-                                    Text(
-                                        if (es) {
-                                            "Un toque corto se reenvía a la tecla situada debajo; la selección solo se activa al mantener presionado."
-                                        } else {
-                                            "A short tap is relayed to the key underneath; selection activates only after a long press."
-                                        },
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
+                                        }
+
+                                        HorizontalDivider()
+                                        Text(
+                                            if (es) "Tamaño de la zona" else "Hotspot size",
+                                            style = MaterialTheme.typography.titleSmall,
+                                        )
+                                        Text(if (es) "Ancho" else "Width")
+                                        Slider(
+                                            value = settings.selectionGestureHotspotWidthFraction,
+                                            onValueChange = {
+                                                onGestureHotspotLayoutChanged(
+                                                    settings.selectionGestureHotspotXFraction,
+                                                    settings.selectionGestureHotspotYFraction,
+                                                    it,
+                                                    settings.selectionGestureHotspotHeightFraction,
+                                                )
+                                            },
+                                            valueRange = SettingsRepository.MIN_SELECTION_GESTURE_SIZE..
+                                                SettingsRepository.MAX_SELECTION_GESTURE_SIZE,
+                                        )
+                                        Text(if (es) "Alto" else "Height")
+                                        Slider(
+                                            value = settings.selectionGestureHotspotHeightFraction,
+                                            onValueChange = {
+                                                onGestureHotspotLayoutChanged(
+                                                    settings.selectionGestureHotspotXFraction,
+                                                    settings.selectionGestureHotspotYFraction,
+                                                    settings.selectionGestureHotspotWidthFraction,
+                                                    it,
+                                                )
+                                            },
+                                            valueRange = SettingsRepository.MIN_SELECTION_GESTURE_SIZE..
+                                                SettingsRepository.MAX_SELECTION_GESTURE_SIZE,
+                                        )
+                                        Text(
+                                            if (es) {
+                                                "Un toque corto se reenvía a la tecla situada debajo; la selección solo se activa al mantener presionado."
+                                            } else {
+                                                "A short tap is relayed to the key underneath; selection activates only after a long press."
+                                            },
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
                                 }
                             }
                         }
