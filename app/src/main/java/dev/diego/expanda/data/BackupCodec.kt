@@ -96,6 +96,7 @@ object BackupCodec {
         put("selectionToolbarWidthFraction", settings.selectionToolbarWidthFraction.toDouble())
         put("selectionToolbarHeightDp", settings.selectionToolbarHeightDp)
         put("selectionToolbarQuickActionIds", JSONArray(settings.selectionToolbarQuickActionIds))
+        put("selectionGestureHotspotEnabled", settings.selectionGestureHotspotEnabled)
         put(
             "selectionActionGroupConfigs",
             selectionActionGroupConfigsToJson(settings.selectionActionGroupConfigs),
@@ -141,6 +142,8 @@ object BackupCodec {
             SettingsRepository.MIN_SELECTION_TOOLBAR_HEIGHT_DP,
             SettingsRepository.MAX_SELECTION_TOOLBAR_HEIGHT_DP,
         ),
+        selectionGestureHotspotEnabled =
+            json.optBoolean("selectionGestureHotspotEnabled", true),
         selectionToolbarQuickActionIds = if (json.has("selectionToolbarQuickActionIds")) {
             json.stringList("selectionToolbarQuickActionIds")
                 .filter { it in SettingsRepository.AVAILABLE_SELECTION_TOOLBAR_QUICK_ACTIONS }
