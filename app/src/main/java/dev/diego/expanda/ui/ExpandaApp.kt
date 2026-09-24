@@ -1797,9 +1797,9 @@ private fun SelectionToolbarSettingsDialog(
                                     supportingContent = {
                                         Text(
                                             if (es) {
-                                                "Mantén Shift con el pulgar izquierdo. Con el derecho: horizontal selecciona caracteres; vertical selecciona líneas completas."
+                                                "Mantén Shift con el pulgar izquierdo. Usa el derecho como un trackpad libre: horizontal mueve por caracteres y vertical por líneas visuales, pudiendo combinar ambos."
                                             } else {
-                                                "Hold Shift with your left thumb. With your right: horizontal selects characters; vertical selects full lines."
+                                                "Hold Shift with your left thumb. Use your right as a free trackpad: horizontal moves by characters and vertical by visual lines, and you can combine both."
                                             },
                                         )
                                     },
@@ -2032,9 +2032,9 @@ private fun SelectionToolbarSettingsDialog(
                                         )
                                         Text(
                                             if (es) {
-                                                "Un toque corto actúa como Shift. Mantén presionado con el pulgar izquierdo para activar el trackpad invisible; con el derecho desliza horizontalmente por caracteres o verticalmente por líneas completas."
+                                                "Un toque corto actúa como Shift. Mantén presionado con el pulgar izquierdo para activar el trackpad invisible; el pulgar derecho puede combinar movimientos horizontales y verticales dentro del mismo gesto."
                                             } else {
-                                                "A short tap acts as Shift. Hold with your left thumb to arm the invisible trackpad; use your right thumb horizontally for characters or vertically for full lines."
+                                                "A short tap acts as Shift. Hold with your left thumb to arm the invisible trackpad; your right thumb can combine horizontal and vertical movement in the same gesture."
                                             },
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
