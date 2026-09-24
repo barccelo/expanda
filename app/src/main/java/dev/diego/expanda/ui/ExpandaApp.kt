@@ -527,6 +527,9 @@ fun ExpandaApp(
                     onChooseEspansoFolder,
                     onOpenAbout = { showAbout = true },
                     onOpenSnippetSource = { openSource() },
+                    onOpenVault = {
+                        scope.launch { pagerState.animateScrollToPage(Destination.VAULT.ordinal) }
+                    },
                 )
             }
         }
@@ -976,6 +979,7 @@ private fun SettingsScreen(
     onChooseEspansoFolder: () -> Unit,
     onOpenAbout: () -> Unit,
     onOpenSnippetSource: () -> Unit,
+    onOpenVault: () -> Unit,
 ) {
     var showGlobalAppPicker by remember { mutableStateOf(false) }
     var confirmClearClipboard by remember { mutableStateOf(false) }
@@ -984,6 +988,8 @@ private fun SettingsScreen(
     var diagnosticsCopied by remember { mutableStateOf(false) }
     var folderStatus by remember { mutableStateOf<String?>(null) }
     var showSelectionToolbarSettings by remember { mutableStateOf(false) }
+    var showGestureSelectorSettings by remember { mutableStateOf(false) }
+    var showSuggestionOverlaySettings by remember { mutableStateOf(false) }
     var showSnippetSuggestionSettings by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
@@ -1082,6 +1088,70 @@ private fun SettingsScreen(
                 trailingContent = { Switch(state.settings.pasteFallbackEnabled, viewModel::setPasteFallbackEnabled) },
             )
         }
+
+        item { HorizontalDivider() }
+        item {
+            SettingsSectionHeader(
+                Icons.Default.AutoAwesome,
+                tr("Advanced features", "Funciones avanzadas"),
+            )
+        }
+        item {
+            ListItem(
+                headlineContent = { Text(tr("Vault", "Bóveda")) },
+                supportingContent = {
+                    Text(
+                        tr(
+                            "Secure categories, entries and reusable fields",
+                            "Categorías, entradas y campos reutilizables protegidos",
+                        ),
+                    )
+                },
+                leadingContent = { Icon(Icons.Default.Lock, null) },
+                trailingContent = { SettingsChevron() },
+                modifier = Modifier.clickable(onClick = onOpenVault),
+            )
+        }
+        item {
+            ListItem(
+                headlineContent = { Text(tr("Selection toolbar", "Barra de selección")) },
+                leadingContent = { Icon(Icons.Default.TextFields, null) },
+                supportingContent = {
+                    Text(
+                        if (state.settings.selectionToolbarEnabled) {
+                            tr(
+                                "Enabled · ${state.settings.selectionToolbarQuickActionIds.size} quick actions",
+                                "Activada · ${state.settings.selectionToolbarQuickActionIds.size} accesos rápidos",
+                            )
+                        } else {
+                            tr("Disabled", "Desactivada")
+                        },
+                    )
+                },
+                trailingContent = { SettingsChevron() },
+                modifier = Modifier.clickable { showSelectionToolbarSettings = true },
+            )
+        }
+        item {
+            ListItem(
+                headlineContent = { Text(tr("Gesture selector", "Selector gestual")) },
+                leadingContent = { Icon(Icons.Default.Accessibility, null) },
+                supportingContent = {
+                    Text(
+                        if (state.settings.selectionGestureHotspotEnabled) {
+                            tr(
+                                "Enabled · Shift + two-thumb trackpad",
+                                "Activado · Shift + trackpad de dos pulgares",
+                            )
+                        } else {
+                            tr("Disabled", "Desactivado")
+                        },
+                    )
+                },
+                trailingContent = { SettingsChevron() },
+                modifier = Modifier.clickable { showGestureSelectorSettings = true },
+            )
+        }
         item {
             ListItem(
                 headlineContent = {
@@ -1091,8 +1161,8 @@ private fun SettingsScreen(
                 supportingContent = {
                     Text(
                         tr(
-                            "After a snippet places the cursor inside punctuation, lowercase the first automatic capital when the trigger followed a continuing sentence.",
-                            "Cuando un fragmento coloca el cursor dentro de signos, convierte a minúscula la primera mayúscula automática si el trigger venía en continuidad de una oración.",
+                            "Correct automatic capitalization when a snippet leaves the cursor inside punctuation.",
+                            "Corrige la mayúscula automática cuando un fragmento deja el cursor dentro de signos.",
                         ),
                     )
                 },
@@ -1106,48 +1176,22 @@ private fun SettingsScreen(
         }
         item {
             ListItem(
-                headlineContent = { Text(tr("Selection toolbar")) },
-                leadingContent = { Icon(Icons.Default.TextFields, null) },
+                headlineContent = { Text(tr("Suggestions", "Sugerencias")) },
+                leadingContent = { Icon(Icons.Default.Lightbulb, null) },
                 supportingContent = {
                     Text(
-                        if (state.settings.selectionToolbarEnabled) {
-                            tr(
-                                "Enabled · ${state.settings.selectionToolbarQuickActionIds.size} quick actions",
-                                "Activada · ${state.settings.selectionToolbarQuickActionIds.size} accesos rápidos",
-                            )
+                        if (state.settings.suggestionEnabled) {
+                            tr("Enabled · snippets, actions and Vault", "Activadas · snippets, acciones y Bóveda")
                         } else {
-                            tr("Disabled")
+                            tr("Disabled", "Desactivadas")
                         },
                     )
                 },
-                trailingContent = {
-                    Text(
-                        "›",
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                },
-                modifier = Modifier.clickable { showSelectionToolbarSettings = true },
+                trailingContent = { SettingsChevron() },
+                modifier = Modifier.clickable { showSuggestionOverlaySettings = true },
             )
         }
-        item {
-            SuggestionSettingsPanel(
-                settings = state.settings,
-                onEnabledChanged = viewModel::setSuggestionEnabled,
-                onCompactChanged = viewModel::setSuggestionCompactList,
-                onMinCharsChanged = viewModel::setSuggestionMinChars,
-                onMaxHeightChanged = viewModel::setSuggestionMaxHeightDp,
-                onWidthChanged = viewModel::setSuggestionWidthFraction,
-                onResizeHandleChanged = viewModel::setSuggestionResizeHandleEnabled,
-                showAdditionalOptions = true,
-                onShowActionsChanged = viewModel::setSuggestionShowActions,
-                onShowVaultChanged = viewModel::setSuggestionShowVault,
-                snippetSuggestionCount = state.matches.count(TextMatch::suggestionEnabled),
-                snippetCount = state.matches.size,
-                onConfigureSnippetSuggestions = { showSnippetSuggestionSettings = true },
-                onMatchFromBeginningChanged = viewModel::setMatchFromBeginning,
-            )
-        }
+
         item { SettingsSectionHeader(Icons.Default.QueryStats, tr("Statistics")) }
         item {
             val stats = viewModel.stats()
@@ -1386,6 +1430,32 @@ private fun SettingsScreen(
         }
         }
 
+        if (showSuggestionOverlaySettings) {
+            SuggestionOverlaySettingsDialog(
+                settings = state.settings,
+                onDismiss = { showSuggestionOverlaySettings = false },
+                onEnabledChanged = viewModel::setSuggestionEnabled,
+                onCompactChanged = viewModel::setSuggestionCompactList,
+                onMinCharsChanged = viewModel::setSuggestionMinChars,
+                onMaxHeightChanged = viewModel::setSuggestionMaxHeightDp,
+                onWidthChanged = viewModel::setSuggestionWidthFraction,
+                onResizeHandleChanged = viewModel::setSuggestionResizeHandleEnabled,
+                onShowActionsChanged = viewModel::setSuggestionShowActions,
+                onShowVaultChanged = viewModel::setSuggestionShowVault,
+                snippetSuggestionCount = state.matches.count(TextMatch::suggestionEnabled),
+                snippetCount = state.matches.size,
+                onConfigureSnippetSuggestions = { showSnippetSuggestionSettings = true },
+                onMatchFromBeginningChanged = viewModel::setMatchFromBeginning,
+            )
+        }
+        if (showGestureSelectorSettings) {
+            GestureSelectorSettingsDialog(
+                settings = state.settings,
+                onDismiss = { showGestureSelectorSettings = false },
+                onEnabledChanged = viewModel::setSelectionGestureHotspotEnabled,
+                onLayoutChanged = viewModel::setSelectionGestureHotspotLayout,
+            )
+        }
         if (showSnippetSuggestionSettings) {
             SnippetSuggestionSettingsDialog(
                 matches = state.matches,
@@ -1398,8 +1468,6 @@ private fun SettingsScreen(
                 settings = state.settings,
                 onDismiss = { showSelectionToolbarSettings = false },
                 onEnabledChanged = viewModel::setSelectionToolbarEnabled,
-                onGestureHotspotEnabledChanged = viewModel::setSelectionGestureHotspotEnabled,
-                onGestureHotspotLayoutChanged = viewModel::setSelectionGestureHotspotLayout,
                 onWidthChanged = viewModel::setSelectionToolbarWidthFraction,
                 onHeightChanged = viewModel::setSelectionToolbarHeightDp,
                 onResetLayout = viewModel::resetSelectionToolbarLayout,
@@ -1569,6 +1637,15 @@ private fun ConfirmationDialog(
 }
 
 @Composable
+private fun SettingsChevron() {
+    Text(
+        "›",
+        style = MaterialTheme.typography.headlineSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+@Composable
 private fun SettingsSectionHeader(icon: ImageVector, title: String) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
@@ -1609,6 +1686,316 @@ private fun <T> CompactChoiceSetting(
                     label = { Text(label(option)) },
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun SuggestionOverlaySettingsDialog(
+    settings: AppSettings,
+    onDismiss: () -> Unit,
+    onEnabledChanged: (Boolean) -> Unit,
+    onCompactChanged: (Boolean) -> Unit,
+    onMinCharsChanged: (Int) -> Unit,
+    onMaxHeightChanged: (Int) -> Unit,
+    onWidthChanged: (Float) -> Unit,
+    onResizeHandleChanged: (Boolean) -> Unit,
+    onShowActionsChanged: (Boolean) -> Unit,
+    onShowVaultChanged: (Boolean) -> Unit,
+    snippetSuggestionCount: Int,
+    snippetCount: Int,
+    onConfigureSnippetSuggestions: () -> Unit,
+    onMatchFromBeginningChanged: (Boolean) -> Unit,
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .heightIn(max = 760.dp),
+            shape = RoundedCornerShape(24.dp),
+            tonalElevation = 6.dp,
+        ) {
+            Column {
+                SettingsDialogHeader(
+                    title = tr("Suggestions", "Sugerencias"),
+                    subtitle = tr(
+                        "Configure the floating suggestion panel.",
+                        "Configura el panel flotante de sugerencias.",
+                    ),
+                    onClose = onDismiss,
+                )
+                HorizontalDivider()
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 680.dp),
+                    contentPadding = PaddingValues(bottom = 12.dp),
+                ) {
+                    item {
+                        SuggestionSettingsPanel(
+                            settings = settings,
+                            onEnabledChanged = onEnabledChanged,
+                            onCompactChanged = onCompactChanged,
+                            onMinCharsChanged = onMinCharsChanged,
+                            onMaxHeightChanged = onMaxHeightChanged,
+                            onWidthChanged = onWidthChanged,
+                            onResizeHandleChanged = onResizeHandleChanged,
+                            showAdditionalOptions = true,
+                            onShowActionsChanged = onShowActionsChanged,
+                            onShowVaultChanged = onShowVaultChanged,
+                            snippetSuggestionCount = snippetSuggestionCount,
+                            snippetCount = snippetCount,
+                            onConfigureSnippetSuggestions = onConfigureSnippetSuggestions,
+                            onMatchFromBeginningChanged = onMatchFromBeginningChanged,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GestureSelectorSettingsDialog(
+    settings: AppSettings,
+    onDismiss: () -> Unit,
+    onEnabledChanged: (Boolean) -> Unit,
+    onLayoutChanged: (Float, Float, Float, Float) -> Unit,
+) {
+    var calibrating by remember { mutableStateOf(false) }
+    var calibrationText by remember {
+        mutableStateOf("Expanda · selecciona este texto para probar el gesto")
+    }
+    val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val es = usesSpanish(settings.displayLanguage)
+
+    DisposableEffect(calibrating) {
+        if (calibrating) {
+            ExpansionAccessibilityService.requestSelectionGestureCalibration(true)
+        }
+        onDispose {
+            if (calibrating) {
+                ExpansionAccessibilityService.requestSelectionGestureCalibration(false)
+            }
+        }
+    }
+
+    LaunchedEffect(calibrating) {
+        if (calibrating) {
+            delay(140L)
+            focusRequester.requestFocus()
+            keyboardController?.show()
+        }
+    }
+
+    fun close() {
+        calibrating = false
+        ExpansionAccessibilityService.requestSelectionGestureCalibration(false)
+        onDismiss()
+    }
+
+    BackHandler {
+        if (calibrating) {
+            calibrating = false
+        } else {
+            close()
+        }
+    }
+
+    Dialog(
+        onDismissRequest = ::close,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .heightIn(max = 760.dp),
+            shape = RoundedCornerShape(24.dp),
+            tonalElevation = 6.dp,
+        ) {
+            Column {
+                SettingsDialogHeader(
+                    title = if (es) "Selector gestual" else "Gesture selector",
+                    subtitle = if (es) {
+                        "Configura el hotspot de Shift y el trackpad de dos pulgares."
+                    } else {
+                        "Configure the Shift hotspot and two-thumb trackpad."
+                    },
+                    onClose = ::close,
+                )
+                HorizontalDivider()
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 680.dp),
+                    contentPadding = PaddingValues(vertical = 12.dp),
+                ) {
+                    item {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                Text(if (es) "Activado" else "Enabled")
+                                Switch(
+                                    checked = settings.selectionGestureHotspotEnabled,
+                                    onCheckedChange = onEnabledChanged,
+                                )
+                            }
+
+                            if (calibrating) {
+                                Text(
+                                    if (es) {
+                                        "Arrastra la zona violeta directamente sobre el teclado hasta colocarla sobre Shift. Suelta para guardar."
+                                    } else {
+                                        "Drag the violet hotspot directly over the keyboard until it sits over Shift. Release to save."
+                                    },
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                                OutlinedTextField(
+                                    value = calibrationText,
+                                    onValueChange = { calibrationText = it },
+                                    modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
+                                    label = { Text(if (es) "Campo de prueba" else "Test field") },
+                                    singleLine = true,
+                                )
+                                Text(
+                                    if (es) {
+                                        "El teclado debe permanecer abierto mientras posicionas la zona."
+                                    } else {
+                                        "Keep the keyboard open while positioning the hotspot."
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Button(
+                                    onClick = {
+                                        calibrating = false
+                                        keyboardController?.hide()
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Text(if (es) "Listo" else "Done")
+                                }
+                            } else {
+                                Text(
+                                    if (es) {
+                                        "La zona es invisible durante el uso normal. Un toque mantiene el comportamiento de Shift; mantener pulsado activa el selector."
+                                    } else {
+                                        "The hotspot is invisible during normal use. A tap preserves Shift behavior; holding it arms the selector."
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Button(
+                                    onClick = { calibrating = true },
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Text(
+                                        if (es) "Posicionar sobre el teclado"
+                                        else "Position over keyboard",
+                                    )
+                                }
+                                OutlinedButton(
+                                    onClick = {
+                                        onLayoutChanged(
+                                            SettingsRepository.DEFAULT_SELECTION_GESTURE_X,
+                                            SettingsRepository.DEFAULT_SELECTION_GESTURE_Y,
+                                            settings.selectionGestureHotspotWidthFraction,
+                                            settings.selectionGestureHotspotHeightFraction,
+                                        )
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Text(
+                                        if (es) "Restablecer posición sobre Shift"
+                                        else "Reset position over Shift",
+                                    )
+                                }
+
+                                HorizontalDivider()
+                                Text(
+                                    if (es) "Tamaño de la zona" else "Hotspot size",
+                                    style = MaterialTheme.typography.titleSmall,
+                                )
+                                Text(if (es) "Ancho" else "Width")
+                                Slider(
+                                    value = settings.selectionGestureHotspotWidthFraction,
+                                    onValueChange = {
+                                        onLayoutChanged(
+                                            settings.selectionGestureHotspotXFraction,
+                                            settings.selectionGestureHotspotYFraction,
+                                            it,
+                                            settings.selectionGestureHotspotHeightFraction,
+                                        )
+                                    },
+                                    valueRange = SettingsRepository.MIN_SELECTION_GESTURE_SIZE..
+                                        SettingsRepository.MAX_SELECTION_GESTURE_SIZE,
+                                )
+                                Text(if (es) "Alto" else "Height")
+                                Slider(
+                                    value = settings.selectionGestureHotspotHeightFraction,
+                                    onValueChange = {
+                                        onLayoutChanged(
+                                            settings.selectionGestureHotspotXFraction,
+                                            settings.selectionGestureHotspotYFraction,
+                                            settings.selectionGestureHotspotWidthFraction,
+                                            it,
+                                        )
+                                    },
+                                    valueRange = SettingsRepository.MIN_SELECTION_GESTURE_SIZE..
+                                        SettingsRepository.MAX_SELECTION_GESTURE_SIZE,
+                                )
+                                Text(
+                                    if (es) {
+                                        "Mantén Shift con el pulgar izquierdo y usa el derecho como trackpad libre: horizontal por caracteres y vertical por líneas visuales."
+                                    } else {
+                                        "Hold Shift with your left thumb and use the right as a free trackpad: horizontal by characters and vertical by visual lines."
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsDialogHeader(
+    title: String,
+    subtitle: String,
+    onClose: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 20.dp, top = 12.dp, end = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                title,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        IconButton(onClick = onClose) {
+            Icon(Icons.Default.Close, tr("Close"))
         }
     }
 }
