@@ -1395,6 +1395,7 @@ private fun SettingsScreen(
                 settings = state.settings,
                 onDismiss = { showSelectionToolbarSettings = false },
                 onEnabledChanged = viewModel::setSelectionToolbarEnabled,
+                onGestureHotspotEnabledChanged = viewModel::setSelectionGestureHotspotEnabled,
                 onWidthChanged = viewModel::setSelectionToolbarWidthFraction,
                 onHeightChanged = viewModel::setSelectionToolbarHeightDp,
                 onResetLayout = viewModel::resetSelectionToolbarLayout,
@@ -1620,6 +1621,7 @@ private fun SelectionToolbarSettingsDialog(
     settings: AppSettings,
     onDismiss: () -> Unit,
     onEnabledChanged: (Boolean) -> Unit,
+    onGestureHotspotEnabledChanged: (Boolean) -> Unit,
     onWidthChanged: (Float) -> Unit,
     onHeightChanged: (Int) -> Unit,
     onResetLayout: () -> Unit,
@@ -1728,6 +1730,33 @@ private fun SelectionToolbarSettingsDialog(
                                         Switch(
                                             checked = settings.selectionToolbarEnabled,
                                             onCheckedChange = onEnabledChanged,
+                                        )
+                                    },
+                                )
+                            }
+                            item { HorizontalDivider() }
+                            item {
+                                ListItem(
+                                    headlineContent = {
+                                        Text(
+                                            if (es) "Selector gestual sobre el teclado"
+                                            else "Keyboard gesture selector",
+                                        )
+                                    },
+                                    supportingContent = {
+                                        Text(
+                                            if (es) {
+                                                "Mantén presionado sobre Shift y desliza horizontalmente para seleccionar o reducir texto."
+                                            } else {
+                                                "Long-press over Shift and drag horizontally to extend or reduce text selection."
+                                            },
+                                        )
+                                    },
+                                    leadingContent = { Icon(Icons.Default.Accessibility, null) },
+                                    trailingContent = {
+                                        Switch(
+                                            checked = settings.selectionGestureHotspotEnabled,
+                                            onCheckedChange = onGestureHotspotEnabledChanged,
                                         )
                                     },
                                 )
