@@ -184,8 +184,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private var selectionGestureLastStart = -1
     private var selectionGestureLastEnd = -1
     private var selectionGestureDirectionLock = 0
-    private var selectionGestureRelayRestore: Runnable? = null
+    private var selectionGestureRelayFailsafe: Runnable? = null
     private var selectionGestureRelayGeneration = 0L
+    private var selectionGestureRelayInProgress = false
     private val selectionUndoHistory = ArrayDeque<SelectionUndoEntry>()
     private var pendingSmartCursorCase: PendingSmartCursorCase? = null
 
@@ -3646,6 +3647,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
     }
 
     private fun showOrUpdateSelectionGestureHotspot() {
+        if (selectionGestureRelayInProgress) return
         val settings = settingsRepository.settings.value
         if ((!settings.selectionGestureHotspotEnabled && !selectionGestureCalibrationMode) || formOverlay != null) {
             hideSelectionGestureHotspot()
@@ -4207,28 +4209,37 @@ class ExpansionAccessibilityService : AccessibilityService() {
         params: WindowManager.LayoutParams,
         tapCount: Int,
     ) {
-        selectionGestureRelayRestore?.let(mainHandler::removeCallbacks)
-        selectionGestureRelayRestore = null
+        if (selectionGestureRelayInProgress) return
 
+        selectionGestureRelayFailsafe?.let(mainHandler::removeCallbacks)
+        selectionGestureRelayFailsafe = null
         val generation = ++selectionGestureRelayGeneration
+        selectionGestureRelayInProgress = true
+
+        // Capture the target before removing the overlay. The single tap already
+        // proves that this point maps to Gboard's Shift key on this layout.
         val centerX = params.x + params.width / 2f
         val centerY = params.y + params.height / 2f
-        val normalFlags = params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
 
-        params.flags = normalFlags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
-        runCatching { windowManager.updateViewLayout(hotspot, params) }
-
-        fun restoreTouchability() {
-            if (generation != selectionGestureRelayGeneration) return
-            selectionGestureRelayRestore?.let(mainHandler::removeCallbacks)
-            selectionGestureRelayRestore = null
-            if (selectionGestureHotspot !== hotspot) return
-            params.flags = normalFlags
-            runCatching { windowManager.updateViewLayout(hotspot, params) }
+        // Remove the hotspot instead of toggling FLAG_NOT_TOUCHABLE. This gives
+        // Gboard a clean window for the synthetic tap sequence and prevents stale
+        // touchability callbacks from ever leaving the button disabled.
+        if (selectionGestureHotspot === hotspot) {
+            selectionGestureHotspot = null
+            selectionGestureHotspotParams = null
+            runCatching { windowManager.removeView(hotspot) }
         }
 
-        val failsafe = Runnable(::restoreTouchability)
-        selectionGestureRelayRestore = failsafe
+        fun finishRelay() {
+            if (generation != selectionGestureRelayGeneration) return
+            selectionGestureRelayFailsafe?.let(mainHandler::removeCallbacks)
+            selectionGestureRelayFailsafe = null
+            selectionGestureRelayInProgress = false
+            scheduleSelectionGestureHotspotRefresh(SELECTION_GESTURE_RECREATE_DELAY_MS)
+        }
+
+        val failsafe = Runnable(::finishRelay)
+        selectionGestureRelayFailsafe = failsafe
         mainHandler.postDelayed(
             failsafe,
             if (tapCount >= 2) {
@@ -4238,14 +4249,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
             },
         )
 
-        fun dispatchTap(onFinished: () -> Unit) {
-            if (
-                generation != selectionGestureRelayGeneration ||
-                selectionGestureHotspot !== hotspot
-            ) {
-                return
-            }
-
+        fun dispatchOneTap(onFinished: () -> Unit) {
+            if (generation != selectionGestureRelayGeneration) return
             val path = Path().apply { moveTo(centerX, centerY) }
             val gesture = GestureDescription.Builder()
                 .addStroke(
@@ -4266,22 +4271,27 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     onFinished()
                 }
             }
-
             if (!dispatchGesture(gesture, callback, mainHandler)) {
                 onFinished()
             }
         }
 
+        // Removing a WindowManager overlay can emit TYPE_WINDOWS_CHANGED before
+        // the surface is actually gone. Wait a frame before the first tap.
         mainHandler.postDelayed(
             {
-                dispatchTap {
+                if (generation != selectionGestureRelayGeneration) return@postDelayed
+                dispatchOneTap {
                     if (tapCount >= 2) {
                         mainHandler.postDelayed(
                             {
-                                dispatchTap {
+                                if (generation != selectionGestureRelayGeneration) {
+                                    return@postDelayed
+                                }
+                                dispatchOneTap {
                                     mainHandler.postDelayed(
-                                        ::restoreTouchability,
-                                        SELECTION_GESTURE_RESTORE_AFTER_TAP_MS,
+                                        ::finishRelay,
+                                        SELECTION_GESTURE_RECREATE_DELAY_MS,
                                     )
                                 }
                             },
@@ -4289,21 +4299,24 @@ class ExpansionAccessibilityService : AccessibilityService() {
                         )
                     } else {
                         mainHandler.postDelayed(
-                            ::restoreTouchability,
-                            SELECTION_GESTURE_RESTORE_AFTER_TAP_MS,
+                            ::finishRelay,
+                            SELECTION_GESTURE_RECREATE_DELAY_MS,
                         )
                     }
                 }
             },
-            SELECTION_GESTURE_RELAY_ARM_MS,
+            SELECTION_GESTURE_OVERLAY_DETACH_MS,
         )
     }
 
     private fun hideSelectionGestureHotspot() {
         hideSelectionGestureTrackpad()
-        selectionGestureRelayGeneration++
-        selectionGestureRelayRestore?.let(mainHandler::removeCallbacks)
-        selectionGestureRelayRestore = null
+        if (selectionGestureRelayInProgress) {
+            selectionGestureRelayGeneration++
+            selectionGestureRelayFailsafe?.let(mainHandler::removeCallbacks)
+            selectionGestureRelayFailsafe = null
+            selectionGestureRelayInProgress = false
+        }
         selectionGestureHotspotRefresh?.let(mainHandler::removeCallbacks)
         selectionGestureHotspotRefresh = null
         val view = selectionGestureHotspot
@@ -7491,14 +7504,14 @@ class ExpansionAccessibilityService : AccessibilityService() {
 
     companion object {
         private const val SELECTION_GESTURE_LONG_PRESS_MS = 330L
-        private const val SELECTION_GESTURE_RELAY_TAP_MS = 32L
-        private const val SELECTION_GESTURE_RELAY_ARM_MS = 16L
-        private const val SELECTION_GESTURE_RESTORE_AFTER_TAP_MS = 8L
-        private const val SELECTION_GESTURE_RELAY_FAILSAFE_MS = 120L
-        private const val SELECTION_GESTURE_DOUBLE_TAP_RELAY_FAILSAFE_MS = 360L
+        private const val SELECTION_GESTURE_RELAY_TAP_MS = 34L
+        private const val SELECTION_GESTURE_OVERLAY_DETACH_MS = 24L
+        private const val SELECTION_GESTURE_RECREATE_DELAY_MS = 24L
+        private const val SELECTION_GESTURE_RELAY_FAILSAFE_MS = 220L
+        private const val SELECTION_GESTURE_DOUBLE_TAP_RELAY_FAILSAFE_MS = 520L
         private const val SELECTION_GESTURE_DOUBLE_TAP_DECISION_MS = 135L
         private const val SELECTION_GESTURE_DOUBLE_TAP_MAX_INTERVAL_MS = 300L
-        private const val SELECTION_GESTURE_DOUBLE_TAP_RELAY_GAP_MS = 52L
+        private const val SELECTION_GESTURE_DOUBLE_TAP_RELAY_GAP_MS = 82L
         private const val SELECTION_GESTURE_CHAR_STEP_DP = 10
         private const val SELECTION_GESTURE_LINE_STEP_DP = 34
         private const val SELECTION_GESTURE_MAX_STEPS_PER_MOVE = 24
