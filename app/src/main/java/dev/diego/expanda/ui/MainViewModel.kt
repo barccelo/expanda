@@ -268,6 +268,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setSelectionGestureHotspotEnabled(enabled: Boolean) = viewModelScope.launch {
         settingsRepository.setSelectionGestureHotspotEnabled(enabled)
     }
+    fun setSelectionGestureHotspotLayout(
+        xFraction: Float,
+        yFraction: Float,
+        widthFraction: Float,
+        heightFraction: Float,
+    ) = viewModelScope.launch {
+        settingsRepository.setSelectionGestureHotspotLayout(
+            xFraction,
+            yFraction,
+            widthFraction,
+            heightFraction,
+        )
+    }
     fun setSelectionToolbarWidthFraction(fraction: Float) = viewModelScope.launch {
         settingsRepository.setSelectionToolbarWidthFraction(fraction)
     }
