@@ -1396,6 +1396,7 @@ private fun SettingsScreen(
                 onDismiss = { showSelectionToolbarSettings = false },
                 onEnabledChanged = viewModel::setSelectionToolbarEnabled,
                 onGestureHotspotEnabledChanged = viewModel::setSelectionGestureHotspotEnabled,
+                onGestureHotspotLayoutChanged = viewModel::setSelectionGestureHotspotLayout,
                 onWidthChanged = viewModel::setSelectionToolbarWidthFraction,
                 onHeightChanged = viewModel::setSelectionToolbarHeightDp,
                 onResetLayout = viewModel::resetSelectionToolbarLayout,
@@ -1612,6 +1613,7 @@ private fun <T> CompactChoiceSetting(
 private sealed interface SelectionToolbarSettingsPage {
     data object Overview : SelectionToolbarSettingsPage
     data object Size : SelectionToolbarSettingsPage
+    data object GestureHotspot : SelectionToolbarSettingsPage
     data object QuickActions : SelectionToolbarSettingsPage
     data class Group(val id: String) : SelectionToolbarSettingsPage
 }
@@ -1622,6 +1624,7 @@ private fun SelectionToolbarSettingsDialog(
     onDismiss: () -> Unit,
     onEnabledChanged: (Boolean) -> Unit,
     onGestureHotspotEnabledChanged: (Boolean) -> Unit,
+    onGestureHotspotLayoutChanged: (Float, Float, Float, Float) -> Unit,
     onWidthChanged: (Float) -> Unit,
     onHeightChanged: (Int) -> Unit,
     onResetLayout: () -> Unit,
@@ -1651,6 +1654,8 @@ private fun SelectionToolbarSettingsDialog(
             if (es) "Barra de selección" else "Selection toolbar"
         SelectionToolbarSettingsPage.Size ->
             if (es) "Tamaño y posición" else "Size and position"
+        SelectionToolbarSettingsPage.GestureHotspot ->
+            if (es) "Selector gestual" else "Gesture selector"
         SelectionToolbarSettingsPage.QuickActions ->
             if (es) "Accesos rápidos" else "Quick actions"
         is SelectionToolbarSettingsPage.Group ->
@@ -1661,6 +1666,8 @@ private fun SelectionToolbarSettingsDialog(
             if (es) "Configura visibilidad y comportamiento." else "Configure visibility and behavior."
         SelectionToolbarSettingsPage.Size ->
             if (es) "Ajusta las dimensiones de la barra." else "Adjust the toolbar dimensions."
+        SelectionToolbarSettingsPage.GestureHotspot ->
+            if (es) "Ajusta la zona invisible sobre el teclado." else "Adjust the invisible keyboard hotspot."
         SelectionToolbarSettingsPage.QuickActions ->
             if (es) "Elige, ordena y configura las herramientas." else "Choose, reorder and configure tools."
         is SelectionToolbarSettingsPage.Group ->
@@ -1746,9 +1753,9 @@ private fun SelectionToolbarSettingsDialog(
                                     supportingContent = {
                                         Text(
                                             if (es) {
-                                                "Mantén presionado sobre Shift y desliza horizontalmente para seleccionar o reducir texto."
+                                                "Mantén presionado sobre Shift y desliza horizontalmente. Toca para ajustar la zona."
                                             } else {
-                                                "Long-press over Shift and drag horizontally to extend or reduce text selection."
+                                                "Long-press over Shift and drag horizontally. Tap to adjust the hotspot."
                                             },
                                         )
                                     },
@@ -1758,6 +1765,9 @@ private fun SelectionToolbarSettingsDialog(
                                             checked = settings.selectionGestureHotspotEnabled,
                                             onCheckedChange = onGestureHotspotEnabledChanged,
                                         )
+                                    },
+                                    modifier = Modifier.clickable {
+                                        page = SelectionToolbarSettingsPage.GestureHotspot
                                     },
                                 )
                             }
@@ -1836,6 +1846,108 @@ private fun SelectionToolbarSettingsDialog(
                                     onHeightChanged = onHeightChanged,
                                     onReset = onResetLayout,
                                 )
+                            }
+                        }
+                    }
+
+                    SelectionToolbarSettingsPage.GestureHotspot -> {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 680.dp),
+                            contentPadding = PaddingValues(vertical = 12.dp),
+                        ) {
+                            item {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 20.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                    ) {
+                                        Text(if (es) "Activado" else "Enabled")
+                                        Switch(
+                                            checked = settings.selectionGestureHotspotEnabled,
+                                            onCheckedChange = onGestureHotspotEnabledChanged,
+                                        )
+                                    }
+                                    Text(
+                                        if (es) {
+                                            "La posición y el tamaño se calculan dentro de los límites reales del teclado."
+                                        } else {
+                                            "Position and size are calculated inside the keyboard's actual bounds."
+                                        },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    Text(if (es) "Posición horizontal" else "Horizontal position")
+                                    Slider(
+                                        value = settings.selectionGestureHotspotXFraction,
+                                        onValueChange = {
+                                            onGestureHotspotLayoutChanged(
+                                                it,
+                                                settings.selectionGestureHotspotYFraction,
+                                                settings.selectionGestureHotspotWidthFraction,
+                                                settings.selectionGestureHotspotHeightFraction,
+                                            )
+                                        },
+                                        valueRange = 0f..0.84f,
+                                    )
+                                    Text(if (es) "Posición vertical" else "Vertical position")
+                                    Slider(
+                                        value = settings.selectionGestureHotspotYFraction,
+                                        onValueChange = {
+                                            onGestureHotspotLayoutChanged(
+                                                settings.selectionGestureHotspotXFraction,
+                                                it,
+                                                settings.selectionGestureHotspotWidthFraction,
+                                                settings.selectionGestureHotspotHeightFraction,
+                                            )
+                                        },
+                                        valueRange = 0f..0.81f,
+                                    )
+                                    Text(if (es) "Ancho" else "Width")
+                                    Slider(
+                                        value = settings.selectionGestureHotspotWidthFraction,
+                                        onValueChange = {
+                                            onGestureHotspotLayoutChanged(
+                                                settings.selectionGestureHotspotXFraction,
+                                                settings.selectionGestureHotspotYFraction,
+                                                it,
+                                                settings.selectionGestureHotspotHeightFraction,
+                                            )
+                                        },
+                                        valueRange = SettingsRepository.MIN_SELECTION_GESTURE_SIZE..
+                                            SettingsRepository.MAX_SELECTION_GESTURE_SIZE,
+                                    )
+                                    Text(if (es) "Alto" else "Height")
+                                    Slider(
+                                        value = settings.selectionGestureHotspotHeightFraction,
+                                        onValueChange = {
+                                            onGestureHotspotLayoutChanged(
+                                                settings.selectionGestureHotspotXFraction,
+                                                settings.selectionGestureHotspotYFraction,
+                                                settings.selectionGestureHotspotWidthFraction,
+                                                it,
+                                            )
+                                        },
+                                        valueRange = SettingsRepository.MIN_SELECTION_GESTURE_SIZE..
+                                            SettingsRepository.MAX_SELECTION_GESTURE_SIZE,
+                                    )
+                                    Text(
+                                        if (es) {
+                                            "Un toque corto se reenvía a la tecla situada debajo; la selección solo se activa al mantener presionado."
+                                        } else {
+                                            "A short tap is relayed to the key underneath; selection activates only after a long press."
+                                        },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
                             }
                         }
                     }
