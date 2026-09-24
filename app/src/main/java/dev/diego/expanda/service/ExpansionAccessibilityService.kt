@@ -178,12 +178,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private var selectionGestureHotspotRefresh: Runnable? = null
     private var selectionGestureCalibrationMode = false
     private var selectionGestureTrackpad: View? = null
-    private var selectionGestureTrackpadParams: WindowManager.LayoutParams? = null
     private var selectionGestureEditor: AccessibilityNodeInfo? = null
     private var selectionGestureAnchorCursor = 0
-    private var selectionGestureLastStart = -1
-    private var selectionGestureLastEnd = -1
-    private var selectionGestureDirectionLock = 0
     private val selectionUndoHistory = ArrayDeque<SelectionUndoEntry>()
     private var pendingSmartCursorCase: PendingSmartCursorCase? = null
 
@@ -3879,9 +3875,6 @@ class ExpansionAccessibilityService : AccessibilityService() {
 
             selectionGestureEditor = node
             selectionGestureAnchorCursor = cursor
-            selectionGestureLastStart = cursor
-            selectionGestureLastEnd = cursor
-            selectionGestureDirectionLock = 0
             selectorArmed = true
 
             hideSelectionToolbar()
@@ -3989,7 +3982,6 @@ class ExpansionAccessibilityService : AccessibilityService() {
         return runCatching {
             windowManager.addView(trackpad, params)
             selectionGestureTrackpad = trackpad
-            selectionGestureTrackpadParams = params
             true
         }.getOrElse {
             false
@@ -4041,8 +4033,6 @@ class ExpansionAccessibilityService : AccessibilityService() {
 
             if (applied) {
                 runCatching { node.refresh() }
-                selectionGestureLastStart = node.textSelectionStart
-                selectionGestureLastEnd = node.textSelectionEnd
             }
             return applied
         }
@@ -4099,10 +4089,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     lastRawY = event.rawY
                     accumulatedX = 0f
                     accumulatedY = 0f
-                    selectionGestureDirectionLock = 0
-                    selectionGestureLastStart = selectionGestureAnchorCursor
-                    selectionGestureLastEnd = selectionGestureAnchorCursor
-                    true
+                            true
                 }
 
                 MotionEvent.ACTION_MOVE -> {
@@ -4117,8 +4104,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     accumulatedX = 0f
                     accumulatedY = 0f
-                    selectionGestureDirectionLock = 0
-                    true
+                            true
                 }
 
                 else -> true
@@ -4178,7 +4164,6 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private fun hideSelectionGestureTrackpad() {
         val view = selectionGestureTrackpad
         selectionGestureTrackpad = null
-        selectionGestureTrackpadParams = null
         if (view != null) {
             runCatching {
                 (getSystemService(WINDOW_SERVICE) as WindowManager).removeView(view)
@@ -4189,9 +4174,6 @@ class ExpansionAccessibilityService : AccessibilityService() {
             node.recycle()
         }
         selectionGestureEditor = null
-        selectionGestureDirectionLock = 0
-        selectionGestureLastStart = -1
-        selectionGestureLastEnd = -1
     }
 
     private fun relaySelectionHotspotTap(
@@ -7429,8 +7411,6 @@ class ExpansionAccessibilityService : AccessibilityService() {
         private const val SELECTION_GESTURE_CHAR_STEP_DP = 10
         private const val SELECTION_GESTURE_LINE_STEP_DP = 34
         private const val SELECTION_GESTURE_MAX_STEPS_PER_MOVE = 24
-        private const val SELECTION_GESTURE_ACCEL_START_DP = 90
-        private const val SELECTION_GESTURE_ACCEL_STEP_DP = 6
         private const val SELECTION_GESTURE_TOOLBAR_SUPPRESSION_MS = 450L
         private const val VAULT_KEYBOARD_DIALOG_MARGIN_DP = 18
         private const val VAULT_ENTRY_FORM_CONTENT_RATIO = 0.38f
