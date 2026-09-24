@@ -3851,9 +3851,12 @@ class ExpansionAccessibilityService : AccessibilityService() {
             longPressTask = null
         }
 
-        fun disarmSelector() {
+        fun disarmSelector(showToolbar: Boolean = false) {
             cancelLongPress()
             if (selectorArmed) {
+                if (showToolbar) {
+                    scheduleSelectionToolbarAfterGesture()
+                }
                 hideSelectionGestureTrackpad()
             }
             selectorArmed = false
@@ -3897,7 +3900,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         return View.OnTouchListener { _, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    disarmSelector()
+                    disarmSelector(showToolbar = false)
                     downX = event.rawX
                     downY = event.rawY
                     val task = Runnable(::armSelector)
@@ -3925,7 +3928,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     val wasArmed = selectorArmed
                     cancelLongPress()
                     if (wasArmed) {
-                        disarmSelector()
+                        disarmSelector(showToolbar = true)
                     } else if (!movedBeforeActivation) {
                         // Exact build-310 behavior: every physical short tap is
                         // relayed immediately as one Shift tap. A user's fast
@@ -3943,7 +3946,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 }
 
                 MotionEvent.ACTION_CANCEL -> {
-                    disarmSelector()
+                    disarmSelector(showToolbar = false)
                     true
                 }
 
@@ -4121,6 +4124,55 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 else -> true
             }
         }
+    }
+
+    private fun scheduleSelectionToolbarAfterGesture() {
+        val node = selectionGestureEditor ?: return
+        runCatching { node.refresh() }
+
+        val settings = settingsRepository.settings.value
+        val packageName = node.packageName?.toString().orEmpty()
+        if (
+            packageName.isBlank() ||
+            !settings.expansionEnabled ||
+            !settings.selectionToolbarEnabled ||
+            settings.isPaused ||
+            packageName in settings.globallyExcludedPackages ||
+            node.isPassword ||
+            isPasswordInput(node.inputType)
+        ) {
+            return
+        }
+
+        val text = editableText(node)
+        val rawStart = node.textSelectionStart
+        val rawEnd = node.textSelectionEnd
+        if (
+            rawStart !in 0..text.length ||
+            rawEnd !in 0..text.length ||
+            rawStart == rawEnd
+        ) {
+            return
+        }
+
+        val start = minOf(rawStart, rawEnd)
+        val end = maxOf(rawStart, rawEnd)
+        val selectedText = text.substring(start, end)
+        if (!selectionHasUsefulAction(selectedText)) return
+
+        // Selection changes emitted while the trackpad is active are deliberately
+        // suppressed. Once the left thumb is released, clear that suppression and
+        // schedule the normal toolbar for the final stable selection.
+        suppressSelectionToolbarUntil = SystemClock.elapsedRealtime()
+        programmaticSelectionUntil = SystemClock.elapsedRealtime()
+        hideSuggestions()
+        scheduleSelectionToolbar(
+            node = node,
+            packageName = packageName,
+            start = start,
+            end = end,
+            selectedText = selectedText,
+        )
     }
 
     private fun hideSelectionGestureTrackpad() {
