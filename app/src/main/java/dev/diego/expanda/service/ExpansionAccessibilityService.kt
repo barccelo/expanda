@@ -181,7 +181,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private var selectionGestureTrackpadParams: WindowManager.LayoutParams? = null
     private var selectionGestureEditor: AccessibilityNodeInfo? = null
     private var selectionGestureAnchorCursor = 0
-    private var selectionGestureLastTarget = -1
+    private var selectionGestureLastStart = -1
+    private var selectionGestureLastEnd = -1
+    /** 0 none, -1/+1 horizontal left/right, -2/+2 vertical up/down. */
     private var selectionGestureDirectionLock = 0
     private var selectionGestureRelayRestore: Runnable? = null
     private var selectionGestureRelayGeneration = 0L
@@ -3844,12 +3846,20 @@ class ExpansionAccessibilityService : AccessibilityService() {
         var downX = 0f
         var downY = 0f
         var longPressTask: Runnable? = null
+        var pendingSingleTap: Runnable? = null
+        var lastTapUpAt = 0L
+        var doubleTapCandidate = false
         var selectorArmed = false
         var movedBeforeActivation = false
 
         fun cancelLongPress() {
             longPressTask?.let(mainHandler::removeCallbacks)
             longPressTask = null
+        }
+
+        fun cancelPendingSingleTap() {
+            pendingSingleTap?.let(mainHandler::removeCallbacks)
+            pendingSingleTap = null
         }
 
         fun disarmSelector() {
@@ -3865,6 +3875,12 @@ class ExpansionAccessibilityService : AccessibilityService() {
             longPressTask = null
             if (movedBeforeActivation) return
 
+            // If a previous short tap was waiting to see whether it becomes a
+            // double tap, discard that decision before entering hold-to-select.
+            cancelPendingSingleTap()
+            lastTapUpAt = 0L
+            doubleTapCandidate = false
+
             hideSelectionGestureTrackpad()
             val node = findFocusedEditableForSelectionGesture() ?: return
             val text = editableText(node)
@@ -3877,7 +3893,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
 
             selectionGestureEditor = node
             selectionGestureAnchorCursor = cursor
-            selectionGestureLastTarget = cursor
+            selectionGestureLastStart = cursor
+            selectionGestureLastEnd = cursor
             selectionGestureDirectionLock = 0
             selectorArmed = true
 
@@ -3894,12 +3911,39 @@ class ExpansionAccessibilityService : AccessibilityService() {
             if (settingsRepository.settings.value.hapticFeedback) vibrateTick()
         }
 
+        fun scheduleSingleTap() {
+            cancelPendingSingleTap()
+            val task = Runnable {
+                pendingSingleTap = null
+                lastTapUpAt = 0L
+                if (selectionGestureHotspot === hotspot) {
+                    relaySelectionHotspotTap(
+                        hotspot = hotspot,
+                        windowManager = windowManager,
+                        params = params,
+                        tapCount = 1,
+                    )
+                }
+            }
+            pendingSingleTap = task
+            mainHandler.postDelayed(task, SELECTION_GESTURE_DOUBLE_TAP_DECISION_MS)
+        }
+
         return View.OnTouchListener { _, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     disarmSelector()
                     downX = event.rawX
                     downY = event.rawY
+
+                    val now = SystemClock.elapsedRealtime()
+                    doubleTapCandidate =
+                        lastTapUpAt > 0L &&
+                            now - lastTapUpAt <= SELECTION_GESTURE_DOUBLE_TAP_DECISION_MS
+                    if (doubleTapCandidate) {
+                        cancelPendingSingleTap()
+                    }
+
                     val task = Runnable(::armSelector)
                     longPressTask = task
                     mainHandler.postDelayed(task, SELECTION_GESTURE_LONG_PRESS_MS)
@@ -3918,9 +3962,6 @@ class ExpansionAccessibilityService : AccessibilityService() {
                             cancelLongPress()
                         }
                     }
-                    // The left thumb only arms the selector. Horizontal selection
-                    // is intentionally handled by the independent trackpad window
-                    // and the user's second thumb.
                     true
                 }
 
@@ -3929,19 +3970,41 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     cancelLongPress()
                     if (wasArmed) {
                         disarmSelector()
-                    } else {
-                        relaySelectionHotspotTap(
-                            hotspot = hotspot,
-                            windowManager = windowManager,
-                            params = params,
-                        )
+                        lastTapUpAt = 0L
+                        doubleTapCandidate = false
+                    } else if (!movedBeforeActivation) {
+                        val now = SystemClock.elapsedRealtime()
+                        if (
+                            doubleTapCandidate &&
+                            lastTapUpAt > 0L &&
+                            now - lastTapUpAt <= SELECTION_GESTURE_DOUBLE_TAP_MAX_INTERVAL_MS
+                        ) {
+                            cancelPendingSingleTap()
+                            lastTapUpAt = 0L
+                            doubleTapCandidate = false
+                            relaySelectionHotspotTap(
+                                hotspot = hotspot,
+                                windowManager = windowManager,
+                                params = params,
+                                tapCount = 2,
+                            )
+                        } else {
+                            lastTapUpAt = now
+                            doubleTapCandidate = false
+                            scheduleSingleTap()
+                        }
                         movedBeforeActivation = false
+                    } else {
+                        movedBeforeActivation = false
+                        lastTapUpAt = 0L
+                        doubleTapCandidate = false
                     }
                     true
                 }
 
                 MotionEvent.ACTION_CANCEL -> {
                     disarmSelector()
+                    doubleTapCandidate = false
                     true
                 }
 
@@ -3994,49 +4057,62 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private fun createSelectionGestureTrackpadTouchListener(): View.OnTouchListener {
         val touchSlop = ViewConfiguration.get(this).scaledTouchSlop.toFloat()
         var dragOriginX = 0f
+        var dragOriginY = 0f
 
-        fun applySelectionFromDistance(rawDx: Float) {
-            if (selectionGestureDirectionLock == 0 && kotlin.math.abs(rawDx) >= touchSlop) {
-                selectionGestureDirectionLock = if (rawDx < 0f) -1 else 1
-                if (settingsRepository.settings.value.hapticFeedback) vibrateTick()
-            }
-            if (selectionGestureDirectionLock == 0) return
+        fun lineStart(text: String, cursor: Int): Int {
+            if (text.isEmpty()) return 0
+            val searchFrom = (cursor - 1).coerceIn(-1, text.lastIndex)
+            if (searchFrom < 0) return 0
+            return text.lastIndexOf('\n', searchFrom).let { if (it < 0) 0 else it + 1 }
+        }
 
-            val signedDistance = when (selectionGestureDirectionLock) {
-                -1 -> (-rawDx).coerceAtLeast(0f)
-                1 -> rawDx.coerceAtLeast(0f)
-                else -> 0f
-            }
-            val unit = dp(SELECTION_GESTURE_CHAR_STEP_DP).coerceAtLeast(1).toFloat()
-            val baseSteps = (signedDistance / unit).toInt()
-            val acceleratedSteps = if (signedDistance > dp(SELECTION_GESTURE_ACCEL_START_DP)) {
-                (
-                    (signedDistance - dp(SELECTION_GESTURE_ACCEL_START_DP)) /
-                        dp(SELECTION_GESTURE_ACCEL_STEP_DP).coerceAtLeast(1)
-                ).toInt()
+        fun lineEndExclusive(text: String, cursor: Int): Int {
+            if (text.isEmpty()) return 0
+            val searchFrom = cursor.coerceIn(0, text.length)
+            val newline = text.indexOf('\n', searchFrom)
+            return if (newline < 0) text.length else newline + 1
+        }
+
+        fun fullLineRange(
+            text: String,
+            cursor: Int,
+            direction: Int,
+            count: Int,
+        ): Pair<Int, Int> {
+            if (count <= 0) return cursor to cursor
+            var start = lineStart(text, cursor)
+            var end = lineEndExclusive(text, cursor)
+
+            if (direction < 0) {
+                repeat(count - 1) {
+                    if (start <= 0) return@repeat
+                    val previousLineCursor = (start - 1).coerceAtLeast(0)
+                    start = lineStart(text, previousLineCursor)
+                }
             } else {
-                0
+                repeat(count - 1) {
+                    if (end >= text.length) return@repeat
+                    end = lineEndExclusive(text, end)
+                }
             }
-            val steps = baseSteps + acceleratedSteps
+            return start to end
+        }
+
+        fun applyRange(start: Int, end: Int) {
+            if (
+                start == selectionGestureLastStart &&
+                end == selectionGestureLastEnd
+            ) {
+                return
+            }
 
             var node = selectionGestureEditor ?: return
-            runCatching { node.refresh() }
-            var textLength = editableText(node).length
-            var target = (
-                selectionGestureAnchorCursor + selectionGestureDirectionLock * steps
-            ).coerceIn(0, textLength)
-            if (target == selectionGestureLastTarget) return
-
             suppressSelectionToolbarUntil =
                 SystemClock.elapsedRealtime() + SELECTION_GESTURE_TOOLBAR_SUPPRESSION_MS
             programmaticSelectionUntil =
                 SystemClock.elapsedRealtime() + PROGRAMMATIC_SELECTION_GRACE_MS
 
-            var applied = setSelection(
-                node,
-                minOf(selectionGestureAnchorCursor, target),
-                maxOf(selectionGestureAnchorCursor, target),
-            )
+            var applied = setSelection(node, start, end)
             if (!applied) {
                 selectionGestureEditor?.let {
                     @Suppress("DEPRECATION")
@@ -4045,18 +4121,88 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 node = findFocusedEditableForSelectionGesture() ?: return
                 selectionGestureEditor = node
                 runCatching { node.refresh() }
-                textLength = editableText(node).length
-                target = (
-                    selectionGestureAnchorCursor + selectionGestureDirectionLock * steps
-                ).coerceIn(0, textLength)
-                applied = setSelection(
-                    node,
-                    minOf(selectionGestureAnchorCursor, target),
-                    maxOf(selectionGestureAnchorCursor, target),
-                )
+                val textLength = editableText(node).length
+                val safeStart = start.coerceIn(0, textLength)
+                val safeEnd = end.coerceIn(0, textLength)
+                applied = setSelection(node, safeStart, safeEnd)
+                if (applied) {
+                    selectionGestureLastStart = safeStart
+                    selectionGestureLastEnd = safeEnd
+                }
+                return
             }
-            if (applied) {
-                selectionGestureLastTarget = target
+
+            selectionGestureLastStart = start
+            selectionGestureLastEnd = end
+        }
+
+        fun applySelection(dx: Float, dy: Float) {
+            if (selectionGestureDirectionLock == 0) {
+                val absX = kotlin.math.abs(dx)
+                val absY = kotlin.math.abs(dy)
+                if (maxOf(absX, absY) < touchSlop) return
+
+                selectionGestureDirectionLock = if (absX >= absY) {
+                    if (dx < 0f) -1 else 1
+                } else {
+                    if (dy < 0f) -2 else 2
+                }
+                if (settingsRepository.settings.value.hapticFeedback) vibrateTick()
+            }
+
+            val node = selectionGestureEditor ?: return
+            runCatching { node.refresh() }
+            val text = editableText(node)
+            val cursor = selectionGestureAnchorCursor.coerceIn(0, text.length)
+
+            when (selectionGestureDirectionLock) {
+                -1, 1 -> {
+                    val signedDistance = if (selectionGestureDirectionLock < 0) {
+                        (-dx).coerceAtLeast(0f)
+                    } else {
+                        dx.coerceAtLeast(0f)
+                    }
+                    val unit = dp(SELECTION_GESTURE_CHAR_STEP_DP).coerceAtLeast(1).toFloat()
+                    val baseSteps = (signedDistance / unit).toInt()
+                    val acceleratedSteps = if (
+                        signedDistance > dp(SELECTION_GESTURE_ACCEL_START_DP)
+                    ) {
+                        (
+                            (signedDistance - dp(SELECTION_GESTURE_ACCEL_START_DP)) /
+                                dp(SELECTION_GESTURE_ACCEL_STEP_DP).coerceAtLeast(1)
+                        ).toInt()
+                    } else {
+                        0
+                    }
+                    val steps = baseSteps + acceleratedSteps
+                    val target = (
+                        cursor + (if (selectionGestureDirectionLock < 0) -steps else steps)
+                    ).coerceIn(0, text.length)
+                    applyRange(minOf(cursor, target), maxOf(cursor, target))
+                }
+
+                -2, 2 -> {
+                    val signedDistance = if (selectionGestureDirectionLock < 0) {
+                        (-dy).coerceAtLeast(0f)
+                    } else {
+                        dy.coerceAtLeast(0f)
+                    }
+                    val lineUnit = dp(SELECTION_GESTURE_LINE_STEP_DP)
+                        .coerceAtLeast(1)
+                        .toFloat()
+                    val lineCount = if (signedDistance < touchSlop) {
+                        0
+                    } else {
+                        1 + ((signedDistance - touchSlop) / lineUnit).toInt()
+                    }
+                    val (start, end) = fullLineRange(
+                        text = text,
+                        cursor = cursor,
+                        direction = if (selectionGestureDirectionLock < 0) -1 else 1,
+                        count = lineCount,
+                    )
+                    applyRange(start, end)
+                }
             }
         }
 
@@ -4064,13 +4210,18 @@ class ExpansionAccessibilityService : AccessibilityService() {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     dragOriginX = event.rawX
+                    dragOriginY = event.rawY
                     selectionGestureDirectionLock = 0
-                    selectionGestureLastTarget = selectionGestureAnchorCursor
+                    selectionGestureLastStart = selectionGestureAnchorCursor
+                    selectionGestureLastEnd = selectionGestureAnchorCursor
                     true
                 }
 
                 MotionEvent.ACTION_MOVE -> {
-                    applySelectionFromDistance(event.rawX - dragOriginX)
+                    applySelection(
+                        dx = event.rawX - dragOriginX,
+                        dy = event.rawY - dragOriginY,
+                    )
                     true
                 }
 
@@ -4099,13 +4250,15 @@ class ExpansionAccessibilityService : AccessibilityService() {
         }
         selectionGestureEditor = null
         selectionGestureDirectionLock = 0
-        selectionGestureLastTarget = -1
+        selectionGestureLastStart = -1
+        selectionGestureLastEnd = -1
     }
 
     private fun relaySelectionHotspotTap(
         hotspot: View,
         windowManager: WindowManager,
         params: WindowManager.LayoutParams,
+        tapCount: Int,
     ) {
         selectionGestureRelayRestore?.let(mainHandler::removeCallbacks)
         selectionGestureRelayRestore = null
@@ -4127,17 +4280,18 @@ class ExpansionAccessibilityService : AccessibilityService() {
             runCatching { windowManager.updateViewLayout(hotspot, params) }
         }
 
+        val totalGestureMs = if (tapCount >= 2) {
+            SELECTION_GESTURE_DOUBLE_TAP_SECOND_START_MS + SELECTION_GESTURE_RELAY_TAP_MS
+        } else {
+            SELECTION_GESTURE_RELAY_TAP_MS
+        }
         val failsafe = Runnable(::restoreTouchability)
         selectionGestureRelayRestore = failsafe
         mainHandler.postDelayed(
             failsafe,
-            SELECTION_GESTURE_RELAY_FAILSAFE_MS,
+            SELECTION_GESTURE_RELAY_ARM_MS + totalGestureMs + SELECTION_GESTURE_RELAY_FAILSAFE_MARGIN_MS,
         )
 
-        // Only keep the overlay untouchable long enough for WindowManager to
-        // commit the flag before dispatching the synthetic tap. As soon as that
-        // tap finishes, restore the hotspot so a second physical tap is captured
-        // and relayed as a second Shift tap too.
         mainHandler.postDelayed(
             {
                 if (
@@ -4147,16 +4301,25 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     return@postDelayed
                 }
 
-                val path = Path().apply { moveTo(centerX, centerY) }
-                val gesture = GestureDescription.Builder()
-                    .addStroke(
+                val builder = GestureDescription.Builder()
+                val firstPath = Path().apply { moveTo(centerX, centerY) }
+                builder.addStroke(
+                    GestureDescription.StrokeDescription(
+                        firstPath,
+                        0L,
+                        SELECTION_GESTURE_RELAY_TAP_MS,
+                    ),
+                )
+                if (tapCount >= 2) {
+                    val secondPath = Path().apply { moveTo(centerX, centerY) }
+                    builder.addStroke(
                         GestureDescription.StrokeDescription(
-                            path,
-                            0L,
+                            secondPath,
+                            SELECTION_GESTURE_DOUBLE_TAP_SECOND_START_MS,
                             SELECTION_GESTURE_RELAY_TAP_MS,
                         ),
                     )
-                    .build()
+                }
 
                 val callback = object : GestureResultCallback() {
                     override fun onCompleted(gestureDescription: GestureDescription?) {
@@ -4174,7 +4337,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     }
                 }
 
-                if (!dispatchGesture(gesture, callback, mainHandler)) {
+                if (!dispatchGesture(builder.build(), callback, mainHandler)) {
                     restoreTouchability()
                 }
             },
@@ -7377,8 +7540,12 @@ class ExpansionAccessibilityService : AccessibilityService() {
         private const val SELECTION_GESTURE_RELAY_TAP_MS = 32L
         private const val SELECTION_GESTURE_RELAY_ARM_MS = 16L
         private const val SELECTION_GESTURE_RESTORE_AFTER_TAP_MS = 8L
-        private const val SELECTION_GESTURE_RELAY_FAILSAFE_MS = 96L
+        private const val SELECTION_GESTURE_RELAY_FAILSAFE_MARGIN_MS = 72L
+        private const val SELECTION_GESTURE_DOUBLE_TAP_DECISION_MS = 220L
+        private const val SELECTION_GESTURE_DOUBLE_TAP_MAX_INTERVAL_MS = 300L
+        private const val SELECTION_GESTURE_DOUBLE_TAP_SECOND_START_MS = 95L
         private const val SELECTION_GESTURE_CHAR_STEP_DP = 10
+        private const val SELECTION_GESTURE_LINE_STEP_DP = 34
         private const val SELECTION_GESTURE_ACCEL_START_DP = 90
         private const val SELECTION_GESTURE_ACCEL_STEP_DP = 6
         private const val SELECTION_GESTURE_TOOLBAR_SUPPRESSION_MS = 450L
