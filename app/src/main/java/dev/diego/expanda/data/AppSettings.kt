@@ -63,6 +63,13 @@ data class AppSettings(
     val selectionToolbarHeightDp: Int = SettingsRepository.DEFAULT_SELECTION_TOOLBAR_HEIGHT_DP,
     /** Ordered quick actions shown directly between Undo and the two menu buttons. */
     val selectionToolbarQuickActionIds: List<String> = SettingsRepository.DEFAULT_SELECTION_TOOLBAR_QUICK_ACTIONS,
+    /** Long-press hotspot over the IME for horizontal text selection. */
+    val selectionGestureHotspotEnabled: Boolean = true,
+    /** Hotspot geometry as fractions of the current input-method window. */
+    val selectionGestureHotspotXFraction: Float = SettingsRepository.DEFAULT_SELECTION_GESTURE_X,
+    val selectionGestureHotspotYFraction: Float = SettingsRepository.DEFAULT_SELECTION_GESTURE_Y,
+    val selectionGestureHotspotWidthFraction: Float = SettingsRepository.DEFAULT_SELECTION_GESTURE_WIDTH,
+    val selectionGestureHotspotHeightFraction: Float = SettingsRepository.DEFAULT_SELECTION_GESTURE_HEIGHT,
     /** Configurable action groups used by compact toolbar buttons such as Case. */
     val selectionActionGroupConfigs: Map<String, SelectionActionGroupConfig> =
         SettingsRepository.DEFAULT_SELECTION_ACTION_GROUP_CONFIGS,
@@ -161,6 +168,20 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
             selectionToolbarQuickActionIds = decodeToolbarQuickActions(
                 values[Keys.SELECTION_TOOLBAR_QUICK_ACTIONS],
             ),
+            selectionGestureHotspotEnabled =
+                values[Keys.SELECTION_GESTURE_HOTSPOT_ENABLED] ?: true,
+            selectionGestureHotspotXFraction = (
+                values[Keys.SELECTION_GESTURE_HOTSPOT_X] ?: DEFAULT_SELECTION_GESTURE_X
+            ).coerceIn(0f, 1f),
+            selectionGestureHotspotYFraction = (
+                values[Keys.SELECTION_GESTURE_HOTSPOT_Y] ?: DEFAULT_SELECTION_GESTURE_Y
+            ).coerceIn(0f, 1f),
+            selectionGestureHotspotWidthFraction = (
+                values[Keys.SELECTION_GESTURE_HOTSPOT_WIDTH] ?: DEFAULT_SELECTION_GESTURE_WIDTH
+            ).coerceIn(MIN_SELECTION_GESTURE_SIZE, MAX_SELECTION_GESTURE_SIZE),
+            selectionGestureHotspotHeightFraction = (
+                values[Keys.SELECTION_GESTURE_HOTSPOT_HEIGHT] ?: DEFAULT_SELECTION_GESTURE_HEIGHT
+            ).coerceIn(MIN_SELECTION_GESTURE_SIZE, MAX_SELECTION_GESTURE_SIZE),
             selectionActionGroupConfigs = decodeSelectionActionGroupConfigs(
                 values[Keys.SELECTION_ACTION_GROUP_CONFIGS],
             ),
@@ -248,6 +269,22 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
     suspend fun setSelectionToolbarQuickActionIds(ids: List<String>) = store.edit {
         val normalized = normalizeToolbarQuickActions(ids)
         it[Keys.SELECTION_TOOLBAR_QUICK_ACTIONS] = normalized.joinToString(SEPARATOR)
+    }
+    suspend fun setSelectionGestureHotspotEnabled(enabled: Boolean) = store.edit {
+        it[Keys.SELECTION_GESTURE_HOTSPOT_ENABLED] = enabled
+    }
+    suspend fun setSelectionGestureHotspotLayout(
+        xFraction: Float,
+        yFraction: Float,
+        widthFraction: Float,
+        heightFraction: Float,
+    ) = store.edit {
+        it[Keys.SELECTION_GESTURE_HOTSPOT_X] = xFraction.coerceIn(0f, 1f)
+        it[Keys.SELECTION_GESTURE_HOTSPOT_Y] = yFraction.coerceIn(0f, 1f)
+        it[Keys.SELECTION_GESTURE_HOTSPOT_WIDTH] =
+            widthFraction.coerceIn(MIN_SELECTION_GESTURE_SIZE, MAX_SELECTION_GESTURE_SIZE)
+        it[Keys.SELECTION_GESTURE_HOTSPOT_HEIGHT] =
+            heightFraction.coerceIn(MIN_SELECTION_GESTURE_SIZE, MAX_SELECTION_GESTURE_SIZE)
     }
     suspend fun setSelectionActionGroupConfig(
         groupId: String,
@@ -342,6 +379,11 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         val SELECTION_TOOLBAR_WIDTH = floatPreferencesKey("selection_toolbar_width_fraction")
         val SELECTION_TOOLBAR_HEIGHT_DP = intPreferencesKey("selection_toolbar_height_dp")
         val SELECTION_TOOLBAR_QUICK_ACTIONS = stringPreferencesKey("selection_toolbar_quick_actions")
+        val SELECTION_GESTURE_HOTSPOT_ENABLED = booleanPreferencesKey("selection_gesture_hotspot_enabled")
+        val SELECTION_GESTURE_HOTSPOT_X = floatPreferencesKey("selection_gesture_hotspot_x")
+        val SELECTION_GESTURE_HOTSPOT_Y = floatPreferencesKey("selection_gesture_hotspot_y")
+        val SELECTION_GESTURE_HOTSPOT_WIDTH = floatPreferencesKey("selection_gesture_hotspot_width")
+        val SELECTION_GESTURE_HOTSPOT_HEIGHT = floatPreferencesKey("selection_gesture_hotspot_height")
         val SELECTION_ACTION_GROUP_CONFIGS = stringPreferencesKey("selection_action_group_configs")
         val SELECTION_WRAP_GROUP_MIGRATED = booleanPreferencesKey("selection_wrap_group_migrated")
         val DISPLAY_LANGUAGE = stringPreferencesKey("display_language")
@@ -383,6 +425,7 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         values[Keys.SELECTION_TOOLBAR_QUICK_ACTIONS] =
             normalizeToolbarQuickActions(snapshot.selectionToolbarQuickActionIds)
                 .joinToString(SEPARATOR)
+        values[Keys.SELECTION_GESTURE_HOTSPOT_ENABLED] = snapshot.selectionGestureHotspotEnabled
         values[Keys.SELECTION_ACTION_GROUP_CONFIGS] =
             encodeSelectionActionGroupConfigs(snapshot.selectionActionGroupConfigs)
         values[Keys.DISPLAY_LANGUAGE] = snapshot.displayLanguage.name
@@ -415,6 +458,12 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         const val MAX_SELECTION_TOOLBAR_HEIGHT_DP = 88
         const val DEFAULT_SELECTION_TOOLBAR_HEIGHT_DP = 56
         const val MAX_SELECTION_TOOLBAR_QUICK_ACTIONS = 6
+        const val DEFAULT_SELECTION_GESTURE_X = 0.015f
+        const val DEFAULT_SELECTION_GESTURE_Y = 0.50f
+        const val DEFAULT_SELECTION_GESTURE_WIDTH = 0.16f
+        const val DEFAULT_SELECTION_GESTURE_HEIGHT = 0.19f
+        const val MIN_SELECTION_GESTURE_SIZE = 0.08f
+        const val MAX_SELECTION_GESTURE_SIZE = 0.30f
         const val MAX_SELECTION_GROUP_LABEL_LENGTH = 12
         const val SELECTION_CASE_GROUP_ID = "case_group"
         const val SELECTION_WRAP_GROUP_ID = "wrap_group"
