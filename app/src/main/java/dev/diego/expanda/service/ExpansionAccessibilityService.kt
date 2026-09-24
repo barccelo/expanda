@@ -4,6 +4,7 @@ import android.app.DatePickerDialog
 import android.app.Dialog
 import android.app.TimePickerDialog
 import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.GestureDescription
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
@@ -19,6 +20,7 @@ import android.os.PersistableBundle
 import android.provider.Settings
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.Path
 import android.graphics.Rect
 import android.text.InputType
 import android.text.SpannableString
@@ -46,6 +48,7 @@ import android.widget.TextView
 import android.view.ViewTreeObserver
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
 import dev.diego.expanda.ExpandaApplication
 import dev.diego.expanda.MainActivity
 import dev.diego.expanda.R
@@ -169,6 +172,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private var selectionGroupOverlay: View? = null
     private var suppressSelectionToolbarUntil = 0L
     private var programmaticSelectionUntil = 0L
+    private var selectionGestureHotspot: View? = null
+    private var selectionGestureHotspotParams: WindowManager.LayoutParams? = null
+    private var selectionGestureHotspotRefresh: Runnable? = null
     private val selectionUndoHistory = ArrayDeque<SelectionUndoEntry>()
     private var pendingSmartCursorCase: PendingSmartCursorCase? = null
 
@@ -232,6 +238,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         super.onServiceConnected()
         activeService = WeakReference(this)
         clipboardMonitor.start()
+        scheduleSelectionGestureHotspotRefresh()
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -278,6 +285,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     scheduleSuggestionValidation()
                 }
             }
+            scheduleSelectionGestureHotspotRefresh()
         } catch (failure: RuntimeException) {
             recoverFromEventFailure(failure)
         } catch (failure: LinkageError) {
@@ -560,6 +568,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         hideSuggestions()
         hideFormOverlay()
         hideSelectionToolbar()
+        hideSelectionGestureHotspot()
     }
 
     override fun onDestroy() {
@@ -568,6 +577,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         hideSuggestions()
         hideFormOverlay()
         hideSelectionToolbar()
+        hideSelectionGestureHotspot()
         removeClipboardOverlay()
         if (activeService?.get() === this) activeService = null
         scope.cancel()
@@ -3547,6 +3557,350 @@ class ExpansionAccessibilityService : AccessibilityService() {
     }
 
     private fun vibrateTick() = vibrate(HAPTIC_TICK_MS)
+
+    private fun scheduleSelectionGestureHotspotRefresh(delayMs: Long = 90L) {
+        selectionGestureHotspotRefresh?.let(mainHandler::removeCallbacks)
+        val task = Runnable {
+            selectionGestureHotspotRefresh = null
+            showOrUpdateSelectionGestureHotspot()
+        }
+        selectionGestureHotspotRefresh = task
+        mainHandler.postDelayed(task, delayMs)
+    }
+
+    private fun inputMethodBounds(): Rect? {
+        val imeWindow = runCatching { windows }
+            .getOrDefault(emptyList())
+            .firstOrNull { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD }
+            ?: return null
+        return Rect().also(imeWindow::getBoundsInScreen)
+            .takeIf { it.width() > 0 && it.height() > 0 }
+    }
+
+    private fun findFocusedEditableForSelectionGesture(): AccessibilityNodeInfo? {
+        val available = runCatching { windows }.getOrDefault(emptyList())
+        available.asSequence()
+            .filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }
+            .forEach { window ->
+                val root = window.root ?: return@forEach
+                try {
+                    val focused = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+                    if (focused != null) {
+                        val valid = focused.isEditable &&
+                            !focused.isPassword &&
+                            !isPasswordInput(focused.inputType)
+                        if (valid) return focused
+                        @Suppress("DEPRECATION")
+                        focused.recycle()
+                    }
+                } finally {
+                    @Suppress("DEPRECATION")
+                    root.recycle()
+                }
+            }
+
+        val fallback = rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+        if (fallback != null) {
+            val valid = fallback.isEditable &&
+                !fallback.isPassword &&
+                !isPasswordInput(fallback.inputType)
+            if (valid) return fallback
+            @Suppress("DEPRECATION")
+            fallback.recycle()
+        }
+        return null
+    }
+
+    private fun showOrUpdateSelectionGestureHotspot() {
+        val settings = settingsRepository.settings.value
+        if (!settings.selectionGestureHotspotEnabled || formOverlay != null) {
+            hideSelectionGestureHotspot()
+            return
+        }
+
+        val imeBounds = inputMethodBounds() ?: run {
+            hideSelectionGestureHotspot()
+            return
+        }
+        val focused = findFocusedEditableForSelectionGesture() ?: run {
+            hideSelectionGestureHotspot()
+            return
+        }
+        @Suppress("DEPRECATION")
+        focused.recycle()
+
+        val width = (imeBounds.width() * settings.selectionGestureHotspotWidthFraction)
+            .roundToInt()
+            .coerceAtLeast(dp(44))
+        val height = (imeBounds.height() * settings.selectionGestureHotspotHeightFraction)
+            .roundToInt()
+            .coerceAtLeast(dp(44))
+        val x = (
+            imeBounds.left + imeBounds.width() * settings.selectionGestureHotspotXFraction
+        ).roundToInt().coerceIn(imeBounds.left, (imeBounds.right - width).coerceAtLeast(imeBounds.left))
+        val y = (
+            imeBounds.top + imeBounds.height() * settings.selectionGestureHotspotYFraction
+        ).roundToInt().coerceIn(imeBounds.top, (imeBounds.bottom - height).coerceAtLeast(imeBounds.top))
+
+        val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        val current = selectionGestureHotspot
+        val params = selectionGestureHotspotParams
+        if (current != null && params != null) {
+            if (params.x != x || params.y != y || params.width != width || params.height != height) {
+                params.x = x
+                params.y = y
+                params.width = width
+                params.height = height
+                runCatching { windowManager.updateViewLayout(current, params) }
+            }
+            return
+        }
+
+        val hotspot = FrameLayout(this).apply {
+            background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
+            isClickable = true
+            isFocusable = false
+            contentDescription = localizedSelectionUi(
+                settings,
+                "Selection gesture hotspot",
+                "Zona gestual de selección",
+            )
+        }
+        val newParams = WindowManager.LayoutParams(
+            width,
+            height,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            PixelFormat.TRANSLUCENT,
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            this.x = x
+            this.y = y
+        }
+        hotspot.setOnTouchListener(
+            createSelectionGestureHotspotTouchListener(
+                hotspot = hotspot,
+                windowManager = windowManager,
+                params = newParams,
+            ),
+        )
+        runCatching {
+            windowManager.addView(hotspot, newParams)
+            selectionGestureHotspot = hotspot
+            selectionGestureHotspotParams = newParams
+        }.onFailure {
+            selectionGestureHotspot = null
+            selectionGestureHotspotParams = null
+        }
+    }
+
+    private fun createSelectionGestureHotspotTouchListener(
+        hotspot: View,
+        windowManager: WindowManager,
+        params: WindowManager.LayoutParams,
+    ): View.OnTouchListener {
+        val touchSlop = ViewConfiguration.get(this).scaledTouchSlop.toFloat()
+        var downX = 0f
+        var downY = 0f
+        var longPressTask: Runnable? = null
+        var selectionActive = false
+        var directionLock = 0
+        var selectionAnchor: SuggestionAnchor? = null
+        var anchorCursor = 0
+        var lastTarget = -1
+        var movedBeforeActivation = false
+
+        fun cancelLongPress() {
+            longPressTask?.let(mainHandler::removeCallbacks)
+            longPressTask = null
+        }
+
+        fun resetGesture() {
+            cancelLongPress()
+            selectionActive = false
+            directionLock = 0
+            selectionAnchor = null
+            lastTarget = -1
+            movedBeforeActivation = false
+        }
+
+        fun activateSelection() {
+            longPressTask = null
+            if (movedBeforeActivation) return
+            val node = findFocusedEditableForSelectionGesture() ?: return
+            try {
+                val text = editableText(node)
+                val cursor = node.textSelectionEnd.takeIf { it in 0..text.length } ?: return
+                val packageName = node.packageName?.toString().orEmpty()
+                if (packageName.isBlank()) return
+                selectionAnchor = createSuggestionAnchor(node, packageName)
+                anchorCursor = cursor
+                lastTarget = cursor
+                selectionActive = true
+                directionLock = 0
+                hideSelectionToolbar()
+                suppressSelectionToolbarUntil =
+                    SystemClock.elapsedRealtime() + SELECTION_GESTURE_TOOLBAR_SUPPRESSION_MS
+                if (settingsRepository.settings.value.hapticFeedback) vibrateTick()
+            } finally {
+                @Suppress("DEPRECATION")
+                node.recycle()
+            }
+        }
+
+        fun applyDrag(rawDx: Float) {
+            val anchor = selectionAnchor ?: return
+            if (directionLock == 0 && kotlin.math.abs(rawDx) >= touchSlop) {
+                directionLock = if (rawDx < 0f) -1 else 1
+            }
+            if (directionLock == 0) return
+
+            val signedDistance = when (directionLock) {
+                -1 -> (-rawDx).coerceAtLeast(0f)
+                1 -> rawDx.coerceAtLeast(0f)
+                else -> 0f
+            }
+            val unit = dp(SELECTION_GESTURE_CHAR_STEP_DP).coerceAtLeast(1).toFloat()
+            val baseSteps = (signedDistance / unit).toInt()
+            val acceleratedSteps = if (signedDistance > dp(SELECTION_GESTURE_ACCEL_START_DP)) {
+                (
+                    (signedDistance - dp(SELECTION_GESTURE_ACCEL_START_DP)) /
+                        dp(SELECTION_GESTURE_ACCEL_STEP_DP).coerceAtLeast(1)
+                ).toInt()
+            } else {
+                0
+            }
+            val steps = baseSteps + acceleratedSteps
+
+            val node = findAnchoredEditor(anchor, requireActiveWindow = false) ?: return
+            try {
+                val textLength = editableText(node).length
+                val target = (anchorCursor + directionLock * steps).coerceIn(0, textLength)
+                if (target == lastTarget) return
+                val start = minOf(anchorCursor, target)
+                val end = maxOf(anchorCursor, target)
+                suppressSelectionToolbarUntil =
+                    SystemClock.elapsedRealtime() + SELECTION_GESTURE_TOOLBAR_SUPPRESSION_MS
+                programmaticSelectionUntil =
+                    SystemClock.elapsedRealtime() + PROGRAMMATIC_SELECTION_GRACE_MS
+                if (setSelection(node, start, end)) {
+                    lastTarget = target
+                }
+            } finally {
+                @Suppress("DEPRECATION")
+                node.recycle()
+            }
+        }
+
+        return View.OnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    resetGesture()
+                    downX = event.rawX
+                    downY = event.rawY
+                    val task = Runnable(::activateSelection)
+                    longPressTask = task
+                    mainHandler.postDelayed(task, SELECTION_GESTURE_LONG_PRESS_MS)
+                    true
+                }
+
+                MotionEvent.ACTION_MOVE -> {
+                    val dx = event.rawX - downX
+                    val dy = event.rawY - downY
+                    if (!selectionActive) {
+                        if (
+                            kotlin.math.abs(dx) > touchSlop * 1.5f ||
+                            kotlin.math.abs(dy) > touchSlop * 1.5f
+                        ) {
+                            movedBeforeActivation = true
+                            cancelLongPress()
+                        }
+                    } else {
+                        applyDrag(dx)
+                    }
+                    true
+                }
+
+                MotionEvent.ACTION_UP -> {
+                    val wasSelection = selectionActive
+                    cancelLongPress()
+                    if (!wasSelection) {
+                        relaySelectionHotspotTap(
+                            hotspot = hotspot,
+                            windowManager = windowManager,
+                            params = params,
+                        )
+                    }
+                    resetGesture()
+                    true
+                }
+
+                MotionEvent.ACTION_CANCEL -> {
+                    resetGesture()
+                    true
+                }
+
+                else -> true
+            }
+        }
+    }
+
+    private fun relaySelectionHotspotTap(
+        hotspot: View,
+        windowManager: WindowManager,
+        params: WindowManager.LayoutParams,
+    ) {
+        val centerX = params.x + params.width / 2f
+        val centerY = params.y + params.height / 2f
+        val originalFlags = params.flags
+        params.flags = originalFlags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+        runCatching { windowManager.updateViewLayout(hotspot, params) }
+
+        val path = Path().apply { moveTo(centerX, centerY) }
+        val gesture = GestureDescription.Builder()
+            .addStroke(
+                GestureDescription.StrokeDescription(
+                    path,
+                    0L,
+                    SELECTION_GESTURE_RELAY_TAP_MS,
+                ),
+            )
+            .build()
+
+        fun restoreTouchability() {
+            if (selectionGestureHotspot !== hotspot) return
+            params.flags = originalFlags
+            runCatching { windowManager.updateViewLayout(hotspot, params) }
+        }
+
+        val callback = object : GestureResultCallback() {
+            override fun onCompleted(gestureDescription: GestureDescription?) {
+                restoreTouchability()
+            }
+
+            override fun onCancelled(gestureDescription: GestureDescription?) {
+                restoreTouchability()
+            }
+        }
+        if (!dispatchGesture(gesture, callback, mainHandler)) {
+            restoreTouchability()
+        }
+    }
+
+    private fun hideSelectionGestureHotspot() {
+        selectionGestureHotspotRefresh?.let(mainHandler::removeCallbacks)
+        selectionGestureHotspotRefresh = null
+        val view = selectionGestureHotspot
+        selectionGestureHotspot = null
+        selectionGestureHotspotParams = null
+        if (view != null) {
+            runCatching {
+                (getSystemService(WINDOW_SERVICE) as WindowManager).removeView(view)
+            }
+        }
+    }
 
     private fun setSelection(node: AccessibilityNodeInfo, start: Int, end: Int): Boolean =
         node.performAction(
@@ -6722,6 +7076,12 @@ class ExpansionAccessibilityService : AccessibilityService() {
     }
 
     companion object {
+        private const val SELECTION_GESTURE_LONG_PRESS_MS = 330L
+        private const val SELECTION_GESTURE_RELAY_TAP_MS = 42L
+        private const val SELECTION_GESTURE_CHAR_STEP_DP = 10
+        private const val SELECTION_GESTURE_ACCEL_START_DP = 90
+        private const val SELECTION_GESTURE_ACCEL_STEP_DP = 6
+        private const val SELECTION_GESTURE_TOOLBAR_SUPPRESSION_MS = 450L
         private const val VAULT_KEYBOARD_DIALOG_MARGIN_DP = 18
         private const val VAULT_ENTRY_FORM_CONTENT_RATIO = 0.38f
         @Volatile private var activeService: WeakReference<ExpansionAccessibilityService>? = null
