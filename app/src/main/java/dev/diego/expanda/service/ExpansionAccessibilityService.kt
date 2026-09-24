@@ -4279,14 +4279,14 @@ class ExpansionAccessibilityService : AccessibilityService() {
         // Removing a WindowManager overlay can emit TYPE_WINDOWS_CHANGED before
         // the surface is actually gone. Wait a frame before the first tap.
         mainHandler.postDelayed(
-            {
-                if (generation != selectionGestureRelayGeneration) return@postDelayed
+            firstTap@{
+                if (generation != selectionGestureRelayGeneration) return@firstTap
                 dispatchOneTap {
                     if (tapCount >= 2) {
                         mainHandler.postDelayed(
-                            {
+                            secondTap@{
                                 if (generation != selectionGestureRelayGeneration) {
-                                    return@postDelayed
+                                    return@secondTap
                                 }
                                 dispatchOneTap {
                                     mainHandler.postDelayed(
