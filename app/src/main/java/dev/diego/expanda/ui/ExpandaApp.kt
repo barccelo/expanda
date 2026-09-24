@@ -1797,9 +1797,9 @@ private fun SelectionToolbarSettingsDialog(
                                     supportingContent = {
                                         Text(
                                             if (es) {
-                                                "Mantén presionado sobre Shift y desliza horizontalmente. Toca para ajustar la zona."
+                                                "Mantén Shift con el pulgar izquierdo y desliza con el derecho para seleccionar. Toca para ajustar la zona."
                                             } else {
-                                                "Long-press over Shift and drag horizontally. Tap to adjust the hotspot."
+                                                "Hold Shift with your left thumb and slide with your right thumb to select. Tap to adjust the hotspot."
                                             },
                                         )
                                     },
@@ -2032,9 +2032,9 @@ private fun SelectionToolbarSettingsDialog(
                                         )
                                         Text(
                                             if (es) {
-                                                "Un toque corto se reenvía a la tecla situada debajo; la selección solo se activa al mantener presionado."
+                                                "Un toque corto actúa como Shift. Mantén presionado con el pulgar izquierdo para activar el trackpad invisible y desliza con el pulgar derecho."
                                             } else {
-                                                "A short tap is relayed to the key underneath; selection activates only after a long press."
+                                                "A short tap acts as Shift. Hold with your left thumb to arm the invisible trackpad, then slide with your right thumb."
                                             },
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
