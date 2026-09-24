@@ -265,6 +265,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setSelectionToolbarEnabled(enabled: Boolean) = viewModelScope.launch {
         settingsRepository.setSelectionToolbarEnabled(enabled)
     }
+    fun setSelectionGestureHotspotEnabled(enabled: Boolean) = viewModelScope.launch {
+        settingsRepository.setSelectionGestureHotspotEnabled(enabled)
+    }
     fun setSelectionToolbarWidthFraction(fraction: Float) = viewModelScope.launch {
         settingsRepository.setSelectionToolbarWidthFraction(fraction)
     }
