@@ -7271,6 +7271,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
     companion object {
         private const val SELECTION_GESTURE_LONG_PRESS_MS = 330L
         private const val SELECTION_GESTURE_RELAY_TAP_MS = 42L
+        private const val SELECTION_GESTURE_RELAY_ARM_MS = 48L
+        private const val SELECTION_GESTURE_RESTORE_TOUCH_MS = 48L
         private const val SELECTION_GESTURE_CHAR_STEP_DP = 10
         private const val SELECTION_GESTURE_ACCEL_START_DP = 90
         private const val SELECTION_GESTURE_ACCEL_STEP_DP = 6
