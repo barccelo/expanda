@@ -2003,7 +2003,6 @@ private fun SettingsDialogHeader(
 private sealed interface SelectionToolbarSettingsPage {
     data object Overview : SelectionToolbarSettingsPage
     data object Size : SelectionToolbarSettingsPage
-    data object GestureHotspot : SelectionToolbarSettingsPage
     data object QuickActions : SelectionToolbarSettingsPage
     data class Group(val id: String) : SelectionToolbarSettingsPage
 }
@@ -2013,8 +2012,6 @@ private fun SelectionToolbarSettingsDialog(
     settings: AppSettings,
     onDismiss: () -> Unit,
     onEnabledChanged: (Boolean) -> Unit,
-    onGestureHotspotEnabledChanged: (Boolean) -> Unit,
-    onGestureHotspotLayoutChanged: (Float, Float, Float, Float) -> Unit,
     onWidthChanged: (Float) -> Unit,
     onHeightChanged: (Int) -> Unit,
     onResetLayout: () -> Unit,
@@ -2025,38 +2022,9 @@ private fun SelectionToolbarSettingsDialog(
     var page by remember {
         mutableStateOf<SelectionToolbarSettingsPage>(SelectionToolbarSettingsPage.Overview)
     }
-    var calibratingHotspot by remember { mutableStateOf(false) }
-    var calibrationText by remember {
-        mutableStateOf("Expanda · selecciona este texto para probar el gesto")
-    }
-    val calibrationFocusRequester = remember { FocusRequester() }
-    val keyboardController = LocalSoftwareKeyboardController.current
     val es = usesSpanish(settings.displayLanguage)
 
-    DisposableEffect(calibratingHotspot) {
-        if (calibratingHotspot) {
-            ExpansionAccessibilityService.requestSelectionGestureCalibration(true)
-        }
-        onDispose {
-            if (calibratingHotspot) {
-                ExpansionAccessibilityService.requestSelectionGestureCalibration(false)
-            }
-        }
-    }
-
-    LaunchedEffect(calibratingHotspot) {
-        if (calibratingHotspot) {
-            delay(140L)
-            calibrationFocusRequester.requestFocus()
-            keyboardController?.show()
-        }
-    }
-
     fun goBack() {
-        if (calibratingHotspot) {
-            calibratingHotspot = false
-            return
-        }
         page = when (page) {
             is SelectionToolbarSettingsPage.Group -> SelectionToolbarSettingsPage.QuickActions
             SelectionToolbarSettingsPage.Overview -> SelectionToolbarSettingsPage.Overview
@@ -2064,17 +2032,9 @@ private fun SelectionToolbarSettingsDialog(
         }
     }
 
-    fun closeDialog() {
-        calibratingHotspot = false
-        ExpansionAccessibilityService.requestSelectionGestureCalibration(false)
-        onDismiss()
-    }
-
     BackHandler {
-        if (calibratingHotspot) {
-            calibratingHotspot = false
-        } else if (page == SelectionToolbarSettingsPage.Overview) {
-            closeDialog()
+        if (page == SelectionToolbarSettingsPage.Overview) {
+            onDismiss()
         } else {
             goBack()
         }
@@ -2085,8 +2045,6 @@ private fun SelectionToolbarSettingsDialog(
             if (es) "Barra de selección" else "Selection toolbar"
         SelectionToolbarSettingsPage.Size ->
             if (es) "Tamaño y posición" else "Size and position"
-        SelectionToolbarSettingsPage.GestureHotspot ->
-            if (es) "Selector gestual" else "Gesture selector"
         SelectionToolbarSettingsPage.QuickActions ->
             if (es) "Accesos rápidos" else "Quick actions"
         is SelectionToolbarSettingsPage.Group ->
@@ -2094,11 +2052,13 @@ private fun SelectionToolbarSettingsDialog(
     }
     val subtitle = when (page) {
         SelectionToolbarSettingsPage.Overview ->
-            if (es) "Configura visibilidad y comportamiento." else "Configure visibility and behavior."
+            if (es) {
+                "Configura únicamente la barra que aparece sobre una selección."
+            } else {
+                "Configure only the toolbar shown over a text selection."
+            }
         SelectionToolbarSettingsPage.Size ->
             if (es) "Ajusta las dimensiones de la barra." else "Adjust the toolbar dimensions."
-        SelectionToolbarSettingsPage.GestureHotspot ->
-            if (es) "Ajusta la zona invisible sobre el teclado." else "Adjust the invisible keyboard hotspot."
         SelectionToolbarSettingsPage.QuickActions ->
             if (es) "Elige, ordena y configura las herramientas." else "Choose, reorder and configure tools."
         is SelectionToolbarSettingsPage.Group ->
@@ -2106,7 +2066,7 @@ private fun SelectionToolbarSettingsDialog(
     }
 
     Dialog(
-        onDismissRequest = ::closeDialog,
+        onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
         Surface(
@@ -2143,7 +2103,7 @@ private fun SelectionToolbarSettingsDialog(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    IconButton(onClick = ::closeDialog) {
+                    IconButton(onClick = onDismiss) {
                         Icon(Icons.Default.Close, tr("Close"))
                     }
                 }
@@ -2172,36 +2132,6 @@ private fun SelectionToolbarSettingsDialog(
                                     },
                                 )
                             }
-                            item { HorizontalDivider() }
-                            item {
-                                ListItem(
-                                    headlineContent = {
-                                        Text(
-                                            if (es) "Selector gestual sobre el teclado"
-                                            else "Keyboard gesture selector",
-                                        )
-                                    },
-                                    supportingContent = {
-                                        Text(
-                                            if (es) {
-                                                "Mantén Shift con el pulgar izquierdo. Usa el derecho como un trackpad libre: horizontal mueve por caracteres y vertical por líneas visuales, pudiendo combinar ambos."
-                                            } else {
-                                                "Hold Shift with your left thumb. Use your right as a free trackpad: horizontal moves by characters and vertical by visual lines, and you can combine both."
-                                            },
-                                        )
-                                    },
-                                    leadingContent = { Icon(Icons.Default.Accessibility, null) },
-                                    trailingContent = {
-                                        Switch(
-                                            checked = settings.selectionGestureHotspotEnabled,
-                                            onCheckedChange = onGestureHotspotEnabledChanged,
-                                        )
-                                    },
-                                    modifier = Modifier.clickable {
-                                        page = SelectionToolbarSettingsPage.GestureHotspot
-                                    },
-                                )
-                            }
                             if (settings.selectionToolbarEnabled) {
                                 item { HorizontalDivider() }
                                 item {
@@ -2216,13 +2146,7 @@ private fun SelectionToolbarSettingsDialog(
                                             )
                                         },
                                         leadingContent = { Icon(Icons.Default.Tune, null) },
-                                        trailingContent = {
-                                            Text(
-                                                "›",
-                                                style = MaterialTheme.typography.headlineSmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
-                                        },
+                                        trailingContent = { SettingsChevron() },
                                         modifier = Modifier.clickable {
                                             page = SelectionToolbarSettingsPage.Size
                                         },
@@ -2246,13 +2170,7 @@ private fun SelectionToolbarSettingsDialog(
                                         },
                                         supportingContent = { Text(summary) },
                                         leadingContent = { Icon(Icons.Default.Settings, null) },
-                                        trailingContent = {
-                                            Text(
-                                                "›",
-                                                style = MaterialTheme.typography.headlineSmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
-                                        },
+                                        trailingContent = { SettingsChevron() },
                                         modifier = Modifier.clickable {
                                             page = SelectionToolbarSettingsPage.QuickActions
                                         },
@@ -2277,157 +2195,6 @@ private fun SelectionToolbarSettingsDialog(
                                     onHeightChanged = onHeightChanged,
                                     onReset = onResetLayout,
                                 )
-                            }
-                        }
-                    }
-
-                    SelectionToolbarSettingsPage.GestureHotspot -> {
-                        LazyColumn(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(max = 680.dp),
-                            contentPadding = PaddingValues(vertical = 12.dp),
-                        ) {
-                            item {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 20.dp),
-                                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                    ) {
-                                        Text(if (es) "Activado" else "Enabled")
-                                        Switch(
-                                            checked = settings.selectionGestureHotspotEnabled,
-                                            onCheckedChange = onGestureHotspotEnabledChanged,
-                                        )
-                                    }
-
-                                    if (calibratingHotspot) {
-                                        Text(
-                                            if (es) {
-                                                "Arrastra la zona violeta directamente sobre el teclado hasta colocarla donde quieras. Suelta para guardar la posición."
-                                            } else {
-                                                "Drag the violet hotspot directly over the keyboard. Release to save its position."
-                                            },
-                                            style = MaterialTheme.typography.bodyMedium,
-                                        )
-                                        OutlinedTextField(
-                                            value = calibrationText,
-                                            onValueChange = { calibrationText = it },
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .focusRequester(calibrationFocusRequester),
-                                            label = {
-                                                Text(
-                                                    if (es) "Campo de prueba"
-                                                    else "Test field",
-                                                )
-                                            },
-                                            singleLine = true,
-                                        )
-                                        Text(
-                                            if (es) {
-                                                "El teclado debe permanecer abierto mientras posicionas la zona."
-                                            } else {
-                                                "Keep the keyboard open while positioning the hotspot."
-                                            },
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                        Button(
-                                            onClick = {
-                                                calibratingHotspot = false
-                                                keyboardController?.hide()
-                                            },
-                                            modifier = Modifier.fillMaxWidth(),
-                                        ) {
-                                            Text(if (es) "Listo" else "Done")
-                                        }
-                                    } else {
-                                        Text(
-                                            if (es) {
-                                                "La zona es invisible durante el uso normal. Para colocarla con precisión, abre el teclado y arrástrala directamente."
-                                            } else {
-                                                "The hotspot is invisible during normal use. Open the keyboard and drag it directly to position it precisely."
-                                            },
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                        Button(
-                                            onClick = { calibratingHotspot = true },
-                                            modifier = Modifier.fillMaxWidth(),
-                                        ) {
-                                            Text(
-                                                if (es) "Posicionar sobre el teclado"
-                                                else "Position over keyboard",
-                                            )
-                                        }
-                                        OutlinedButton(
-                                            onClick = {
-                                                onGestureHotspotLayoutChanged(
-                                                    SettingsRepository.DEFAULT_SELECTION_GESTURE_X,
-                                                    SettingsRepository.DEFAULT_SELECTION_GESTURE_Y,
-                                                    settings.selectionGestureHotspotWidthFraction,
-                                                    settings.selectionGestureHotspotHeightFraction,
-                                                )
-                                            },
-                                            modifier = Modifier.fillMaxWidth(),
-                                        ) {
-                                            Text(
-                                                if (es) "Restablecer posición sobre Shift"
-                                                else "Reset position over Shift",
-                                            )
-                                        }
-
-                                        HorizontalDivider()
-                                        Text(
-                                            if (es) "Tamaño de la zona" else "Hotspot size",
-                                            style = MaterialTheme.typography.titleSmall,
-                                        )
-                                        Text(if (es) "Ancho" else "Width")
-                                        Slider(
-                                            value = settings.selectionGestureHotspotWidthFraction,
-                                            onValueChange = {
-                                                onGestureHotspotLayoutChanged(
-                                                    settings.selectionGestureHotspotXFraction,
-                                                    settings.selectionGestureHotspotYFraction,
-                                                    it,
-                                                    settings.selectionGestureHotspotHeightFraction,
-                                                )
-                                            },
-                                            valueRange = SettingsRepository.MIN_SELECTION_GESTURE_SIZE..
-                                                SettingsRepository.MAX_SELECTION_GESTURE_SIZE,
-                                        )
-                                        Text(if (es) "Alto" else "Height")
-                                        Slider(
-                                            value = settings.selectionGestureHotspotHeightFraction,
-                                            onValueChange = {
-                                                onGestureHotspotLayoutChanged(
-                                                    settings.selectionGestureHotspotXFraction,
-                                                    settings.selectionGestureHotspotYFraction,
-                                                    settings.selectionGestureHotspotWidthFraction,
-                                                    it,
-                                                )
-                                            },
-                                            valueRange = SettingsRepository.MIN_SELECTION_GESTURE_SIZE..
-                                                SettingsRepository.MAX_SELECTION_GESTURE_SIZE,
-                                        )
-                                        Text(
-                                            if (es) {
-                                                "Un toque corto actúa como Shift. Mantén presionado con el pulgar izquierdo para activar el trackpad invisible; el pulgar derecho puede combinar movimientos horizontales y verticales dentro del mismo gesto."
-                                            } else {
-                                                "A short tap acts as Shift. Hold with your left thumb to arm the invisible trackpad; your right thumb can combine horizontal and vertical movement in the same gesture."
-                                            },
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    }
-                                }
                             }
                         }
                     }
