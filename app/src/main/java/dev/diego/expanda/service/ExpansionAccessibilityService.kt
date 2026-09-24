@@ -22,6 +22,7 @@ import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Path
 import android.graphics.Rect
+import android.graphics.drawable.GradientDrawable
 import android.text.InputType
 import android.text.SpannableString
 import android.text.Spanned
@@ -175,6 +176,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private var selectionGestureHotspot: View? = null
     private var selectionGestureHotspotParams: WindowManager.LayoutParams? = null
     private var selectionGestureHotspotRefresh: Runnable? = null
+    private var selectionGestureCalibrationMode = false
     private val selectionUndoHistory = ArrayDeque<SelectionUndoEntry>()
     private var pendingSmartCursorCase: PendingSmartCursorCase? = null
 
@@ -3613,7 +3615,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
 
     private fun showOrUpdateSelectionGestureHotspot() {
         val settings = settingsRepository.settings.value
-        if (!settings.selectionGestureHotspotEnabled || formOverlay != null) {
+        if ((!settings.selectionGestureHotspotEnabled && !selectionGestureCalibrationMode) || formOverlay != null) {
             hideSelectionGestureHotspot()
             return
         }
@@ -3657,14 +3659,38 @@ class ExpansionAccessibilityService : AccessibilityService() {
         }
 
         val hotspot = FrameLayout(this).apply {
-            background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
+            background = selectionGestureHotspotBackground(selectionGestureCalibrationMode)
             isClickable = true
             isFocusable = false
             contentDescription = localizedSelectionUi(
                 settings,
-                "Selection gesture hotspot",
-                "Zona gestual de selección",
+                if (selectionGestureCalibrationMode) {
+                    "Drag to position selection gesture"
+                } else {
+                    "Selection gesture hotspot"
+                },
+                if (selectionGestureCalibrationMode) {
+                    "Arrastra para posicionar el gesto de selección"
+                } else {
+                    "Zona gestual de selección"
+                },
             )
+            if (selectionGestureCalibrationMode) {
+                addView(
+                    TextView(this@ExpansionAccessibilityService).apply {
+                        text = "↔"
+                        gravity = Gravity.CENTER
+                        setTextColor(Color.WHITE)
+                        textSize = 18f
+                        isClickable = false
+                        isFocusable = false
+                    },
+                    FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                    ),
+                )
+            }
         }
         val newParams = WindowManager.LayoutParams(
             width,
@@ -3680,11 +3706,19 @@ class ExpansionAccessibilityService : AccessibilityService() {
             this.y = y
         }
         hotspot.setOnTouchListener(
-            createSelectionGestureHotspotTouchListener(
-                hotspot = hotspot,
-                windowManager = windowManager,
-                params = newParams,
-            ),
+            if (selectionGestureCalibrationMode) {
+                createSelectionGestureCalibrationTouchListener(
+                    hotspot = hotspot,
+                    windowManager = windowManager,
+                    params = newParams,
+                )
+            } else {
+                createSelectionGestureHotspotTouchListener(
+                    hotspot = hotspot,
+                    windowManager = windowManager,
+                    params = newParams,
+                )
+            },
         )
         runCatching {
             windowManager.addView(hotspot, newParams)
@@ -3694,6 +3728,79 @@ class ExpansionAccessibilityService : AccessibilityService() {
             selectionGestureHotspot = null
             selectionGestureHotspotParams = null
         }
+    }
+
+    private fun selectionGestureHotspotBackground(visible: Boolean): android.graphics.drawable.Drawable {
+        if (!visible) return android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
+        return GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dp(18).toFloat()
+            setColor(0x886750A4.toInt())
+            setStroke(dp(2), 0xFFE8DEF8.toInt())
+        }
+    }
+
+    private fun createSelectionGestureCalibrationTouchListener(
+        hotspot: View,
+        windowManager: WindowManager,
+        params: WindowManager.LayoutParams,
+    ): View.OnTouchListener {
+        var downRawX = 0f
+        var downRawY = 0f
+        var startX = 0
+        var startY = 0
+
+        return View.OnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downRawX = event.rawX
+                    downRawY = event.rawY
+                    startX = params.x
+                    startY = params.y
+                    if (settingsRepository.settings.value.hapticFeedback) vibrateTick()
+                    true
+                }
+
+                MotionEvent.ACTION_MOVE -> {
+                    val ime = inputMethodBounds() ?: return@OnTouchListener true
+                    val nextX = (startX + (event.rawX - downRawX).roundToInt())
+                        .coerceIn(ime.left, (ime.right - params.width).coerceAtLeast(ime.left))
+                    val nextY = (startY + (event.rawY - downRawY).roundToInt())
+                        .coerceIn(ime.top, (ime.bottom - params.height).coerceAtLeast(ime.top))
+                    params.x = nextX
+                    params.y = nextY
+                    runCatching { windowManager.updateViewLayout(hotspot, params) }
+                    true
+                }
+
+                MotionEvent.ACTION_UP -> {
+                    val ime = inputMethodBounds() ?: return@OnTouchListener true
+                    val xFraction = (params.x - ime.left).toFloat() / ime.width().coerceAtLeast(1)
+                    val yFraction = (params.y - ime.top).toFloat() / ime.height().coerceAtLeast(1)
+                    val settings = settingsRepository.settings.value
+                    scope.launch {
+                        settingsRepository.setSelectionGestureHotspotLayout(
+                            xFraction = xFraction,
+                            yFraction = yFraction,
+                            widthFraction = settings.selectionGestureHotspotWidthFraction,
+                            heightFraction = settings.selectionGestureHotspotHeightFraction,
+                        )
+                    }
+                    if (settings.hapticFeedback) vibrateTick()
+                    true
+                }
+
+                MotionEvent.ACTION_CANCEL -> true
+                else -> true
+            }
+        }
+    }
+
+    private fun setSelectionGestureCalibrationMode(enabled: Boolean) {
+        if (selectionGestureCalibrationMode == enabled) return
+        selectionGestureCalibrationMode = enabled
+        hideSelectionGestureHotspot()
+        scheduleSelectionGestureHotspotRefresh(if (enabled) 40L else 90L)
     }
 
     private fun createSelectionGestureHotspotTouchListener(
@@ -7085,6 +7192,14 @@ class ExpansionAccessibilityService : AccessibilityService() {
         private const val VAULT_KEYBOARD_DIALOG_MARGIN_DP = 18
         private const val VAULT_ENTRY_FORM_CONTENT_RATIO = 0.38f
         @Volatile private var activeService: WeakReference<ExpansionAccessibilityService>? = null
+
+        fun requestSelectionGestureCalibration(enabled: Boolean): Boolean {
+            val service = activeService?.get() ?: return false
+            service.mainHandler.post {
+                service.setSelectionGestureCalibrationMode(enabled)
+            }
+            return true
+        }
 
         /** Opens the real overlay for the currently focused editor, without requiring typed characters. */
         fun requestSuggestionOverlay(): Boolean {
