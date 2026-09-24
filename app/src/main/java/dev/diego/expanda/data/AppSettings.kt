@@ -459,7 +459,7 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         const val DEFAULT_SELECTION_TOOLBAR_HEIGHT_DP = 56
         const val MAX_SELECTION_TOOLBAR_QUICK_ACTIONS = 6
         const val DEFAULT_SELECTION_GESTURE_X = 0.015f
-        const val DEFAULT_SELECTION_GESTURE_Y = 0.50f
+        const val DEFAULT_SELECTION_GESTURE_Y = 0.63f
         const val DEFAULT_SELECTION_GESTURE_WIDTH = 0.16f
         const val DEFAULT_SELECTION_GESTURE_HEIGHT = 0.19f
         const val MIN_SELECTION_GESTURE_SIZE = 0.08f
