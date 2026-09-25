@@ -3754,8 +3754,19 @@ class ExpansionAccessibilityService : AccessibilityService() {
         )
 
         val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-        val current = selectionGestureHotspot
-        val params = selectionGestureHotspotParams
+        var current = selectionGestureHotspot
+        var params = selectionGestureHotspotParams
+
+        // SystemUI transitions can detach an accessibility overlay while the
+        // service still holds the Java View reference. Treat a detached view as
+        // absent so the next refresh recreates a live touch target.
+        if (current != null && params != null && !current.isAttachedToWindow) {
+            selectionGestureHotspot = null
+            selectionGestureHotspotParams = null
+            current = null
+            params = null
+        }
+
         if (current != null && params != null) {
             if (params.x != x || params.y != y || params.width != width || params.height != height) {
                 params.x = x
