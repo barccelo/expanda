@@ -176,6 +176,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private var selectionGestureHotspot: View? = null
     private var selectionGestureHotspotParams: WindowManager.LayoutParams? = null
     private var selectionGestureHotspotRefresh: Runnable? = null
+    private var selectionGestureHotspotRefreshAt = 0L
     private var selectionGestureCalibrationMode = false
     private var selectionGestureTrackpad: View? = null
     private var selectionGestureEditor: AccessibilityNodeInfo? = null
@@ -3586,76 +3587,152 @@ class ExpansionAccessibilityService : AccessibilityService() {
 
     private fun vibrateTick() = vibrate(HAPTIC_TICK_MS)
 
-    private fun scheduleSelectionGestureHotspotRefresh(delayMs: Long = 90L) {
-        selectionGestureHotspotRefresh?.let(mainHandler::removeCallbacks)
+    private fun scheduleSelectionGestureHotspotRefresh(
+        delayMs: Long = SELECTION_GESTURE_HOTSPOT_REFRESH_DELAY_MS,
+        retries: Int = SELECTION_GESTURE_HOTSPOT_REFRESH_RETRIES,
+    ) {
+        val targetAt = SystemClock.elapsedRealtime() + delayMs
+        val existing = selectionGestureHotspotRefresh
+
+        // Accessibility can emit a dense stream of focus/window/text events while
+        // the keyboard is opening. Never push an already scheduled refresh farther
+        // into the future; only replace it when the new request is earlier.
+        if (existing != null && selectionGestureHotspotRefreshAt <= targetAt) return
+        if (existing != null) mainHandler.removeCallbacks(existing)
+
         val task = Runnable {
             selectionGestureHotspotRefresh = null
-            showOrUpdateSelectionGestureHotspot()
+            selectionGestureHotspotRefreshAt = 0L
+            val ready = showOrUpdateSelectionGestureHotspot()
+            if (!ready && retries > 0) {
+                scheduleSelectionGestureHotspotRefresh(
+                    delayMs = SELECTION_GESTURE_HOTSPOT_RETRY_MS,
+                    retries = retries - 1,
+                )
+            }
         }
         selectionGestureHotspotRefresh = task
+        selectionGestureHotspotRefreshAt = targetAt
         mainHandler.postDelayed(task, delayMs)
     }
 
     private fun inputMethodBounds(): Rect? {
-        val imeWindow = runCatching { windows }
+        val imeWindows = runCatching { windows }
             .getOrDefault(emptyList())
-            .firstOrNull { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD }
+            .filter { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD }
+
+        // Prefer the active/focused IME window if Android temporarily exposes
+        // more than one during keyboard transitions.
+        val imeWindow = imeWindows
+            .sortedByDescending { window ->
+                (if (window.isFocused) 2 else 0) + (if (window.isActive) 1 else 0)
+            }
+            .firstOrNull()
             ?: return null
+
         return Rect().also(imeWindow::getBoundsInScreen)
             .takeIf { it.width() > 0 && it.height() > 0 }
     }
 
+    private fun isSelectionGestureEditor(node: AccessibilityNodeInfo): Boolean =
+        node.isEditable &&
+            !node.isPassword &&
+            !isPasswordInput(node.inputType)
+
+    private fun findFocusedEditableDescendant(
+        root: AccessibilityNodeInfo,
+    ): AccessibilityNodeInfo? {
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        for (index in 0 until root.childCount) {
+            root.getChild(index)?.let(queue::addLast)
+        }
+
+        while (queue.isNotEmpty()) {
+            val node = queue.removeFirst()
+            if (node.isFocused && isSelectionGestureEditor(node)) {
+                while (queue.isNotEmpty()) {
+                    @Suppress("DEPRECATION")
+                    queue.removeFirst().recycle()
+                }
+                return node
+            }
+
+            for (index in 0 until node.childCount) {
+                node.getChild(index)?.let(queue::addLast)
+            }
+            @Suppress("DEPRECATION")
+            node.recycle()
+        }
+        return null
+    }
+
+    private fun focusedEditableFromRoot(
+        root: AccessibilityNodeInfo,
+    ): AccessibilityNodeInfo? {
+        val focused = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+        if (focused != null) {
+            if (isSelectionGestureEditor(focused)) return focused
+            @Suppress("DEPRECATION")
+            focused.recycle()
+        }
+        return findFocusedEditableDescendant(root)
+    }
+
     private fun findFocusedEditableForSelectionGesture(): AccessibilityNodeInfo? {
         val available = runCatching { windows }.getOrDefault(emptyList())
+
+        // Notification quick replies and other transient editors can belong to a
+        // TYPE_SYSTEM window rather than a normal app window. Search both, giving
+        // the currently focused/active window priority.
         available.asSequence()
-            .filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }
+            .filter {
+                it.type == AccessibilityWindowInfo.TYPE_APPLICATION ||
+                    it.type == AccessibilityWindowInfo.TYPE_SYSTEM
+            }
+            .sortedByDescending { window ->
+                (if (window.isFocused) 2 else 0) + (if (window.isActive) 1 else 0)
+            }
             .forEach { window ->
                 val root = window.root ?: return@forEach
                 try {
-                    val focused = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
-                    if (focused != null) {
-                        val valid = focused.isEditable &&
-                            !focused.isPassword &&
-                            !isPasswordInput(focused.inputType)
-                        if (valid) return focused
-                        @Suppress("DEPRECATION")
-                        focused.recycle()
-                    }
+                    focusedEditableFromRoot(root)?.let { return it }
                 } finally {
                     @Suppress("DEPRECATION")
                     root.recycle()
                 }
             }
 
-        val fallback = rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
-        if (fallback != null) {
-            val valid = fallback.isEditable &&
-                !fallback.isPassword &&
-                !isPasswordInput(fallback.inputType)
-            if (valid) return fallback
+        val root = rootInActiveWindow ?: return null
+        return try {
+            focusedEditableFromRoot(root)
+        } finally {
             @Suppress("DEPRECATION")
-            fallback.recycle()
+            root.recycle()
         }
-        return null
     }
 
-    private fun showOrUpdateSelectionGestureHotspot() {
+    /**
+     * Returns true when the hotspot is in a settled state. False means the
+     * selector is enabled but the IME/window surface is still transitioning and
+     * a short retry is worthwhile.
+     */
+    private fun showOrUpdateSelectionGestureHotspot(): Boolean {
         val settings = settingsRepository.settings.value
-        if ((!settings.selectionGestureHotspotEnabled && !selectionGestureCalibrationMode) || formOverlay != null) {
+        if (
+            (!settings.selectionGestureHotspotEnabled && !selectionGestureCalibrationMode) ||
+            formOverlay != null
+        ) {
             hideSelectionGestureHotspot()
-            return
+            return true
         }
 
+        // Visibility of the button follows the keyboard, not the accessibility
+        // focus. Focus trees can lag behind the IME (notably SystemUI quick reply),
+        // while Shift still needs to behave immediately.
         val imeBounds = inputMethodBounds() ?: run {
             hideSelectionGestureHotspot()
-            return
+            return false
         }
-        val focused = findFocusedEditableForSelectionGesture() ?: run {
-            hideSelectionGestureHotspot()
-            return
-        }
-        @Suppress("DEPRECATION")
-        focused.recycle()
 
         val width = (imeBounds.width() * settings.selectionGestureHotspotWidthFraction)
             .roundToInt()
@@ -3665,10 +3742,16 @@ class ExpansionAccessibilityService : AccessibilityService() {
             .coerceAtLeast(dp(44))
         val x = (
             imeBounds.left + imeBounds.width() * settings.selectionGestureHotspotXFraction
-        ).roundToInt().coerceIn(imeBounds.left, (imeBounds.right - width).coerceAtLeast(imeBounds.left))
+        ).roundToInt().coerceIn(
+            imeBounds.left,
+            (imeBounds.right - width).coerceAtLeast(imeBounds.left),
+        )
         val y = (
             imeBounds.top + imeBounds.height() * settings.selectionGestureHotspotYFraction
-        ).roundToInt().coerceIn(imeBounds.top, (imeBounds.bottom - height).coerceAtLeast(imeBounds.top))
+        ).roundToInt().coerceIn(
+            imeBounds.top,
+            (imeBounds.bottom - height).coerceAtLeast(imeBounds.top),
+        )
 
         val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         val current = selectionGestureHotspot
@@ -3680,8 +3763,12 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 params.width = width
                 params.height = height
                 runCatching { windowManager.updateViewLayout(current, params) }
+                    .onFailure {
+                        hideSelectionGestureHotspot()
+                        return false
+                    }
             }
-            return
+            return true
         }
 
         val hotspot = FrameLayout(this).apply {
@@ -3747,13 +3834,16 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 )
             },
         )
-        runCatching {
+
+        return runCatching {
             windowManager.addView(hotspot, newParams)
             selectionGestureHotspot = hotspot
             selectionGestureHotspotParams = newParams
-        }.onFailure {
+            true
+        }.getOrElse {
             selectionGestureHotspot = null
             selectionGestureHotspotParams = null
+            false
         }
     }
 
@@ -3839,6 +3929,10 @@ class ExpansionAccessibilityService : AccessibilityService() {
         var downX = 0f
         var downY = 0f
         var longPressTask: Runnable? = null
+        var armRetryTask: Runnable? = null
+        var armRetryCount = 0
+        var pointerDown = false
+        var longPressAttempted = false
         var selectorArmed = false
         var movedBeforeActivation = false
 
@@ -3847,8 +3941,14 @@ class ExpansionAccessibilityService : AccessibilityService() {
             longPressTask = null
         }
 
+        fun cancelArmRetry() {
+            armRetryTask?.let(mainHandler::removeCallbacks)
+            armRetryTask = null
+        }
+
         fun disarmSelector(showToolbar: Boolean = false) {
             cancelLongPress()
+            cancelArmRetry()
             if (selectorArmed) {
                 if (showToolbar) {
                     scheduleSelectionToolbarAfterGesture()
@@ -3859,44 +3959,75 @@ class ExpansionAccessibilityService : AccessibilityService() {
             movedBeforeActivation = false
         }
 
-        fun armSelector() {
+        fun scheduleArmRetry(retry: () -> Unit) {
+            if (
+                !pointerDown ||
+                movedBeforeActivation ||
+                selectorArmed ||
+                armRetryCount >= SELECTION_GESTURE_ARM_RETRIES
+            ) {
+                return
+            }
+            armRetryCount++
+            val task = Runnable {
+                armRetryTask = null
+                retry()
+            }
+            armRetryTask = task
+            mainHandler.postDelayed(task, SELECTION_GESTURE_ARM_RETRY_MS)
+        }
+
+        lateinit var armSelector: () -> Unit
+        armSelector = {
             longPressTask = null
-            if (movedBeforeActivation) return
+            if (!pointerDown || movedBeforeActivation || selectorArmed) {
+                Unit
+            } else {
+                longPressAttempted = true
+                val node = findFocusedEditableForSelectionGesture()
+                if (node == null) {
+                    scheduleArmRetry { armSelector() }
+                } else {
+                    val text = editableText(node)
+                    val cursor = node.textSelectionEnd.takeIf { it in 0..text.length }
+                    if (cursor == null) {
+                        @Suppress("DEPRECATION")
+                        node.recycle()
+                        scheduleArmRetry { armSelector() }
+                    } else {
+                        hideSelectionGestureTrackpad()
+                        selectionGestureEditor = node
+                        selectionGestureAnchorCursor = cursor
+                        selectorArmed = true
 
-            hideSelectionGestureTrackpad()
-            val node = findFocusedEditableForSelectionGesture() ?: return
-            val text = editableText(node)
-            val cursor = node.textSelectionEnd.takeIf { it in 0..text.length }
-            if (cursor == null) {
-                @Suppress("DEPRECATION")
-                node.recycle()
-                return
+                        hideSelectionToolbar()
+                        suppressSelectionToolbarUntil =
+                            SystemClock.elapsedRealtime() +
+                                SELECTION_GESTURE_TOOLBAR_SUPPRESSION_MS
+
+                        if (!showSelectionGestureTrackpad()) {
+                            hideSelectionGestureTrackpad()
+                            selectorArmed = false
+                            scheduleSelectionGestureHotspotRefresh(0L)
+                            scheduleArmRetry { armSelector() }
+                        } else if (settingsRepository.settings.value.hapticFeedback) {
+                            vibrateTick()
+                        }
+                    }
+                }
             }
-
-            selectionGestureEditor = node
-            selectionGestureAnchorCursor = cursor
-            selectorArmed = true
-
-            hideSelectionToolbar()
-            suppressSelectionToolbarUntil =
-                SystemClock.elapsedRealtime() + SELECTION_GESTURE_TOOLBAR_SUPPRESSION_MS
-
-            if (!showSelectionGestureTrackpad()) {
-                hideSelectionGestureTrackpad()
-                selectorArmed = false
-                return
-            }
-
-            if (settingsRepository.settings.value.hapticFeedback) vibrateTick()
         }
 
         return View.OnTouchListener { _, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     disarmSelector(showToolbar = false)
+                    pointerDown = true
+                    longPressAttempted = false
+                    armRetryCount = 0
                     downX = event.rawX
                     downY = event.rawY
-                    val task = Runnable(::armSelector)
+                    val task = Runnable { armSelector() }
                     longPressTask = task
                     mainHandler.postDelayed(task, SELECTION_GESTURE_LONG_PRESS_MS)
                     true
@@ -3912,6 +4043,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                         ) {
                             movedBeforeActivation = true
                             cancelLongPress()
+                            cancelArmRetry()
                         }
                     }
                     true
@@ -3919,13 +4051,14 @@ class ExpansionAccessibilityService : AccessibilityService() {
 
                 MotionEvent.ACTION_UP -> {
                     val wasArmed = selectorArmed
+                    pointerDown = false
                     cancelLongPress()
+                    cancelArmRetry()
                     if (wasArmed) {
                         disarmSelector(showToolbar = true)
-                    } else if (!movedBeforeActivation) {
-                        // Exact build-310 behavior: every physical short tap is
-                        // relayed immediately as one Shift tap. A user's fast
-                        // tap-tap therefore reaches Gboard as two independent taps.
+                    } else if (!movedBeforeActivation && !longPressAttempted) {
+                        // Keep the exact build-310 short-tap behavior so native
+                        // Shift double-tap remains reliable.
                         relaySelectionHotspotTap(
                             hotspot = hotspot,
                             windowManager = windowManager,
@@ -3939,6 +4072,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 }
 
                 MotionEvent.ACTION_CANCEL -> {
+                    pointerDown = false
                     disarmSelector(showToolbar = false)
                     true
                 }
@@ -4222,6 +4356,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         hideSelectionGestureTrackpad()
         selectionGestureHotspotRefresh?.let(mainHandler::removeCallbacks)
         selectionGestureHotspotRefresh = null
+        selectionGestureHotspotRefreshAt = 0L
         val view = selectionGestureHotspot
         selectionGestureHotspot = null
         selectionGestureHotspotParams = null
@@ -7408,6 +7543,11 @@ class ExpansionAccessibilityService : AccessibilityService() {
     companion object {
         private const val SELECTION_GESTURE_LONG_PRESS_MS = 330L
         private const val SELECTION_GESTURE_RELAY_TAP_MS = 42L
+        private const val SELECTION_GESTURE_HOTSPOT_REFRESH_DELAY_MS = 16L
+        private const val SELECTION_GESTURE_HOTSPOT_RETRY_MS = 60L
+        private const val SELECTION_GESTURE_HOTSPOT_REFRESH_RETRIES = 8
+        private const val SELECTION_GESTURE_ARM_RETRY_MS = 45L
+        private const val SELECTION_GESTURE_ARM_RETRIES = 8
         private const val SELECTION_GESTURE_CHAR_STEP_DP = 10
         private const val SELECTION_GESTURE_LINE_STEP_DP = 34
         private const val SELECTION_GESTURE_MAX_STEPS_PER_MOVE = 24
