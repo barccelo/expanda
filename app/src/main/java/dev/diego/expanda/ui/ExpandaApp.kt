@@ -74,6 +74,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.TextFields
+import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
@@ -2695,6 +2696,9 @@ private fun SelectionActionGroupSetting(
     val reorderThresholdPx = with(LocalDensity.current) { 32.dp.toPx() }
     val localView = LocalView.current
     val es = usesSpanish(language)
+    val adaptiveButton =
+        groupId == SettingsRepository.SELECTION_CASE_GROUP_ID ||
+            groupId == SettingsRepository.SELECTION_CLIPBOARD_GROUP_ID
 
     Card(
         Modifier
@@ -2723,31 +2727,51 @@ private fun SelectionActionGroupSetting(
                             "Customize the button, order, labels and which options appear.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )            if (adaptiveButton) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Default.TouchApp,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                }
-                TextButton(onClick = onReset) {
-                    Text(if (es) "Restablecer" else "Reset")
-                }
-            }
-
-            OutlinedTextField(
-                value = groupLabelDraft,
-                onValueChange = { value ->
-                    val updated = value.take(SettingsRepository.MAX_SELECTION_GROUP_LABEL_LENGTH)
-                    groupLabelDraft = updated
-                    if (updated.isNotBlank()) {
-                        onChanged(config.copy(label = updated))
-                    }
-                },
-                label = { Text(if (es) "Texto del botón principal" else "Main button label") },
-                supportingText = {
                     Text(
                         if (es)
-                            "Puede ser texto, un carácter o un símbolo."
+                            "El botón muestra la última opción elegida con pulsación larga. Un toque corto repite esa acción."
                         else
-                            "Use text, a character or a symbol.",
+                            "The button shows the last option chosen with a long press. A short tap repeats that action.",
+                        modifier = Modifier.padding(start = 12.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                },
+                }
+            } else {
+                OutlinedTextField(
+                    value = groupLabelDraft,
+                    onValueChange = { value ->
+                        val updated = value.take(SettingsRepository.MAX_SELECTION_GROUP_LABEL_LENGTH)
+                        groupLabelDraft = updated
+                        if (updated.isNotBlank()) {
+                            onChanged(config.copy(label = updated))
+                        }
+                    },
+                    label = { Text(if (es) "Texto del botón principal" else "Main button label") },
+                    supportingText = {
+                        Text(
+                            if (es)
+                                "Puede ser texto, un carácter o un símbolo."
+                            else
+                                "Use text, a character or a symbol.",
+                        )
+                    },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                )
+            }             },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
             )
