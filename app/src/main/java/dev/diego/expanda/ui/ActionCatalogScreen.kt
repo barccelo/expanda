@@ -50,8 +50,10 @@ import dev.diego.expanda.engine.ActionEngine
 fun ActionCatalogScreen(
     enabledIds: Set<String>,
     triggerOverrides: Map<String, List<String>>,
+    suggestionEnabledIds: Set<String>,
     onSetEnabled: (String, Boolean) -> Unit,
     onSetAllEnabled: (Boolean) -> Unit,
+    onSetSuggestionEnabled: (String, Boolean) -> Unit,
     onSetTriggers: (String, List<String>) -> Unit,
     onResetTriggers: (String) -> Unit,
 ) {
@@ -96,7 +98,11 @@ fun ActionCatalogScreen(
                                 definition = definition,
                                 triggers = triggerOverrides[definition.id] ?: definition.triggers,
                                 enabled = definition.id in enabledIds,
+                                suggestionEnabled = definition.id in suggestionEnabledIds,
                                 onSetEnabled = { onSetEnabled(definition.id, it) },
+                                onSetSuggestionEnabled = {
+                                    onSetSuggestionEnabled(definition.id, it)
+                                },
                                 onEdit = { editingAction = definition },
                             )
                         }
@@ -131,7 +137,9 @@ private fun ActionRow(
     definition: ActionDefinition,
     triggers: List<String>,
     enabled: Boolean,
+    suggestionEnabled: Boolean,
     onSetEnabled: (Boolean) -> Unit,
+    onSetSuggestionEnabled: (Boolean) -> Unit,
     onEdit: () -> Unit,
 ) {
     ListItem(
@@ -145,6 +153,19 @@ private fun ActionRow(
         supportingContent = {
             Column {
                 Text(tr(definition.description))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        tr("Show in suggestions", "Mostrar en sugerencias"),
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                    Switch(
+                        checked = suggestionEnabled,
+                        onCheckedChange = onSetSuggestionEnabled,
+                    )
+                }
                 if (definition.supportsSelectedText) {
                     Text(
                         "Also available from Android's selected-text menu",
