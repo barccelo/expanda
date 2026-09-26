@@ -22,6 +22,8 @@ class ActionSettingsStore(context: Context) : SharedPreferences.OnSharedPreferen
     val triggerOverrides: StateFlow<Map<String, List<String>>> = mutableTriggerOverrides.asStateFlow()
     private val mutableShortcutOverrides = MutableStateFlow(readShortcutOverrides())
     val shortcutOverrides: StateFlow<Map<String, String>> = mutableShortcutOverrides.asStateFlow()
+    private val mutableSuggestionEnabledIds = MutableStateFlow(readSuggestionEnabledIds())
+    val suggestionEnabledIds: StateFlow<Set<String>> = mutableSuggestionEnabledIds.asStateFlow()
 
     init { preferences.registerOnSharedPreferenceChangeListener(this) }
 
@@ -47,6 +49,25 @@ class ActionSettingsStore(context: Context) : SharedPreferences.OnSharedPreferen
             .putStringSet(KEY_DISABLED_IDS, disabled)
             .putStringSet(KEY_KNOWN_IDS, knownIds)
             .apply()
+    }
+
+    fun setSuggestionEnabled(id: String, enabled: Boolean) {
+        if (ActionEngine.definitions.none { it.id == id }) return
+        val disabled = preferences.getStringSet(
+            KEY_SUGGESTION_DISABLED_IDS,
+            emptySet(),
+        ).orEmpty().toMutableSet().also {
+            if (enabled) it.remove(id) else it.add(id)
+        }
+        preferences.edit().putStringSet(KEY_SUGGESTION_DISABLED_IDS, disabled).apply()
+    }
+
+    fun setAllSuggestionEnabled(enabled: Boolean) {
+        val knownIds = ActionEngine.definitions.mapTo(linkedSetOf()) { it.id }
+        preferences.edit().putStringSet(
+            KEY_SUGGESTION_DISABLED_IDS,
+            if (enabled) emptySet() else knownIds,
+        ).apply()
     }
 
     fun setTriggers(id: String, triggers: List<String>) {
@@ -100,6 +121,7 @@ class ActionSettingsStore(context: Context) : SharedPreferences.OnSharedPreferen
         mutableEnabledIds.value = readEnabledIds()
         mutableTriggerOverrides.value = readTriggerOverrides()
         mutableShortcutOverrides.value = readShortcutOverrides()
+        mutableSuggestionEnabledIds.value = readSuggestionEnabledIds()
     }
 
     fun reset() {
@@ -107,6 +129,7 @@ class ActionSettingsStore(context: Context) : SharedPreferences.OnSharedPreferen
         mutableEnabledIds.value = readEnabledIds()
         mutableTriggerOverrides.value = readTriggerOverrides()
         mutableShortcutOverrides.value = readShortcutOverrides()
+        mutableSuggestionEnabledIds.value = readSuggestionEnabledIds()
     }
 
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
@@ -117,6 +140,9 @@ class ActionSettingsStore(context: Context) : SharedPreferences.OnSharedPreferen
         ) {
             mutableTriggerOverrides.value = readTriggerOverrides()
             mutableShortcutOverrides.value = readShortcutOverrides()
+        }
+        if (key == KEY_SUGGESTION_DISABLED_IDS) {
+            mutableSuggestionEnabledIds.value = readSuggestionEnabledIds()
         }
     }
 
@@ -228,10 +254,19 @@ class ActionSettingsStore(context: Context) : SharedPreferences.OnSharedPreferen
             triggers.firstOrNull()?.let { id to it }
         }.toMap()
 
+    private fun readSuggestionEnabledIds(): Set<String> {
+        val disabled = preferences.getStringSet(KEY_SUGGESTION_DISABLED_IDS, emptySet()).orEmpty()
+        return ActionEngine.definitions
+            .asSequence()
+            .filter { it.id !in disabled }
+            .mapTo(linkedSetOf()) { it.id }
+    }
+
     companion object {
         private const val FILE_NAME = "action_settings"
         private const val KEY_DISABLED_IDS = "disabled_action_ids"
         private const val KEY_KNOWN_IDS = "known_action_ids"
+        private const val KEY_SUGGESTION_DISABLED_IDS = "suggestion_disabled_action_ids"
         private const val KEY_CAPITALIZE_PREVIOUS_WORD_MIGRATED =
             "capitalize_previous_word_migrated"
         private const val KEY_SHORTCUT_PREFIX = "action_shortcut_"
