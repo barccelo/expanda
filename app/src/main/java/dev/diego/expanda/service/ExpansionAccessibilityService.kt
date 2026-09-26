@@ -976,7 +976,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 )
                 else -> action.description
             }
-            val iconRes = selectionToolbarIcon(action.id)
+            val visualActionId = action.preferredActionId ?: action.id
+            val iconRes = selectionToolbarIcon(visualActionId)
             val button: View = if (iconRes != null) {
                 ImageView(this).apply {
                     setImageResource(iconRes)
@@ -1029,6 +1030,25 @@ class ExpansionAccessibilityService : AccessibilityService() {
                             actionIds = SELECTION_CATALOG_ACTION_IDS,
                             showAll = true,
                         )
+                        action.isGroup && action.id in ADAPTIVE_SELECTION_GROUP_IDS -> {
+                            val preferred = action.preferredActionId
+                            if (
+                                preferred != null &&
+                                preferred in action.groupActionIds &&
+                                selectionGroupActionApplicable(preferred)
+                            ) {
+                                runSelectionTool(preferred)
+                            } else {
+                                showSelectionActionMenu(
+                                    title = action.description,
+                                    actionIds = action.groupActionIds,
+                                    showAll = false,
+                                    actionLabels = action.groupActionLabels,
+                                    rememberGroupId = action.id,
+                                    sourceButton = button,
+                                )
+                            }
+                        }
                         action.isGroup -> showSelectionActionMenu(
                             title = action.description,
                             actionIds = action.groupActionIds,
@@ -1154,15 +1174,21 @@ class ExpansionAccessibilityService : AccessibilityService() {
             when {
                 id in settings.selectionActionGroupConfigs -> {
                     val groupConfig = settings.selectionActionGroupConfigs.getValue(id)
+                    val preferredActionId = groupConfig.preferredActionId
+                        .takeIf { id in ADAPTIVE_SELECTION_GROUP_IDS }
                     SelectionToolbarAction(
                         id = id,
-                        label = groupConfig.label,
+                        label = preferredActionId
+                            ?.let { groupConfig.actionLabels[it] }
+                            ?.takeIf(String::isNotBlank)
+                            ?: groupConfig.label,
                         description = selectionActionGroupDescription(id, settings, groupConfig.label),
                         isGroup = true,
                         groupActionIds = groupConfig.actionOrder.filter {
                             it in groupConfig.enabledActionIds
                         },
                         groupActionLabels = groupConfig.actionLabels,
+                        preferredActionId = preferredActionId,
                     )
                 }
                 id in SELECTION_INTERACTIVE_ACTION_IDS -> SelectionToolbarAction(
@@ -1584,7 +1610,16 @@ class ExpansionAccessibilityService : AccessibilityService() {
                         val index = hoverFor(event.rawX, event.rawY)
                         clearDragMenuState()
                         if (index in actionIds.indices) {
-                            runSelectionTool(actionIds[index])
+                            val selectedActionId = actionIds[index]
+                            if (action.id in ADAPTIVE_SELECTION_GROUP_IDS) {
+                                rememberSelectionGroupAction(
+                                    groupId = action.id,
+                                    actionId = selectedActionId,
+                                    sourceButton = button,
+                                    actionLabels = action.groupActionLabels,
+                                )
+                            }
+                            runSelectionTool(selectedActionId)
                         }
                     } else if (!moved) {
                         button.performClick()
@@ -1606,11 +1641,69 @@ class ExpansionAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun selectionGroupActionApplicable(actionId: String): Boolean {
+        val state = selectionToolbarState ?: return false
+        return when {
+            actionId in SELECTION_CLIPBOARD_ACTION_IDS -> state.selectedText.isNotEmpty()
+            actionId in SELECTION_INTERACTIVE_ACTION_IDS -> state.selectedText.isNotEmpty()
+            else -> actionEngine.processSelectedText(actionId, state.selectedText)
+                ?.let { it != state.selectedText } == true
+        }
+    }
+
+    private fun rememberSelectionGroupAction(
+        groupId: String,
+        actionId: String,
+        sourceButton: View?,
+        actionLabels: Map<String, String>,
+    ) {
+        val currentSettings = settingsRepository.settings.value
+        val currentConfig = currentSettings.selectionActionGroupConfigs[groupId] ?: return
+        if (actionId !in currentConfig.actionOrder) return
+
+        updateAdaptiveGroupButtonVisual(
+            button = sourceButton,
+            actionId = actionId,
+            actionLabels = actionLabels,
+            settings = currentSettings,
+        )
+
+        scope.launch {
+            settingsRepository.setSelectionActionGroupConfig(
+                groupId,
+                currentConfig.copy(preferredActionId = actionId),
+            )
+        }
+    }
+
+    private fun updateAdaptiveGroupButtonVisual(
+        button: View?,
+        actionId: String,
+        actionLabels: Map<String, String>,
+        settings: AppSettings,
+    ) {
+        when (button) {
+            is ImageView -> {
+                selectionToolbarIcon(actionId)?.let { iconRes ->
+                    button.setImageResource(iconRes)
+                    button.setColorFilter(resolveNativeTheme(this, settings).onSurface)
+                }
+            }
+            is TextView -> {
+                button.text = actionLabels[actionId]
+                    ?.takeIf(String::isNotBlank)
+                    ?: selectionQuickLabel(actionId)
+            }
+        }
+    }
+
     private fun showSelectionActionMenu(
         title: String,
         actionIds: List<String>,
         showAll: Boolean,
         actionLabels: Map<String, String> = emptyMap(),
+        rememberGroupId: String? = null,
+        sourceButton: View? = null,
     ) {
         val state = selectionToolbarState ?: return
         val settings = settingsRepository.settings.value
@@ -1676,6 +1769,14 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 }
                 setOnClickListener {
                     hideFormOverlay()
+                    if (rememberGroupId != null && rememberGroupId in ADAPTIVE_SELECTION_GROUP_IDS) {
+                        rememberSelectionGroupAction(
+                            groupId = rememberGroupId,
+                            actionId = actionId,
+                            sourceButton = sourceButton,
+                            actionLabels = actionLabels,
+                        )
+                    }
                     runSelectionTool(actionId)
                 }
             }
@@ -8167,6 +8268,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
             val isGroup: Boolean = false,
             val groupActionIds: List<String> = emptyList(),
             val groupActionLabels: Map<String, String> = emptyMap(),
+            val preferredActionId: String? = null,
         )
 
         private const val SELECTION_UNDO_ID = "__selection_undo__"
@@ -8202,6 +8304,11 @@ class ExpansionAccessibilityService : AccessibilityService() {
             SELECTION_CLIPBOARD_CUT_ID,
             SELECTION_CLIPBOARD_COPY_ID,
             SELECTION_CLIPBOARD_PASTE_ID,
+        )
+
+        private val ADAPTIVE_SELECTION_GROUP_IDS = setOf(
+            SettingsRepository.SELECTION_CASE_GROUP_ID,
+            SettingsRepository.SELECTION_CLIPBOARD_GROUP_ID,
         )
 
         private val SELECTION_CONTEXT_ACTION_IDS = listOf(
