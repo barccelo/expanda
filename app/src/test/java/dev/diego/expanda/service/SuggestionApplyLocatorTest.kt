@@ -39,6 +39,17 @@ class SuggestionApplyLocatorTest {
         assertEquals(SuggestionApplyLocator.Range(6, 9, ";ec"), range)
     }
 
+    @Test fun `explicit matched text is consumed even when suggestion trigger is longer`() {
+        val range = SuggestionApplyLocator.locate(
+            text = "hello xcr",
+            cursor = 9,
+            trigger = "xcristinabucete",
+            browseMode = false,
+            matchedText = "xcr",
+        )
+        assertEquals(SuggestionApplyLocator.Range(6, 9, "xcr"), range)
+    }
+
     @Test fun `browse mode inserts trigger at cursor without replacing anything`() {
         val range = SuggestionApplyLocator.locate(
             text = "hello ",
