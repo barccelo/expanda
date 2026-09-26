@@ -976,95 +976,105 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 )
                 else -> action.description
             }
-            val button = ui.body(action.label, sizeSp = actionTextSize).apply {
-                gravity = Gravity.CENTER
-                setPadding(dp(2), 0, dp(2), 0)
-                background = ui.surface(10)
-                isEnabled = enabled
-                isClickable = enabled
-                isFocusable = enabled
-                alpha = if (enabled) 1f else 0.36f
-                maxLines = 1
-                contentDescription = accessibleDescription
-                selectionToolbarIcon(action.id)?.let { iconRes ->
-                    val drawable = getDrawable(iconRes)?.mutate()?.apply {
-                        setTint(ui.theme.onSurface)
-                    }
-                    text = ""
-                    setCompoundDrawablesWithIntrinsicBounds(drawable, null, null, null)
-                    compoundDrawablePadding = 0
+            val iconRes = selectionToolbarIcon(action.id)
+            val button: View = if (iconRes != null) {
+                ImageView(this).apply {
+                    setImageResource(iconRes)
+                    setColorFilter(ui.theme.onSurface)
+                    scaleType = ImageView.ScaleType.CENTER
+                    background = ui.surface(10)
+                    setPadding(0, 0, 0, 0)
                 }
-                if (action.id == SELECTION_MORE_MENU_ID && moreButtonCloseMode) {
-                    text = "×"
-                    contentDescription = localizedSelectionUi(
-                        settings,
-                        "Close editing toolbar. Long press for all tools.",
-                        "Cerrar barra de edición. Mantén pulsado para todas las herramientas.",
-                    )
+            } else {
+                ui.body(action.label, sizeSp = actionTextSize).apply {
+                    gravity = Gravity.CENTER
+                    setPadding(dp(2), 0, dp(2), 0)
+                    background = ui.surface(10)
+                    maxLines = 1
+                    if (action.id == SELECTION_MORE_MENU_ID && moreButtonCloseMode) {
+                        text = "×"
+                    }
                 }
-                if (enabled) {
-                    setOnClickListener {
-                        when {
-                            action.id == SELECTION_UNDO_ID -> undoSelectionToolbarAction()
-                            action.id == SELECTION_TRANSFORMS_MENU_ID -> showSelectionActionMenu(
-                                title = selectionUiText(settings, "suggested"),
-                                actionIds = SELECTION_CONTEXT_ACTION_IDS,
-                                showAll = false,
-                            )
-                            action.id == SELECTION_MORE_MENU_ID && moreButtonCloseMode ->
-                                hideSelectionToolbar()
-                            action.id == SELECTION_MORE_MENU_ID -> showSelectionActionMenu(
-                                title = selectionUiText(settings, "all_tools"),
-                                actionIds = SELECTION_CATALOG_ACTION_IDS,
-                                showAll = true,
-                            )
-                            action.isGroup -> showSelectionActionMenu(
-                                title = action.description,
-                                actionIds = action.groupActionIds,
-                                showAll = false,
-                                actionLabels = action.groupActionLabels,
-                            )
-                            action.id in SELECTION_INTERACTIVE_ACTION_IDS ||
-                                action.id in SELECTION_CLIPBOARD_ACTION_IDS ->
-                                runSelectionTool(action.id)
-                            else -> applySelectionToolbarAction(action.id)
-                        }
-                    }
-                    if (action.id == SELECTION_MORE_MENU_ID) {
-                        setOnLongClickListener {
-                            moreButtonCloseMode = !moreButtonCloseMode
-                            scope.launch {
-                                settingsRepository.setSelectionToolbarMoreButtonCloseMode(
-                                    moreButtonCloseMode,
-                                )
-                            }
-                            text = if (moreButtonCloseMode) "×" else "⋯"
-                            contentDescription = if (moreButtonCloseMode) {
-                                localizedSelectionUi(
-                                    settings,
-                                    "Close editing toolbar. Long press for all tools.",
-                                    "Cerrar barra de edición. Mantén pulsado para todas las herramientas.",
-                                )
-                            } else {
-                                localizedSelectionUi(
-                                    settings,
-                                    "All tools. Long press to show close.",
-                                    "Todas las herramientas. Mantén pulsado para mostrar cerrar.",
-                                )
-                            }
-                            if (settings.hapticFeedback) vibrateTick()
-                            true
-                        }
-                    }
-                    if (action.isGroup) {
-                        setOnTouchListener(
-                            createSelectionToolbarGroupGestureListener(
-                                button = this,
-                                action = action,
-                                settings = settings,
-                            ),
+            }
+
+            button.isEnabled = enabled
+            button.isClickable = enabled
+            button.isFocusable = enabled
+            button.alpha = if (enabled) 1f else 0.36f
+            button.contentDescription = if (
+                action.id == SELECTION_MORE_MENU_ID && moreButtonCloseMode
+            ) {
+                localizedSelectionUi(
+                    settings,
+                    "Close editing toolbar. Long press for all tools.",
+                    "Cerrar barra de edición. Mantén pulsado para todas las herramientas.",
+                )
+            } else {
+                accessibleDescription
+            }
+
+            if (enabled) {
+                button.setOnClickListener {
+                    when {
+                        action.id == SELECTION_UNDO_ID -> undoSelectionToolbarAction()
+                        action.id == SELECTION_TRANSFORMS_MENU_ID -> showSelectionActionMenu(
+                            title = selectionUiText(settings, "suggested"),
+                            actionIds = SELECTION_CONTEXT_ACTION_IDS,
+                            showAll = false,
                         )
+                        action.id == SELECTION_MORE_MENU_ID && moreButtonCloseMode ->
+                            hideSelectionToolbar()
+                        action.id == SELECTION_MORE_MENU_ID -> showSelectionActionMenu(
+                            title = selectionUiText(settings, "all_tools"),
+                            actionIds = SELECTION_CATALOG_ACTION_IDS,
+                            showAll = true,
+                        )
+                        action.isGroup -> showSelectionActionMenu(
+                            title = action.description,
+                            actionIds = action.groupActionIds,
+                            showAll = false,
+                            actionLabels = action.groupActionLabels,
+                        )
+                        action.id in SELECTION_INTERACTIVE_ACTION_IDS ||
+                            action.id in SELECTION_CLIPBOARD_ACTION_IDS ->
+                            runSelectionTool(action.id)
+                        else -> applySelectionToolbarAction(action.id)
                     }
+                }
+                if (action.id == SELECTION_MORE_MENU_ID && button is TextView) {
+                    button.setOnLongClickListener {
+                        moreButtonCloseMode = !moreButtonCloseMode
+                        scope.launch {
+                            settingsRepository.setSelectionToolbarMoreButtonCloseMode(
+                                moreButtonCloseMode,
+                            )
+                        }
+                        button.text = if (moreButtonCloseMode) "×" else "⋯"
+                        button.contentDescription = if (moreButtonCloseMode) {
+                            localizedSelectionUi(
+                                settings,
+                                "Close editing toolbar. Long press for all tools.",
+                                "Cerrar barra de edición. Mantén pulsado para todas las herramientas.",
+                            )
+                        } else {
+                            localizedSelectionUi(
+                                settings,
+                                "All tools. Long press to show close.",
+                                "Todas las herramientas. Mantén pulsado para mostrar cerrar.",
+                            )
+                        }
+                        if (settings.hapticFeedback) vibrateTick()
+                        true
+                    }
+                }
+                if (action.isGroup) {
+                    button.setOnTouchListener(
+                        createSelectionToolbarGroupGestureListener(
+                            button = button,
+                            action = action,
+                            settings = settings,
+                        ),
+                    )
                 }
             }
             container.addView(
@@ -1279,7 +1289,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         var dragMenuActive = false
         var longPressTask: Runnable? = null
         var menuScreenBounds: Rect? = null
-        var optionViews: List<TextView> = emptyList()
+        var optionViews: List<View> = emptyList()
         var hoveredIndex = -1
         var menuColumns = 1
         var menuRows = 1
@@ -1367,7 +1377,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 elevation = dp(10).toFloat()
             }
 
-            val builtViews = mutableListOf<TextView>()
+            val builtViews = mutableListOf<View>()
             actionIds.chunked(menuColumns).forEach { rowActionIds ->
                 val row = LinearLayout(this).apply {
                     orientation = LinearLayout.HORIZONTAL
@@ -1381,31 +1391,39 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     ),
                 )
                 rowActionIds.forEachIndexed { columnIndex, actionId ->
-                    val option = ui.body(
-                        action.groupActionLabels[actionId] ?: selectionQuickLabel(actionId),
-                        sizeSp = when {
-                            optionWidth < dp(44) -> 11.5f
-                            optionWidth < dp(52) -> 12.5f
-                            else -> 14f
-                        },
-                    ).apply {
-                        gravity = Gravity.CENTER
-                        maxLines = 1
-                        ellipsize = TextUtils.TruncateAt.END
-                        alpha = 0.82f
-                        background = ui.surface(10)
-                        contentDescription = selectionActionTitle(
-                            actionId,
-                            settings,
-                            ActionEngine.definitions.firstOrNull { it.id == actionId }?.title.orEmpty(),
-                        )
-                        selectionToolbarIcon(actionId)?.let { iconRes ->
-                            val drawable = getDrawable(iconRes)?.mutate()?.apply {
-                                setTint(ui.theme.onSurface)
-                            }
-                            text = ""
-                            setCompoundDrawablesWithIntrinsicBounds(drawable, null, null, null)
-                            compoundDrawablePadding = 0
+                    val optionIconRes = selectionToolbarIcon(actionId)
+                    val option: View = if (optionIconRes != null) {
+                        ImageView(this).apply {
+                            setImageResource(optionIconRes)
+                            setColorFilter(ui.theme.onSurface)
+                            scaleType = ImageView.ScaleType.CENTER
+                            background = ui.surface(10)
+                            alpha = 0.82f
+                            contentDescription = selectionActionTitle(
+                                actionId,
+                                settings,
+                                ActionEngine.definitions.firstOrNull { it.id == actionId }?.title.orEmpty(),
+                            )
+                        }
+                    } else {
+                        ui.body(
+                            action.groupActionLabels[actionId] ?: selectionQuickLabel(actionId),
+                            sizeSp = when {
+                                optionWidth < dp(44) -> 11.5f
+                                optionWidth < dp(52) -> 12.5f
+                                else -> 14f
+                            },
+                        ).apply {
+                            gravity = Gravity.CENTER
+                            maxLines = 1
+                            ellipsize = TextUtils.TruncateAt.END
+                            alpha = 0.82f
+                            background = ui.surface(10)
+                            contentDescription = selectionActionTitle(
+                                actionId,
+                                settings,
+                                ActionEngine.definitions.firstOrNull { it.id == actionId }?.title.orEmpty(),
+                            )
                         }
                     }
                     builtViews += option
