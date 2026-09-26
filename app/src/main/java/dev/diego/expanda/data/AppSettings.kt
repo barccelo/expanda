@@ -126,6 +126,23 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
                         normalizeToolbarQuickActions(migrated).joinToString(SEPARATOR)
                     values[Keys.SELECTION_WRAP_GROUP_MIGRATED] = true
                 }
+                if (values[Keys.SELECTION_CLIPBOARD_GROUP_MIGRATED] != true) {
+                    val current = values[Keys.SELECTION_TOOLBAR_QUICK_ACTIONS]
+                        ?.split(SEPARATOR)
+                        ?.let(::normalizeToolbarQuickActions)
+                        ?: DEFAULT_SELECTION_TOOLBAR_QUICK_ACTIONS
+                    val migrated = if (
+                        SELECTION_CLIPBOARD_GROUP_ID !in current &&
+                        current.size < MAX_SELECTION_TOOLBAR_QUICK_ACTIONS
+                    ) {
+                        current + SELECTION_CLIPBOARD_GROUP_ID
+                    } else {
+                        current
+                    }
+                    values[Keys.SELECTION_TOOLBAR_QUICK_ACTIONS] =
+                        normalizeToolbarQuickActions(migrated).joinToString(SEPARATOR)
+                    values[Keys.SELECTION_CLIPBOARD_GROUP_MIGRATED] = true
+                }
             }
         }
     }
@@ -386,6 +403,8 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         val SELECTION_GESTURE_HOTSPOT_HEIGHT = floatPreferencesKey("selection_gesture_hotspot_height")
         val SELECTION_ACTION_GROUP_CONFIGS = stringPreferencesKey("selection_action_group_configs")
         val SELECTION_WRAP_GROUP_MIGRATED = booleanPreferencesKey("selection_wrap_group_migrated")
+        val SELECTION_CLIPBOARD_GROUP_MIGRATED =
+            booleanPreferencesKey("selection_clipboard_group_migrated")
         val DISPLAY_LANGUAGE = stringPreferencesKey("display_language")
         val SUGGESTION_SHOW_ACTIONS = booleanPreferencesKey("suggestion_show_actions")
         val SUGGESTION_SHOW_VAULT = booleanPreferencesKey("suggestion_show_vault")
@@ -467,6 +486,7 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         const val MAX_SELECTION_GROUP_LABEL_LENGTH = 12
         const val SELECTION_CASE_GROUP_ID = "case_group"
         const val SELECTION_WRAP_GROUP_ID = "wrap_group"
+        const val SELECTION_CLIPBOARD_GROUP_ID = "clipboard_group"
         val DEFAULT_SELECTION_CASE_GROUP_CONFIG = SelectionActionGroupConfig(
             label = "AaA",
             actionOrder = listOf(
@@ -518,13 +538,33 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
                 "wrap_double_underscore" to "__ __",
             ),
         )
+        val DEFAULT_SELECTION_CLIPBOARD_GROUP_CONFIG = SelectionActionGroupConfig(
+            label = "⧉",
+            actionOrder = listOf(
+                "clipboard_cut",
+                "clipboard_copy",
+                "clipboard_paste",
+            ),
+            enabledActionIds = setOf(
+                "clipboard_cut",
+                "clipboard_copy",
+                "clipboard_paste",
+            ),
+            actionLabels = mapOf(
+                "clipboard_cut" to "✂",
+                "clipboard_copy" to "⧉",
+                "clipboard_paste" to "▣",
+            ),
+        )
         val DEFAULT_SELECTION_ACTION_GROUP_CONFIGS = mapOf(
             SELECTION_CASE_GROUP_ID to DEFAULT_SELECTION_CASE_GROUP_CONFIG,
             SELECTION_WRAP_GROUP_ID to DEFAULT_SELECTION_WRAP_GROUP_CONFIG,
+            SELECTION_CLIPBOARD_GROUP_ID to DEFAULT_SELECTION_CLIPBOARD_GROUP_CONFIG,
         )
         val AVAILABLE_SELECTION_ACTION_GROUP_ACTIONS = mapOf(
             SELECTION_CASE_GROUP_ID to DEFAULT_SELECTION_CASE_GROUP_CONFIG.actionOrder,
             SELECTION_WRAP_GROUP_ID to DEFAULT_SELECTION_WRAP_GROUP_CONFIG.actionOrder,
+            SELECTION_CLIPBOARD_GROUP_ID to DEFAULT_SELECTION_CLIPBOARD_GROUP_CONFIG.actionOrder,
         )
         private val LEGACY_SELECTION_CASE_ACTION_IDS = setOf(
             "uppercase",
@@ -533,10 +573,15 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
             "title_case",
         )
         val DEFAULT_SELECTION_TOOLBAR_QUICK_ACTIONS =
-            listOf(SELECTION_CASE_GROUP_ID, SELECTION_WRAP_GROUP_ID)
+            listOf(
+                SELECTION_CASE_GROUP_ID,
+                SELECTION_WRAP_GROUP_ID,
+                SELECTION_CLIPBOARD_GROUP_ID,
+            )
         val AVAILABLE_SELECTION_TOOLBAR_QUICK_ACTIONS = listOf(
             SELECTION_CASE_GROUP_ID,
             SELECTION_WRAP_GROUP_ID,
+            SELECTION_CLIPBOARD_GROUP_ID,
             "find_replace",
             "sort_lines",
             "text_counter",
