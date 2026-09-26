@@ -479,6 +479,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             enabledIds = actionSettingsStore.enabledIds.value,
             shortcutOverrides = actionSettingsStore.shortcutOverrides.value,
             triggerOverrides = actionSettingsStore.triggerOverrides.value,
+            suggestionEnabledIds = actionSettingsStore.suggestionEnabledIds.value,
         ),
         sourceRepository.files.value,
     )
