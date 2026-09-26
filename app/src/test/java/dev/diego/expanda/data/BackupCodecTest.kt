@@ -31,6 +31,7 @@ class BackupCodecTest {
                 "uppercase" to "MAY",
                 "title_case" to "Tit",
             ),
+            preferredActionId = "uppercase",
         )
         val settings = AppSettings(
             themeMode = ThemeMode.AMOLED,
