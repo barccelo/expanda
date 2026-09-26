@@ -52,6 +52,9 @@ fun SuggestionSettingsPanel(
     snippetSuggestionCount: Int? = null,
     snippetCount: Int? = null,
     onConfigureSnippetSuggestions: (() -> Unit)? = null,
+    actionSuggestionCount: Int? = null,
+    actionCount: Int? = null,
+    onConfigureActionSuggestions: (() -> Unit)? = null,
     onMatchFromBeginningChanged: (Boolean) -> Unit = {},
     onWidthPreviewChanged: (Float) -> Unit = {},
     onHeightPreviewChanged: (Int) -> Unit = {},
@@ -73,6 +76,27 @@ fun SuggestionSettingsPanel(
                     supportingContent = { Text(tr("Include enabled actions alongside text snippets")) },
                     trailingContent = { Switch(settings.suggestionShowActions, onShowActionsChanged) },
                 )
+                if (
+                    actionSuggestionCount != null &&
+                    actionCount != null &&
+                    onConfigureActionSuggestions != null
+                ) {
+                    ListItem(
+                        headlineContent = { Text(tr("Action suggestions", "Sugerencias de Actions")) },
+                        leadingContent = { Icon(Icons.Default.Bolt, null) },
+                        supportingContent = {
+                            Text(tr(
+                                "$actionSuggestionCount of $actionCount actions",
+                                "$actionSuggestionCount de $actionCount Actions",
+                            ))
+                        },
+                        trailingContent = {
+                            TextButton(onClick = onConfigureActionSuggestions) {
+                                Text(tr("Configure", "Configurar"))
+                            }
+                        },
+                    )
+                }
                 ListItem(
                     headlineContent = { Text(tr("Vault in suggestions", "Bóveda en sugerencias")) },
                     leadingContent = { Icon(Icons.Default.Lightbulb, null) },
