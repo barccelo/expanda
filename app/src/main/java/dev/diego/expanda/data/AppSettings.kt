@@ -729,7 +729,6 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
                 ?: defaultConfig.label
             val preferredActionId = config.preferredActionId
                 ?.takeIf { it in available }
-                ?: defaultConfig.preferredActionId?.takeIf { it in available }
             return SelectionActionGroupConfig(
                 label = label,
                 actionOrder = order,
