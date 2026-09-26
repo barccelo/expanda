@@ -8,6 +8,7 @@ data class VaultField(
     val label: String,
     val value: String,
     val sensitive: Boolean = false,
+    val triggers: List<String> = emptyList(),
 )
 
 data class VaultCategory(
@@ -40,7 +41,15 @@ data class VaultEntry(
     val updatedAt: Long = System.currentTimeMillis(),
 ) {
     fun normalized(): VaultEntry {
-        val normalizedFields = fields.filter { it.label.isNotBlank() || it.value.isNotEmpty() }
+        val normalizedFields = fields
+            .filter { it.label.isNotBlank() || it.value.isNotEmpty() }
+            .map { field ->
+                field.copy(
+                    triggers = field.triggers
+                        .filter(String::isNotBlank)
+                        .distinctBy { if (caseSensitive) it else it.lowercase(Locale.ROOT) },
+                )
+            }
         val validFieldIds = normalizedFields.mapTo(linkedSetOf(), VaultField::id)
         val normalizedCopySelection = preferredCopyFieldIds
             ?.filter { it in validFieldIds }
