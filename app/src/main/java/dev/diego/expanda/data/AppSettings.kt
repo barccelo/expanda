@@ -63,6 +63,8 @@ data class AppSettings(
     val selectionToolbarHeightDp: Int = SettingsRepository.DEFAULT_SELECTION_TOOLBAR_HEIGHT_DP,
     /** Ordered quick actions shown directly between Undo and the two menu buttons. */
     val selectionToolbarQuickActionIds: List<String> = SettingsRepository.DEFAULT_SELECTION_TOOLBAR_QUICK_ACTIONS,
+    /** Remembers whether the trailing toolbar button last showed Close or All tools. */
+    val selectionToolbarMoreButtonCloseMode: Boolean = false,
     /** Long-press hotspot over the IME for horizontal text selection. */
     val selectionGestureHotspotEnabled: Boolean = true,
     /** Hotspot geometry as fractions of the current input-method window. */
@@ -185,6 +187,8 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
             selectionToolbarQuickActionIds = decodeToolbarQuickActions(
                 values[Keys.SELECTION_TOOLBAR_QUICK_ACTIONS],
             ),
+            selectionToolbarMoreButtonCloseMode =
+                values[Keys.SELECTION_TOOLBAR_MORE_CLOSE_MODE] ?: false,
             selectionGestureHotspotEnabled =
                 values[Keys.SELECTION_GESTURE_HOTSPOT_ENABLED] ?: true,
             selectionGestureHotspotXFraction = (
@@ -286,6 +290,9 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
     suspend fun setSelectionToolbarQuickActionIds(ids: List<String>) = store.edit {
         val normalized = normalizeToolbarQuickActions(ids)
         it[Keys.SELECTION_TOOLBAR_QUICK_ACTIONS] = normalized.joinToString(SEPARATOR)
+    }
+    suspend fun setSelectionToolbarMoreButtonCloseMode(closeMode: Boolean) = store.edit {
+        it[Keys.SELECTION_TOOLBAR_MORE_CLOSE_MODE] = closeMode
     }
     suspend fun setSelectionGestureHotspotEnabled(enabled: Boolean) = store.edit {
         it[Keys.SELECTION_GESTURE_HOTSPOT_ENABLED] = enabled
@@ -396,6 +403,8 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         val SELECTION_TOOLBAR_WIDTH = floatPreferencesKey("selection_toolbar_width_fraction")
         val SELECTION_TOOLBAR_HEIGHT_DP = intPreferencesKey("selection_toolbar_height_dp")
         val SELECTION_TOOLBAR_QUICK_ACTIONS = stringPreferencesKey("selection_toolbar_quick_actions")
+        val SELECTION_TOOLBAR_MORE_CLOSE_MODE =
+            booleanPreferencesKey("selection_toolbar_more_close_mode")
         val SELECTION_GESTURE_HOTSPOT_ENABLED = booleanPreferencesKey("selection_gesture_hotspot_enabled")
         val SELECTION_GESTURE_HOTSPOT_X = floatPreferencesKey("selection_gesture_hotspot_x")
         val SELECTION_GESTURE_HOTSPOT_Y = floatPreferencesKey("selection_gesture_hotspot_y")
@@ -444,6 +453,8 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         values[Keys.SELECTION_TOOLBAR_QUICK_ACTIONS] =
             normalizeToolbarQuickActions(snapshot.selectionToolbarQuickActionIds)
                 .joinToString(SEPARATOR)
+        values[Keys.SELECTION_TOOLBAR_MORE_CLOSE_MODE] =
+            snapshot.selectionToolbarMoreButtonCloseMode
         values[Keys.SELECTION_GESTURE_HOTSPOT_ENABLED] = snapshot.selectionGestureHotspotEnabled
         values[Keys.SELECTION_ACTION_GROUP_CONFIGS] =
             encodeSelectionActionGroupConfigs(snapshot.selectionActionGroupConfigs)
@@ -534,7 +545,7 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
                 "wrap_question" to "¿ ?",
                 "wrap_exclamation" to "¡ !",
                 "wrap_brackets" to "[ ]",
-                "wrap_double_asterisk" to "** **",
+                "wrap_double_asterisk" to "* *",
                 "wrap_double_underscore" to "__ __",
             ),
         )
