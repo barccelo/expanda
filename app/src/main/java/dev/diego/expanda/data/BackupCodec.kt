@@ -196,6 +196,7 @@ object BackupCodec {
                 put("actionLabels", JSONObject().apply {
                     config.actionLabels.forEach { (actionId, label) -> put(actionId, label) }
                 })
+                config.preferredActionId?.let { put("preferredActionId", it) }
             })
         }
     }
@@ -232,6 +233,9 @@ object BackupCodec {
                     actionOrder = order,
                     enabledActionIds = enabled,
                     actionLabels = labels,
+                    preferredActionId = groupJson.optString("preferredActionId")
+                        .takeIf(String::isNotBlank)
+                        ?: defaults.preferredActionId,
                 ),
             ) ?: defaults
         }
