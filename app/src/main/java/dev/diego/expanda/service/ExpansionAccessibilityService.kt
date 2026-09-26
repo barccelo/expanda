@@ -489,7 +489,16 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     lastAppliedText = action.text
                     lastAppliedAt = SystemClock.elapsedRealtime()
                     handleActionRequest(action.request, action.text)
-                    performClipboardActionHaptic(action.definition.id, settings)
+                    val actionCommandStart =
+                        (cursor - action.matchedTrigger.length).coerceAtLeast(0)
+                    armPreviousWordCaseActionUndo(
+                        node = node,
+                        packageName = packageName,
+                        outcome = action,
+                        restoredText = text.removeRange(actionCommandStart, cursor),
+                        restoredCursor = actionCommandStart,
+                    )
+                    performActionHaptic(action.definition.id, settings)
                     if (selectionAction) {
                         scheduleSelectionToolbarFromOutcome(
                             anchor = activeAnchor,
@@ -2401,11 +2410,37 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private fun isClipboardInsertAction(actionId: String): Boolean =
         actionId == "paste" || actionId == "paste_numbers" || actionId == "clipboard_history"
 
-    private fun performClipboardActionHaptic(actionId: String, settings: AppSettings) {
+    private fun performActionHaptic(actionId: String, settings: AppSettings) {
+        if (!settings.hapticFeedback) return
         val isClipboardAction = ActionEngine.definitions
             .firstOrNull { it.id == actionId }
             ?.category == ActionCategory.CLIPBOARD
-        if (isClipboardAction && settings.hapticFeedback) vibrateTick()
+        if (isClipboardAction || actionId in PREVIOUS_WORD_CASE_ACTION_IDS) {
+            vibrateTick()
+        }
+    }
+
+    private fun armPreviousWordCaseActionUndo(
+        node: AccessibilityNodeInfo,
+        packageName: String,
+        outcome: ActionOutcome,
+        restoredText: String,
+        restoredCursor: Int,
+    ) {
+        if (outcome.definition.id !in PREVIOUS_WORD_CASE_ACTION_IDS) return
+        if (outcome.text == restoredText) {
+            reversibleExpansion = null
+            return
+        }
+        reversibleExpansion = ReversibleExpansion(
+            anchor = createSuggestionAnchor(node, packageName),
+            appliedText = outcome.text,
+            appliedCursor = outcome.selectionEnd.coerceIn(0, outcome.text.length),
+            restoredText = restoredText,
+            restoredCursor = restoredCursor.coerceIn(0, restoredText.length),
+            matchId = PREVIOUS_WORD_CASE_UNDO_MATCH_ID,
+            matchedText = outcome.matchedTrigger,
+        )
     }
 
     private fun renderMatch(
@@ -2747,7 +2782,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 lastAppliedText = outcome.text
                 lastAppliedAt = SystemClock.elapsedRealtime()
                 handleActionRequest(outcome.request, outcome.text)
-                performClipboardActionHaptic(retry.actionId, retry.settings)
+                performActionHaptic(retry.actionId, retry.settings)
             }
         } finally {
             @Suppress("DEPRECATION")
@@ -7182,7 +7217,14 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 lastAppliedText = outcome.text
                 lastAppliedAt = SystemClock.elapsedRealtime()
                 handleActionRequest(outcome.request, outcome.text)
-                performClipboardActionHaptic(definition.id, currentSettings)
+                armPreviousWordCaseActionUndo(
+                    node = node,
+                    packageName = node.packageName?.toString().orEmpty(),
+                    outcome = outcome,
+                    restoredText = originalText.removeRange(commandStart, commandEnd),
+                    restoredCursor = commandStart,
+                )
+                performActionHaptic(definition.id, currentSettings)
                 if (selectionAction) {
                     scheduleSelectionToolbarFromOutcome(
                         anchor = anchor,
@@ -7787,6 +7829,13 @@ class ExpansionAccessibilityService : AccessibilityService() {
         private const val MAX_SELECTION_UNDO_HISTORY = 10
         private const val HAPTIC_TICK_MS = 10L
         private const val HAPTIC_CONFIRM_MS = 25L
+        private const val PREVIOUS_WORD_CASE_UNDO_MATCH_ID = Long.MIN_VALUE
+
+        private val PREVIOUS_WORD_CASE_ACTION_IDS = setOf(
+            "uppercase_previous_word",
+            "lowercase_previous_word",
+            "capitalize_previous_word",
+        )
 
         private val SELECTION_INTERACTIVE_ACTION_IDS = setOf(
             SELECTION_FIND_REPLACE_ID,
