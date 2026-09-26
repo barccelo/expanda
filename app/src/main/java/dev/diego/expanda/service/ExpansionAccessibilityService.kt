@@ -976,6 +976,14 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 alpha = if (enabled) 1f else 0.36f
                 maxLines = 1
                 contentDescription = accessibleDescription
+                selectionToolbarIcon(action.id)?.let { iconRes ->
+                    val drawable = getDrawable(iconRes)?.mutate()?.apply {
+                        setTint(ui.theme.onSurface)
+                    }
+                    text = ""
+                    setCompoundDrawablesWithIntrinsicBounds(drawable, null, null, null)
+                    compoundDrawablePadding = 0
+                }
                 if (action.id == SELECTION_MORE_MENU_ID && moreButtonCloseMode) {
                     text = "×"
                     contentDescription = localizedSelectionUi(
@@ -1194,6 +1202,15 @@ class ExpansionAccessibilityService : AccessibilityService() {
         else -> fallback
     }
 
+    private fun selectionToolbarIcon(id: String): Int? = when (id) {
+        SELECTION_TRANSFORMS_MENU_ID -> R.drawable.ic_sparkles_fine
+        SettingsRepository.SELECTION_CLIPBOARD_GROUP_ID -> R.drawable.ic_clipboard_fine
+        SELECTION_CLIPBOARD_CUT_ID -> R.drawable.ic_cut_fine
+        SELECTION_CLIPBOARD_COPY_ID -> R.drawable.ic_copy_fine
+        SELECTION_CLIPBOARD_PASTE_ID -> R.drawable.ic_paste_fine
+        else -> null
+    }
+
     private fun selectionQuickLabel(id: String): String = when (id) {
         "uppercase" -> "ABC"
         "lowercase" -> "abc"
@@ -1372,6 +1389,14 @@ class ExpansionAccessibilityService : AccessibilityService() {
                             settings,
                             ActionEngine.definitions.firstOrNull { it.id == actionId }?.title.orEmpty(),
                         )
+                        selectionToolbarIcon(actionId)?.let { iconRes ->
+                            val drawable = getDrawable(iconRes)?.mutate()?.apply {
+                                setTint(ui.theme.onSurface)
+                            }
+                            text = ""
+                            setCompoundDrawablesWithIntrinsicBounds(drawable, null, null, null)
+                            compoundDrawablePadding = 0
+                        }
                     }
                     builtViews += option
                     row.addView(
