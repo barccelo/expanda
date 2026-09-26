@@ -37,8 +37,20 @@ internal object SuggestionApplyLocator {
         cursor: Int,
         trigger: String,
         browseMode: Boolean,
+        matchedText: String? = null,
     ): Range? {
         if (cursor !in 0..text.length) return null
+
+        // Suggestions already know the exact token that caused them to appear.
+        // Prefer consuming that token over reconstructing a range from the full
+        // trigger. This is especially important for vault suggestions opened
+        // from a partial match (e.g. "xcr" -> "xcristinabucete").
+        matchedText
+            ?.takeIf(String::isNotEmpty)
+            ?.takeIf { it.length <= cursor }
+            ?.takeIf { text.regionMatches(cursor - it.length, it, 0, it.length) }
+            ?.let { return Range(cursor - it.length, cursor, it) }
+
         if (browseMode || trigger.isEmpty()) {
             return Range(cursor, cursor, trigger)
         }
