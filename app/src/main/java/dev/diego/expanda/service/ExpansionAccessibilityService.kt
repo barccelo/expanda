@@ -489,6 +489,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     lastAppliedText = action.text
                     lastAppliedAt = SystemClock.elapsedRealtime()
                     handleActionRequest(action.request, action.text)
+                    performClipboardActionHaptic(action.definition.id, settings)
                     if (selectionAction) {
                         scheduleSelectionToolbarFromOutcome(
                             anchor = activeAnchor,
@@ -890,7 +891,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
 
         val fieldText = editableText(node)
         val toolbarActions = buildSelectionToolbarActions(settings)
-        var moreButtonCloseMode = false
+        var moreButtonCloseMode = settings.selectionToolbarMoreButtonCloseMode
         toolbarActions.forEach { action ->
             val groupHasOptions = action.isGroup && action.groupActionIds.isNotEmpty()
             val groupHasUsefulAction = groupHasOptions && action.groupActionIds.any { actionId ->
@@ -942,6 +943,14 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 alpha = if (enabled) 1f else 0.36f
                 maxLines = 1
                 contentDescription = accessibleDescription
+                if (action.id == SELECTION_MORE_MENU_ID && moreButtonCloseMode) {
+                    text = "×"
+                    contentDescription = localizedSelectionUi(
+                        settings,
+                        "Close editing toolbar. Long press for all tools.",
+                        "Cerrar barra de edición. Mantén pulsado para todas las herramientas.",
+                    )
+                }
                 if (enabled) {
                     setOnClickListener {
                         when {
@@ -973,6 +982,11 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     if (action.id == SELECTION_MORE_MENU_ID) {
                         setOnLongClickListener {
                             moreButtonCloseMode = !moreButtonCloseMode
+                            scope.launch {
+                                settingsRepository.setSelectionToolbarMoreButtonCloseMode(
+                                    moreButtonCloseMode,
+                                )
+                            }
                             text = if (moreButtonCloseMode) "×" else "⋯"
                             contentDescription = if (moreButtonCloseMode) {
                                 localizedSelectionUi(
@@ -1157,7 +1171,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         "wrap_question" -> "¿ ?"
         "wrap_exclamation" -> "¡ !"
         "wrap_brackets" -> "[ ]"
-        "wrap_double_asterisk" -> "** **"
+        "wrap_double_asterisk" -> "* *"
         "wrap_double_underscore" -> "__ __"
         "sort_lines" -> "A↓"
         "remove_duplicate_lines" -> "≠"
@@ -2038,7 +2052,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 "wrap_question" -> "Question marks"
                 "wrap_exclamation" -> "Exclamation marks"
                 "wrap_brackets" -> "Brackets"
-                "wrap_double_asterisk" -> "Double asterisk"
+                "wrap_double_asterisk" -> "Asterisk"
                 "wrap_double_underscore" -> "Double underscore"
                 SELECTION_FIND_REPLACE_ID -> "Find & replace"
                 SELECTION_TEXT_COUNTER_ID -> "Text counter"
@@ -2060,7 +2074,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
             "wrap_question" -> "Interrogación"
             "wrap_exclamation" -> "Exclamación"
             "wrap_brackets" -> "Corchetes"
-            "wrap_double_asterisk" -> "Doble asterisco"
+            "wrap_double_asterisk" -> "Asterisco"
             "wrap_double_underscore" -> "Doble guion bajo"
             "remove_diacritics" -> "Quitar diacríticos"
             "space_underscore" -> "Espacios a guiones bajos"
@@ -2105,7 +2119,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
             "wrap_question" -> "Wrap the selection in Spanish question marks"
             "wrap_exclamation" -> "Wrap the selection in Spanish exclamation marks"
             "wrap_brackets" -> "Wrap the selection in brackets"
-            "wrap_double_asterisk" -> "Wrap the selection in double asterisks"
+            "wrap_double_asterisk" -> "Wrap the selection in asterisks"
             "wrap_double_underscore" -> "Wrap the selection in double underscores"
             SELECTION_FIND_REPLACE_ID -> "Replace occurrences only inside the selected text"
             SELECTION_TEXT_COUNTER_ID -> "Count characters, words and lines"
@@ -2126,7 +2140,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
             "wrap_question" -> "Envolver la selección entre ¿ y ?"
             "wrap_exclamation" -> "Envolver la selección entre ¡ y !"
             "wrap_brackets" -> "Envolver la selección entre corchetes"
-            "wrap_double_asterisk" -> "Envolver la selección entre dobles asteriscos"
+            "wrap_double_asterisk" -> "Envolver la selección entre asteriscos"
             "wrap_double_underscore" -> "Envolver la selección entre dobles guiones bajos"
             "remove_diacritics" -> "Convertir á, é, ñ, etc. a caracteres simples"
             "trim_spaces" -> "Eliminar espacios al inicio y al final"
@@ -2386,6 +2400,13 @@ class ExpansionAccessibilityService : AccessibilityService() {
 
     private fun isClipboardInsertAction(actionId: String): Boolean =
         actionId == "paste" || actionId == "paste_numbers" || actionId == "clipboard_history"
+
+    private fun performClipboardActionHaptic(actionId: String, settings: AppSettings) {
+        val isClipboardAction = ActionEngine.definitions
+            .firstOrNull { it.id == actionId }
+            ?.category == ActionCategory.CLIPBOARD
+        if (isClipboardAction && settings.hapticFeedback) vibrateTick()
+    }
 
     private fun renderMatch(
         expansion: ExpansionMatch,
@@ -2726,6 +2747,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 lastAppliedText = outcome.text
                 lastAppliedAt = SystemClock.elapsedRealtime()
                 handleActionRequest(outcome.request, outcome.text)
+                performClipboardActionHaptic(retry.actionId, retry.settings)
             }
         } finally {
             @Suppress("DEPRECATION")
@@ -7160,6 +7182,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 lastAppliedText = outcome.text
                 lastAppliedAt = SystemClock.elapsedRealtime()
                 handleActionRequest(outcome.request, outcome.text)
+                performClipboardActionHaptic(definition.id, currentSettings)
                 if (selectionAction) {
                     scheduleSelectionToolbarFromOutcome(
                         anchor = anchor,
