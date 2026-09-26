@@ -191,6 +191,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private var selectionGestureTrackpad: View? = null
     private var selectionGestureEditor: AccessibilityNodeInfo? = null
     private var selectionGestureAnchorCursor = 0
+    private var selectionGestureInitialStart = 0
+    private var selectionGestureInitialEnd = 0
+    private var selectionGestureActiveCursor: Int? = null
     private val selectionUndoHistory = ArrayDeque<SelectionUndoEntry>()
     private var pendingSmartCursorCase: PendingSmartCursorCase? = null
 
@@ -4234,7 +4237,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     scheduleArmRetry { armSelector() }
                 } else {
                     val text = editableText(node)
-                    val cursor = node.textSelectionEnd.takeIf { it in 0..text.length }
+                    val rawStart = node.textSelectionStart
+                    val rawEnd = node.textSelectionEnd
+                    val cursor = rawEnd.takeIf { it in 0..text.length }
                     if (cursor == null) {
                         @Suppress("DEPRECATION")
                         node.recycle()
@@ -4242,7 +4247,22 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     } else {
                         hideSelectionGestureTrackpad()
                         selectionGestureEditor = node
+                        val hasExistingSelection =
+                            rawStart in 0..text.length &&
+                                rawEnd in 0..text.length &&
+                                rawStart != rawEnd
+                        selectionGestureInitialStart = if (hasExistingSelection) {
+                            minOf(rawStart, rawEnd)
+                        } else {
+                            cursor
+                        }
+                        selectionGestureInitialEnd = if (hasExistingSelection) {
+                            maxOf(rawStart, rawEnd)
+                        } else {
+                            cursor
+                        }
                         selectionGestureAnchorCursor = cursor
+                        selectionGestureActiveCursor = null
                         selectorArmed = true
 
                         hideSelectionToolbar()
@@ -4383,37 +4403,90 @@ class ExpansionAccessibilityService : AccessibilityService() {
             programmaticSelectionUntil =
                 SystemClock.elapsedRealtime() + PROGRAMMATIC_SELECTION_GRACE_MS
 
-            val action = if (forward) {
-                AccessibilityNodeInfo.ACTION_NEXT_AT_MOVEMENT_GRANULARITY
-            } else {
-                AccessibilityNodeInfo.ACTION_PREVIOUS_AT_MOVEMENT_GRANULARITY
-            }
-            val args = Bundle().apply {
-                putInt(
-                    AccessibilityNodeInfo.ACTION_ARGUMENT_MOVEMENT_GRANULARITY_INT,
-                    granularity,
-                )
-                putBoolean(
-                    AccessibilityNodeInfo.ACTION_ARGUMENT_EXTEND_SELECTION_BOOLEAN,
-                    true,
-                )
-            }
-
-            var applied = node.performAction(action, args)
-            if (!applied) {
+            fun refreshEditor(): AccessibilityNodeInfo? {
                 selectionGestureEditor?.let {
                     @Suppress("DEPRECATION")
                     it.recycle()
                 }
-                node = findFocusedEditableForSelectionGesture() ?: return false
-                selectionGestureEditor = node
-                applied = node.performAction(action, args)
+                return findFocusedEditableForSelectionGesture()?.also {
+                    selectionGestureEditor = it
+                }
             }
 
-            if (applied) {
-                runCatching { node.refresh() }
+            runCatching { node.refresh() }
+            val text = editableText(node)
+            if (selectionGestureActiveCursor == null) {
+                val hasInitialSelection = selectionGestureInitialStart != selectionGestureInitialEnd
+                if (hasInitialSelection) {
+                    selectionGestureAnchorCursor = if (forward) {
+                        selectionGestureInitialStart
+                    } else {
+                        selectionGestureInitialEnd
+                    }
+                    selectionGestureActiveCursor = if (forward) {
+                        selectionGestureInitialEnd
+                    } else {
+                        selectionGestureInitialStart
+                    }
+                } else {
+                    selectionGestureAnchorCursor = selectionGestureInitialStart
+                    selectionGestureActiveCursor = selectionGestureInitialEnd
+                }
             }
-            return applied
+
+            val active = selectionGestureActiveCursor
+                ?.coerceIn(0, text.length)
+                ?: return false
+            val anchor = selectionGestureAnchorCursor.coerceIn(0, text.length)
+
+            val target = if (granularity == AccessibilityNodeInfo.MOVEMENT_GRANULARITY_CHARACTER) {
+                (active + if (forward) 1 else -1).coerceIn(0, text.length)
+                    .takeIf { it != active }
+                    ?: return false
+            } else {
+                // Ask Android for the next visual-line position from the active
+                // endpoint, then restore the original opposite endpoint. This keeps
+                // wrapped-line behavior without collapsing a pre-existing selection.
+                if (!setSelection(node, active, active)) {
+                    node = refreshEditor() ?: return false
+                    if (!setSelection(node, active, active)) return false
+                }
+                val action = if (forward) {
+                    AccessibilityNodeInfo.ACTION_NEXT_AT_MOVEMENT_GRANULARITY
+                } else {
+                    AccessibilityNodeInfo.ACTION_PREVIOUS_AT_MOVEMENT_GRANULARITY
+                }
+                val args = Bundle().apply {
+                    putInt(
+                        AccessibilityNodeInfo.ACTION_ARGUMENT_MOVEMENT_GRANULARITY_INT,
+                        granularity,
+                    )
+                    putBoolean(
+                        AccessibilityNodeInfo.ACTION_ARGUMENT_EXTEND_SELECTION_BOOLEAN,
+                        false,
+                    )
+                }
+                var moved = node.performAction(action, args)
+                if (!moved) {
+                    node = refreshEditor() ?: return false
+                    setSelection(node, active, active)
+                    moved = node.performAction(action, args)
+                }
+                if (!moved) return false
+                runCatching { node.refresh() }
+                node.textSelectionEnd
+                    .takeIf { it in 0..editableText(node).length && it != active }
+                    ?: return false
+            }
+
+            val start = minOf(anchor, target)
+            val end = maxOf(anchor, target)
+            if (!setSelection(node, start, end)) {
+                node = refreshEditor() ?: return false
+                if (!setSelection(node, start, end)) return false
+            }
+            selectionGestureActiveCursor = target
+            return true
         }
 
         fun consumeMovement() {
@@ -4553,6 +4626,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
             node.recycle()
         }
         selectionGestureEditor = null
+        selectionGestureActiveCursor = null
+        selectionGestureInitialStart = 0
+        selectionGestureInitialEnd = 0
     }
 
     private fun relaySelectionHotspotTap(
