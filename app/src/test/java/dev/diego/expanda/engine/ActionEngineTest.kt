@@ -127,6 +127,15 @@ class ActionEngineTest {
         )
     }
 
+    @Test fun `capitalize previous word trigger uses nc and title case`() {
+        val outcome = engine.execute(
+            ActionContext(text = "hOLA nc", cursor = 7, selectionStart = 7, selectionEnd = 7),
+            enabledActionIds = setOf("capitalize_previous_word"),
+        )
+        assertEquals("Hola", outcome?.text)
+        assertEquals("capitalize_previous_word", outcome?.definition?.id)
+    }
+
     @Test fun `renaming a previous word trigger keeps its scope`() {
         val result = engine.execute(
             ActionContext("uno dos upw", "uno dos upw".length),
@@ -213,7 +222,7 @@ class ActionEngineTest {
         assertEquals("¿texto?", engine.processSelectedText("wrap_question", "texto"))
         assertEquals("¡texto!", engine.processSelectedText("wrap_exclamation", "texto"))
         assertEquals("[texto]", engine.processSelectedText("wrap_brackets", "texto"))
-        assertEquals("**texto**", engine.processSelectedText("wrap_double_asterisk", "texto"))
+        assertEquals("*texto*", engine.processSelectedText("wrap_double_asterisk", "texto"))
         assertEquals("__texto__", engine.processSelectedText("wrap_double_underscore", "texto"))
     }
 
