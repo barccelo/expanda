@@ -211,6 +211,8 @@ private val SPANISH = mapOf(
     "Convert only the previous word to uppercase" to "Convertir sólo la palabra anterior a mayúsculas",
     "Lowercase previous word" to "Palabra anterior en minúsculas",
     "Convert only the previous word to lowercase" to "Convertir sólo la palabra anterior a minúsculas",
+    "Capitalize previous word" to "Capitalizar palabra anterior",
+    "Capitalize only the previous word" to "Poner en mayúscula sólo la inicial de la palabra anterior",
     "Vault" to "Bóveda",
     "Open vault" to "Abrir bóveda",
     "Open the encrypted Expanda vault" to "Abrir la bóveda cifrada de Expanda",
