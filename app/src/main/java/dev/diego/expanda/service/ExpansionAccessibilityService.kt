@@ -6584,9 +6584,10 @@ class ExpansionAccessibilityService : AccessibilityService() {
 
             if (settings.suggestionShowActions && !showAll) {
                 val enabledActions = actionSettingsStore.enabledIds.value
+                val suggestionEnabledActions = actionSettingsStore.suggestionEnabledIds.value
                 val triggerOverrides = actionSettingsStore.triggerOverrides.value
                 ActionEngine.definitions.asSequence()
-                    .filter { it.id in enabledActions }
+                    .filter { it.id in enabledActions && it.id in suggestionEnabledActions }
                     .flatMap { definition ->
                         val triggers = triggerOverrides[definition.id] ?: definition.triggers
                         triggers.asSequence().map { trigger ->
