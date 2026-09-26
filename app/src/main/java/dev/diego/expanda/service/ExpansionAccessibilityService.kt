@@ -229,6 +229,13 @@ class ExpansionAccessibilityService : AccessibilityService() {
         val afterEnd: Int,
     )
 
+    private data class VaultFieldInputs(
+        val label: EditText,
+        val value: EditText,
+        val triggers: EditText,
+        val sensitive: CheckBox,
+    )
+
     /** Context saved while clipboard overlay / capture reads the clipboard. */
     private var pendingClipboardRetry: PendingClipboardRetry? = null
     private var clipboardOverlay: View? = null
@@ -5360,7 +5367,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         val fieldsContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
         }
-        val fieldInputs = mutableListOf<Triple<EditText, EditText, CheckBox>>()
+        val fieldInputs = mutableListOf<VaultFieldInputs>()
 
         fun addField() {
             val labelInput = ui.input(localizedSelectionUi(settings, "Field name", "Nombre del campo"), "")
@@ -5371,6 +5378,18 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     minLines = 1
                     maxLines = 4
                 }
+            val fieldTriggersInput = ui.input(
+                localizedSelectionUi(
+                    settings,
+                    "Field triggers — one per line",
+                    "Triggers del campo — uno por línea",
+                ),
+                "",
+            ).apply {
+                setSingleLine(false)
+                minLines = 1
+                maxLines = 3
+            }
             val sensitive = CheckBox(this).apply {
                 text = localizedSelectionUi(settings, "Sensitive", "Sensible")
                 setTextColor(ui.theme.onSurface)
@@ -5380,10 +5399,25 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 setPadding(0, dp(4), 0, dp(8))
                 addView(ui.fieldGroup(localizedSelectionUi(settings, "Field", "Campo"), labelInput))
                 addView(ui.fieldGroup(localizedSelectionUi(settings, "Value", "Valor"), valueInput))
+                addView(
+                    ui.fieldGroup(
+                        localizedSelectionUi(
+                            settings,
+                            "Field triggers — one per line",
+                            "Triggers del campo — uno por línea",
+                        ),
+                        fieldTriggersInput,
+                    ),
+                )
                 addView(sensitive)
             }
             fieldsContainer.addView(group)
-            fieldInputs += Triple(labelInput, valueInput, sensitive)
+            fieldInputs += VaultFieldInputs(
+                label = labelInput,
+                value = valueInput,
+                triggers = fieldTriggersInput,
+                sensitive = sensitive,
+            )
         }
         addField()
 
@@ -5425,15 +5459,23 @@ class ExpansionAccessibilityService : AccessibilityService() {
             onCancel = { returnToCategory() },
             onPrimary = {
                 val title = titleInput.text.toString().trim()
-                val fields = fieldInputs.mapNotNull { (labelInput, valueInput, sensitive) ->
-                    val value = valueInput.text.toString()
-                    val label = labelInput.text.toString().trim().ifBlank {
+                val fields = fieldInputs.mapNotNull { inputs ->
+                    val value = inputs.value.text.toString()
+                    val label = inputs.label.text.toString().trim().ifBlank {
                         localizedSelectionUi(settings, "Value", "Valor")
                     }
-                    if (value.isEmpty() && labelInput.text.toString().isBlank()) {
+                    if (value.isEmpty() && inputs.label.text.toString().isBlank()) {
                         null
                     } else {
-                        VaultField(label = label, value = value, sensitive = sensitive.isChecked)
+                        VaultField(
+                            label = label,
+                            value = value,
+                            sensitive = inputs.sensitive.isChecked,
+                            triggers = inputs.triggers.text.toString()
+                                .lines()
+                                .filter(String::isNotBlank)
+                                .distinct(),
+                        )
                     }
                 }
                 if (title.isBlank() || fields.isEmpty()) return@overlayActionFooter
@@ -6327,6 +6369,18 @@ class ExpansionAccessibilityService : AccessibilityService() {
             minLines = 1
             maxLines = 5
         }
+        val fieldTriggersInput = ui.input(
+            localizedSelectionUi(
+                settings,
+                "Field triggers — one per line",
+                "Triggers del campo — uno por línea",
+            ),
+            "",
+        ).apply {
+            setSingleLine(false)
+            minLines = 1
+            maxLines = 3
+        }
         val sensitive = CheckBox(this).apply {
             text = localizedSelectionUi(settings, "Sensitive", "Sensible")
             setTextColor(ui.theme.onSurface)
@@ -6358,6 +6412,16 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 ui.fieldGroup(
                     localizedSelectionUi(settings, "Value", "Valor"),
                     valueInput,
+                ),
+            )
+            addView(
+                ui.fieldGroup(
+                    localizedSelectionUi(
+                        settings,
+                        "Field triggers — one per line",
+                        "Triggers del campo — uno por línea",
+                    ),
+                    fieldTriggersInput,
                 ),
             )
             addView(sensitive)
@@ -6394,6 +6458,10 @@ class ExpansionAccessibilityService : AccessibilityService() {
                                     label = label,
                                     value = value,
                                     sensitive = sensitive.isChecked,
+                                    triggers = fieldTriggersInput.text.toString()
+                                        .lines()
+                                        .filter(String::isNotBlank)
+                                        .distinct(),
                                 ),
                             ),
                         )
@@ -6443,6 +6511,18 @@ class ExpansionAccessibilityService : AccessibilityService() {
             minLines = 1
             maxLines = 5
         }
+        val fieldTriggersInput = ui.input(
+            localizedSelectionUi(
+                settings,
+                "Field triggers — one per line",
+                "Triggers del campo — uno por línea",
+            ),
+            field.triggers.joinToString("\n"),
+        ).apply {
+            setSingleLine(false)
+            minLines = 1
+            maxLines = 3
+        }
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(18), dp(16), dp(18), dp(8))
@@ -6461,6 +6541,16 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 },
             )
             addView(ui.fieldGroup(field.label, valueInput))
+            addView(
+                ui.fieldGroup(
+                    localizedSelectionUi(
+                        settings,
+                        "Field triggers — one per line",
+                        "Triggers del campo — uno por línea",
+                    ),
+                    fieldTriggersInput,
+                ),
+            )
         }
 
         fun returnToEntry() {
@@ -6482,8 +6572,26 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 val newValue = valueInput.text.toString()
                 hideFormOverlay()
                 scope.launch {
-                    val changed = vaultRepository.updateFieldValue(entry.id, field.id, newValue)
-                    if (changed && settings.hapticFeedback) vibrate()
+                    val updatedField = field.copy(
+                        value = newValue,
+                        triggers = fieldTriggersInput.text.toString()
+                            .lines()
+                            .filter(String::isNotBlank)
+                            .distinct(),
+                    )
+                    val result = runCatching {
+                        vaultRepository.save(
+                            entry.copy(
+                                fields = entry.fields.map {
+                                    if (it.id == field.id) updatedField else it
+                                },
+                            ),
+                        )
+                    }
+                    if (result.isSuccess && settings.hapticFeedback) vibrate()
+                    result.exceptionOrNull()?.let {
+                        Log.w(TAG, "Failed to update vault field", it)
+                    }
                     returnToEntry()
                 }
             },
@@ -7375,7 +7483,12 @@ class ExpansionAccessibilityService : AccessibilityService() {
             runCatching { node.refresh() }
             val currentSettings = settingsRepository.settings.value
             val enabledActions = actionSettingsStore.enabledIds.value
-            if (!currentSettings.suggestionShowActions || shownDefinition.id !in enabledActions) return
+            val suggestionEnabledActions = actionSettingsStore.suggestionEnabledIds.value
+            if (
+                !currentSettings.suggestionShowActions ||
+                shownDefinition.id !in enabledActions ||
+                shownDefinition.id !in suggestionEnabledActions
+            ) return
 
             val baseDefinition = ActionEngine.definitions.firstOrNull { it.id == shownDefinition.id } ?: return
             val effectiveTriggers = actionSettingsStore.triggerOverrides.value[baseDefinition.id]
