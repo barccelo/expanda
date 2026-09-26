@@ -706,6 +706,13 @@ private fun VaultEntryDialog(
                     Card(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(12.dp)) {
                             Text(field.label, fontWeight = FontWeight.SemiBold)
+                            if (field.triggers.isNotEmpty()) {
+                                Text(
+                                    field.triggers.joinToString(" · "),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                             val revealed = !field.sensitive || field.id in visibleSensitive
                             Text(
                                 if (revealed) field.value else "••••••••",
@@ -916,6 +923,38 @@ private fun VaultEditorDialog(
                                     PasswordVisualTransformation()
                                 } else {
                                     androidx.compose.ui.text.input.VisualTransformation.None
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp),
+                            )
+                            OutlinedTextField(
+                                value = field.triggers.joinToString("\n"),
+                                onValueChange = { value ->
+                                    fields = fields.toMutableList().also {
+                                        it[index] = field.copy(
+                                            triggers = value
+                                                .split("\n")
+                                                .filter(String::isNotBlank)
+                                                .distinct(),
+                                        )
+                                    }
+                                },
+                                label = {
+                                    Text(
+                                        tr(
+                                            "Field triggers — one per line",
+                                            "Triggers del campo — uno por línea",
+                                        ),
+                                    )
+                                },
+                                supportingText = {
+                                    Text(
+                                        tr(
+                                            "Typing a field trigger inserts this field directly.",
+                                            "Al escribir un trigger del campo se inserta directamente este valor.",
+                                        ),
+                                    )
                                 },
                                 modifier = Modifier
                                     .fillMaxWidth()
