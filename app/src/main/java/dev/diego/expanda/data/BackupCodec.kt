@@ -233,9 +233,12 @@ object BackupCodec {
                     actionOrder = order,
                     enabledActionIds = enabled,
                     actionLabels = labels,
-                    preferredActionId = groupJson.optString("preferredActionId")
-                        .takeIf(String::isNotBlank)
-                        ?: defaults.preferredActionId,
+                    preferredActionId = if (groupJson.has("preferredActionId")) {
+                        if (groupJson.isNull("preferredActionId")) null
+                        else groupJson.optString("preferredActionId").takeIf(String::isNotBlank)
+                    } else {
+                        defaults.preferredActionId
+                    },
                 ),
             ) ?: defaults
         }
