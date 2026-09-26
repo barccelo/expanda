@@ -876,8 +876,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
             isFocusable = true
             contentDescription = localizedSelectionUi(
                 settings,
-                "Move selection toolbar. Long press and drag to resize.",
-                "Mover barra de selección. Mantén pulsado y arrastra para redimensionar.",
+                "Move editing toolbar. Long press and drag to resize.",
+                "Mover barra de edición. Mantén pulsado y arrastra para redimensionar.",
             )
         }
         container.addView(
@@ -890,11 +890,16 @@ class ExpansionAccessibilityService : AccessibilityService() {
 
         val fieldText = editableText(node)
         val toolbarActions = buildSelectionToolbarActions(settings)
+        var moreButtonCloseMode = false
         toolbarActions.forEach { action ->
             val groupHasOptions = action.isGroup && action.groupActionIds.isNotEmpty()
             val groupHasUsefulAction = groupHasOptions && action.groupActionIds.any { actionId ->
-                actionEngine.processSelectedText(actionId, selectedText)
-                    ?.let { it != selectedText } == true
+                when {
+                    actionId in SELECTION_CLIPBOARD_ACTION_IDS -> true
+                    actionId in SELECTION_INTERACTIVE_ACTION_IDS -> selectedText.isNotEmpty()
+                    else -> actionEngine.processSelectedText(actionId, selectedText)
+                        ?.let { it != selectedText } == true
+                }
             }
             val enabled = when {
                 action.id == SELECTION_UNDO_ID -> canUndoSelection(anchor, fieldText)
@@ -946,6 +951,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
                                 actionIds = SELECTION_CONTEXT_ACTION_IDS,
                                 showAll = false,
                             )
+                            action.id == SELECTION_MORE_MENU_ID && moreButtonCloseMode ->
+                                hideSelectionToolbar()
                             action.id == SELECTION_MORE_MENU_ID -> showSelectionActionMenu(
                                 title = selectionUiText(settings, "all_tools"),
                                 actionIds = SELECTION_CATALOG_ACTION_IDS,
@@ -957,8 +964,31 @@ class ExpansionAccessibilityService : AccessibilityService() {
                                 showAll = false,
                                 actionLabels = action.groupActionLabels,
                             )
-                            action.id in SELECTION_INTERACTIVE_ACTION_IDS -> runSelectionTool(action.id)
+                            action.id in SELECTION_INTERACTIVE_ACTION_IDS ||
+                                action.id in SELECTION_CLIPBOARD_ACTION_IDS ->
+                                runSelectionTool(action.id)
                             else -> applySelectionToolbarAction(action.id)
+                        }
+                    }
+                    if (action.id == SELECTION_MORE_MENU_ID) {
+                        setOnLongClickListener {
+                            moreButtonCloseMode = !moreButtonCloseMode
+                            text = if (moreButtonCloseMode) "×" else "⋯"
+                            contentDescription = if (moreButtonCloseMode) {
+                                localizedSelectionUi(
+                                    settings,
+                                    "Close editing toolbar. Long press for all tools.",
+                                    "Cerrar barra de edición. Mantén pulsado para todas las herramientas.",
+                                )
+                            } else {
+                                localizedSelectionUi(
+                                    settings,
+                                    "All tools. Long press to show close.",
+                                    "Todas las herramientas. Mantén pulsado para mostrar cerrar.",
+                                )
+                            }
+                            if (settings.hapticFeedback) vibrateTick()
+                            true
                         }
                     }
                     if (action.isGroup) {
@@ -1109,6 +1139,11 @@ class ExpansionAccessibilityService : AccessibilityService() {
             "Wrap",
             "Envolver",
         )
+        SettingsRepository.SELECTION_CLIPBOARD_GROUP_ID -> localizedSelectionUi(
+            settings,
+            "Clipboard",
+            "Portapapeles",
+        )
         else -> fallback
     }
 
@@ -1133,6 +1168,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
         SELECTION_TEXT_COUNTER_ID -> "#"
         SELECTION_REPEAT_TEXT_ID -> "×"
         SELECTION_PREFIX_SUFFIX_ID -> "P/S"
+        SELECTION_CLIPBOARD_CUT_ID -> "✂"
+        SELECTION_CLIPBOARD_COPY_ID -> "⧉"
+        SELECTION_CLIPBOARD_PASTE_ID -> "▣"
         "delete_blank_lines" -> "∅"
         "remove_duplicate_words" -> "W≠"
         "remove_line_breaks" -> "↵×"
@@ -1477,7 +1515,11 @@ class ExpansionAccessibilityService : AccessibilityService() {
         val state = selectionToolbarState ?: return
         val settings = settingsRepository.settings.value
         val availableIds = actionIds.filter { actionId ->
-            if (showAll || actionId in SELECTION_INTERACTIVE_ACTION_IDS) {
+            if (
+                showAll ||
+                actionId in SELECTION_INTERACTIVE_ACTION_IDS ||
+                actionId in SELECTION_CLIPBOARD_ACTION_IDS
+            ) {
                 true
             } else {
                 actionEngine.processSelectedText(actionId, state.selectedText)
@@ -1577,7 +1619,81 @@ class ExpansionAccessibilityService : AccessibilityService() {
             SELECTION_TEXT_COUNTER_ID -> showTextCounterOverlay()
             SELECTION_REPEAT_TEXT_ID -> showRepeatTextOverlay()
             SELECTION_PREFIX_SUFFIX_ID -> showPrefixSuffixOverlay()
+            in SELECTION_CLIPBOARD_ACTION_IDS -> runSelectionClipboardAction(actionId)
             else -> applySelectionToolbarAction(actionId)
+        }
+    }
+
+    private fun runSelectionClipboardAction(actionId: String) {
+        val state = selectionToolbarState ?: return
+        clearAccessibilityCache()
+        var fallbackReplacement: String? = null
+        val node = findAnchoredEditor(state.anchor, requireActiveWindow = false) ?: run {
+            hideSelectionToolbar()
+            return
+        }
+        try {
+            runCatching { node.refresh() }
+            val text = editableText(node)
+            val start = state.start.coerceIn(0, text.length)
+            val end = state.end.coerceIn(start, text.length)
+            if (start == end || text.substring(start, end) != state.selectedText) {
+                hideSelectionToolbar()
+                return
+            }
+
+            setSelection(node, start, end)
+            val performed = when (actionId) {
+                SELECTION_CLIPBOARD_CUT_ID ->
+                    node.performAction(AccessibilityNodeInfo.ACTION_CUT)
+                SELECTION_CLIPBOARD_COPY_ID ->
+                    node.performAction(AccessibilityNodeInfo.ACTION_COPY)
+                SELECTION_CLIPBOARD_PASTE_ID ->
+                    node.performAction(AccessibilityNodeInfo.ACTION_PASTE)
+                else -> false
+            }
+
+            if (!performed) {
+                when (actionId) {
+                    SELECTION_CLIPBOARD_COPY_ID -> {
+                        val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.setPrimaryClip(
+                            ClipData.newPlainText("Expanda", state.selectedText),
+                        )
+                    }
+                    SELECTION_CLIPBOARD_CUT_ID -> {
+                        val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.setPrimaryClip(
+                            ClipData.newPlainText("Expanda", state.selectedText),
+                        )
+                        fallbackReplacement = ""
+                    }
+                    SELECTION_CLIPBOARD_PASTE_ID -> {
+                        readClipboardTextCached()
+                            .takeIf(String::isNotEmpty)
+                            ?.let { fallbackReplacement = it }
+                    }
+                }
+            }
+
+            if (performed) {
+                if (actionId != SELECTION_CLIPBOARD_COPY_ID) {
+                    hideSelectionToolbar()
+                }
+                if (settingsRepository.settings.value.hapticFeedback) vibrate()
+            } else if (
+                actionId == SELECTION_CLIPBOARD_COPY_ID &&
+                settingsRepository.settings.value.hapticFeedback
+            ) {
+                vibrate()
+            }
+        } finally {
+            @Suppress("DEPRECATION")
+            node.recycle()
+        }
+
+        fallbackReplacement?.let { replacement ->
+            applyCustomSelectionReplacement(state, replacement)
         }
     }
 
@@ -1928,6 +2044,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 SELECTION_TEXT_COUNTER_ID -> "Text counter"
                 SELECTION_REPEAT_TEXT_ID -> "Repeat text"
                 SELECTION_PREFIX_SUFFIX_ID -> "Prefix / Suffix"
+                SELECTION_CLIPBOARD_CUT_ID -> "Cut"
+                SELECTION_CLIPBOARD_COPY_ID -> "Copy"
+                SELECTION_CLIPBOARD_PASTE_ID -> "Paste"
                 else -> fallback.ifBlank { id }
             }
         }
@@ -1968,6 +2087,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
             SELECTION_TEXT_COUNTER_ID -> "Contador de texto"
             SELECTION_REPEAT_TEXT_ID -> "Repetir texto"
             SELECTION_PREFIX_SUFFIX_ID -> "Prefijo / Sufijo"
+            SELECTION_CLIPBOARD_CUT_ID -> "Cortar"
+            SELECTION_CLIPBOARD_COPY_ID -> "Copiar"
+            SELECTION_CLIPBOARD_PASTE_ID -> "Pegar"
             else -> fallback.ifBlank { id }
         }
     }
@@ -1989,6 +2111,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
             SELECTION_TEXT_COUNTER_ID -> "Count characters, words and lines"
             SELECTION_REPEAT_TEXT_ID -> "Repeat the selected text a chosen number of times"
             SELECTION_PREFIX_SUFFIX_ID -> "Add text before and after the selection"
+            SELECTION_CLIPBOARD_CUT_ID -> "Cut the selected text to the clipboard"
+            SELECTION_CLIPBOARD_COPY_ID -> "Copy the selected text to the clipboard"
+            SELECTION_CLIPBOARD_PASTE_ID -> "Replace the selection with clipboard contents"
             else -> fallback
         }
         return when (id) {
@@ -2019,6 +2144,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
             SELECTION_TEXT_COUNTER_ID -> "Contar caracteres, palabras y líneas"
             SELECTION_REPEAT_TEXT_ID -> "Repetir la selección la cantidad indicada"
             SELECTION_PREFIX_SUFFIX_ID -> "Agregar texto antes y después de la selección"
+            SELECTION_CLIPBOARD_CUT_ID -> "Cortar el texto seleccionado al portapapeles"
+            SELECTION_CLIPBOARD_COPY_ID -> "Copiar el texto seleccionado al portapapeles"
+            SELECTION_CLIPBOARD_PASTE_ID -> "Reemplazar la selección con el contenido del portapapeles"
             else -> fallback
         }
     }
@@ -7630,6 +7758,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
         private const val SELECTION_TEXT_COUNTER_ID = "text_counter"
         private const val SELECTION_REPEAT_TEXT_ID = "repeat_text"
         private const val SELECTION_PREFIX_SUFFIX_ID = "prefix_suffix"
+        private const val SELECTION_CLIPBOARD_CUT_ID = "clipboard_cut"
+        private const val SELECTION_CLIPBOARD_COPY_ID = "clipboard_copy"
+        private const val SELECTION_CLIPBOARD_PASTE_ID = "clipboard_paste"
         private const val MAX_SELECTION_UNDO_HISTORY = 10
         private const val HAPTIC_TICK_MS = 10L
         private const val HAPTIC_CONFIRM_MS = 25L
@@ -7639,6 +7770,12 @@ class ExpansionAccessibilityService : AccessibilityService() {
             SELECTION_TEXT_COUNTER_ID,
             SELECTION_REPEAT_TEXT_ID,
             SELECTION_PREFIX_SUFFIX_ID,
+        )
+
+        private val SELECTION_CLIPBOARD_ACTION_IDS = setOf(
+            SELECTION_CLIPBOARD_CUT_ID,
+            SELECTION_CLIPBOARD_COPY_ID,
+            SELECTION_CLIPBOARD_PASTE_ID,
         )
 
         private val SELECTION_CONTEXT_ACTION_IDS = listOf(
