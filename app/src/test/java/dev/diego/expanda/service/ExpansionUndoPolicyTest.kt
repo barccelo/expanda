@@ -75,6 +75,28 @@ class ExpansionUndoPolicyTest {
         )
     }
 
+    @Test fun `previous word case action reuses backspace undo without restoring its trigger`() {
+        val actionState = ReversibleExpansion(
+            anchor = anchor,
+            appliedText = "uno DOS",
+            appliedCursor = 7,
+            restoredText = "uno dos",
+            restoredCursor = 7,
+            matchId = Long.MIN_VALUE,
+            matchedText = " my",
+        )
+
+        assertEquals(
+            ExpansionUndoDecision.Restore,
+            ExpansionUndoPolicy.backspaceDecision(
+                actionState,
+                anchor,
+                "uno DO",
+                6,
+            ),
+        )
+    }
+
     @Test fun `first delimiter after undo is suppressed exactly once`() {
         val match = ExpansionMatch(
             match = TextMatch(
