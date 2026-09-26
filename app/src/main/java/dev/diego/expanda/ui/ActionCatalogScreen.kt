@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardTab
@@ -18,6 +19,7 @@ import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.TextFields
@@ -38,6 +40,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
@@ -142,46 +145,86 @@ private fun ActionRow(
     onSetSuggestionEnabled: (Boolean) -> Unit,
     onEdit: () -> Unit,
 ) {
-    ListItem(
-        overlineContent = {
-            Text(
-                triggers.joinToString("  ·  "),
-                fontFamily = FontFamily.Monospace,
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                Text(
+                    triggers.joinToString("  ·  "),
+                    fontFamily = FontFamily.Monospace,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    tr(definition.title),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    tr(definition.description),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            IconButton(onClick = onEdit) {
+                Icon(Icons.Default.Edit, tr("Edit shortcut"))
+            }
+            Switch(
+                checked = enabled,
+                onCheckedChange = onSetEnabled,
             )
-        },
-        headlineContent = { Text(tr(definition.title)) },
-        supportingContent = {
-            Column {
-                Text(tr(definition.description))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Text(
-                        tr("Show in suggestions", "Mostrar en sugerencias"),
-                        style = MaterialTheme.typography.labelMedium,
-                    )
-                    Switch(
-                        checked = suggestionEnabled,
-                        onCheckedChange = onSetSuggestionEnabled,
-                    )
-                }
-                if (definition.supportsSelectedText) {
-                    Text(
-                        "Also available from Android's selected-text menu",
-                        color = MaterialTheme.colorScheme.primary,
-                        style = MaterialTheme.typography.labelSmall,
-                    )
-                }
-            }
-        },
-        trailingContent = {
-            Row {
-                IconButton(onClick = onEdit) { Icon(Icons.Default.Edit, tr("Edit shortcut")) }
-                Switch(checked = enabled, onCheckedChange = onSetEnabled)
-            }
-        },
-    )
+        }
+
+        if (definition.supportsSelectedText) {
+            Text(
+                tr(
+                    "Also available from Android's selected-text menu",
+                    "También disponible desde el menú de texto seleccionado de Android",
+                ),
+                modifier = Modifier.padding(top = 8.dp),
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.labelSmall,
+            )
+        }
+
+        HorizontalDivider(
+            modifier = Modifier.padding(top = 10.dp),
+            color = MaterialTheme.colorScheme.outlineVariant,
+        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onSetSuggestionEnabled(!suggestionEnabled) }
+                .padding(top = 8.dp, bottom = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                Icons.Default.Lightbulb,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                tr("Show in suggestions", "Mostrar en sugerencias"),
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 10.dp),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Switch(
+                checked = suggestionEnabled,
+                onCheckedChange = onSetSuggestionEnabled,
+            )
+        }
+    }
 }
 
 @Composable
