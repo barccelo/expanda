@@ -12,6 +12,8 @@ object BackupCodec {
         /** Legacy single-trigger overrides retained for older backups. */
         val shortcutOverrides: Map<String, String> = emptyMap(),
         val triggerOverrides: Map<String, List<String>> = emptyMap(),
+        /** Null means a legacy backup where every Action remains eligible for suggestions. */
+        val suggestionEnabledIds: Set<String>? = null,
     )
 
     data class ImportResult(
@@ -244,6 +246,9 @@ object BackupCodec {
                 put(id, JSONArray(triggers))
             }
         })
+        actions.suggestionEnabledIds?.let {
+            put("suggestionEnabledIds", JSONArray(it.sorted()))
+        }
     }
 
     private fun actionsFromJson(json: JSONObject): ActionSnapshot {
@@ -265,6 +270,11 @@ object BackupCodec {
                         }
                     }.distinct().takeIf(List<String>::isNotEmpty)?.let { put(id, it) }
                 }
+            },
+            suggestionEnabledIds = if (json.has("suggestionEnabledIds")) {
+                json.stringList("suggestionEnabledIds").toSet()
+            } else {
+                null
             },
         )
     }
