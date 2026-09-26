@@ -74,6 +74,7 @@ class ActionEngine {
         "remove_diacritics" -> removeDiacritics(text)
         "uppercase", "uppercase_previous_word" -> text.uppercase(Locale.getDefault())
         "lowercase", "lowercase_previous_word" -> text.lowercase(Locale.getDefault())
+        "capitalize_previous_word" -> titleCase(text)
         "sentence_case" -> sentenceCase(text)
         "title_case" -> titleCase(text)
         "wrap_guillemets" -> wrap(text, "«", "»")
@@ -81,7 +82,7 @@ class ActionEngine {
         "wrap_question" -> wrap(text, "¿", "?")
         "wrap_exclamation" -> wrap(text, "¡", "!")
         "wrap_brackets" -> wrap(text, "[", "]")
-        "wrap_double_asterisk" -> wrap(text, "**", "**")
+        "wrap_double_asterisk" -> wrap(text, "*", "*")
         "wrap_double_underscore" -> wrap(text, "__", "__")
         "space_underscore" -> text.replace(' ', '_')
         "space_dash" -> text.replace(' ', '-')
@@ -324,6 +325,14 @@ class ActionEngine {
                 "Lowercase previous word",
                 ActionCategory.TEXT,
                 "Convert only the previous word to lowercase",
+                scope = ActionScope.PREVIOUS_WORD,
+            ),
+            ActionDefinition(
+                "capitalize_previous_word",
+                " nc",
+                "Capitalize previous word",
+                ActionCategory.TEXT,
+                "Capitalize only the previous word",
                 scope = ActionScope.PREVIOUS_WORD,
             ),
             ActionDefinition("sentence_case", ",ss", "Sentence case", ActionCategory.TEXT, "Capitalize each sentence", supportsSelectedText = true),
