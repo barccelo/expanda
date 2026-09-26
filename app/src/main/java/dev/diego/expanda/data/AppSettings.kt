@@ -650,7 +650,7 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
                     put("actionLabels", JSONObject().apply {
                         config.actionLabels.forEach { (actionId, label) -> put(actionId, label) }
                     })
-                    config.preferredActionId?.let { put("preferredActionId", it) }
+                    put("preferredActionId", config.preferredActionId ?: JSONObject.NULL)
                 })
             }
         }.toString()
@@ -696,9 +696,12 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
                         actionOrder = order,
                         enabledActionIds = enabled,
                         actionLabels = labels,
-                        preferredActionId = json.optString("preferredActionId")
-                            .takeIf(String::isNotBlank)
-                            ?: defaultConfig.preferredActionId,
+                        preferredActionId = if (json.has("preferredActionId")) {
+                            if (json.isNull("preferredActionId")) null
+                            else json.optString("preferredActionId").takeIf(String::isNotBlank)
+                        } else {
+                            defaultConfig.preferredActionId
+                        },
                     ),
                 ) ?: defaultConfig
             }
