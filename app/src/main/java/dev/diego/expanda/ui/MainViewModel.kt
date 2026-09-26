@@ -52,6 +52,7 @@ data class MainUiState(
     val vaultCategories: List<VaultCategory> = emptyList(),
     val enabledActionIds: Set<String> = emptySet(),
     val actionTriggerOverrides: Map<String, List<String>> = emptyMap(),
+    val actionSuggestionEnabledIds: Set<String> = emptySet(),
     val matchesLoaded: Boolean = false,
     val onboarding: OnboardingState = OnboardingState(),
     val search: String = "",
@@ -113,7 +114,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val actionSettings = combine(
         actionSettingsStore.enabledIds,
         actionSettingsStore.triggerOverrides,
-    ) { enabledIds, triggerOverrides -> enabledIds to triggerOverrides }
+        actionSettingsStore.suggestionEnabledIds,
+    ) { enabledIds, triggerOverrides, suggestionEnabledIds ->
+        Triple(enabledIds, triggerOverrides, suggestionEnabledIds)
+    }
 
     private val matchContent = combine(
         repository.matches,
@@ -142,6 +146,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             vaultCategories = privateData.third,
             enabledActionIds = actions.first,
             actionTriggerOverrides = actions.second,
+            actionSuggestionEnabledIds = actions.third,
             matchesLoaded = content.second,
             onboarding = content.third,
             search = search,
@@ -326,6 +331,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
     fun setActionEnabled(id: String, enabled: Boolean) = actionSettingsStore.setEnabled(id, enabled)
     fun setAllActionsEnabled(enabled: Boolean) = actionSettingsStore.setAllEnabled(enabled)
+    fun setActionSuggestionEnabled(id: String, enabled: Boolean) =
+        actionSettingsStore.setSuggestionEnabled(id, enabled)
+    fun setAllActionSuggestionsEnabled(enabled: Boolean) =
+        actionSettingsStore.setAllSuggestionEnabled(enabled)
     fun setActionTriggers(id: String, triggers: List<String>) = actionSettingsStore.setTriggers(id, triggers)
     fun resetActionTriggers(id: String) = actionSettingsStore.resetTriggers(id)
     fun setActionShortcut(id: String, shortcut: String) = actionSettingsStore.setShortcut(id, shortcut)
