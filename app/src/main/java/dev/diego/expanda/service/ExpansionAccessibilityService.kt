@@ -5858,8 +5858,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     localizedSelectionUi(settings, "Copy", "Copiar"),
                     primary = false,
                 ) {
-                    writeVaultClipboard(field.value, field.sensitive)
                     if (settings.hapticFeedback) vibrateTick()
+                    writeVaultClipboard(field.value, field.sensitive)
                 },
                 addStartMargin = false,
             )
@@ -5969,14 +5969,14 @@ class ExpansionAccessibilityService : AccessibilityService() {
             cancelLabel = localizedSelectionUi(settings, "Close", "Cerrar"),
             onCancel = { hideFormOverlay() },
             onPrimary = {
+                if (settings.hapticFeedback) vibrateTick()
                 val valuesOnly = copyFields.joinToString("\n", transform = VaultField::value)
                 writeVaultClipboard(valuesOnly, copyFields.any(VaultField::sensitive))
-                if (settings.hapticFeedback) vibrateTick()
             },
             onPrimaryLongClick = {
+                if (settings.hapticFeedback) vibrateTick()
                 val labeled = copyFields.joinToString("\n") { "${it.label}: ${it.value}" }
                 writeVaultClipboard(labeled, copyFields.any(VaultField::sensitive))
-                if (settings.hapticFeedback) vibrateTick()
             },
             swipeHapticEnabled = settings.hapticFeedback,
             onPrimarySwipe = if (entry.fields.size > 1) {
@@ -6785,6 +6785,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         // A second vault copy gesture must replace the previous session rather
         // than interleave delayed ClipboardManager writes from two entries.
         vaultCopyHistoryJob?.cancel()
+        if (settings.hapticFeedback) vibrateTick()
         vaultCopyHistoryJob = scope.launch {
             // Gboard keeps clipboard history newest-first. Write bottom-to-top
             // so the resulting cards preserve the field order shown in Expanda.
@@ -6797,7 +6798,6 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 writeVaultClipboardHistoryItem(field.value, field.sensitive)
                 if (index < snapshot.lastIndex) delay(VAULT_GBOARD_COPY_INTERVAL_MS)
             }
-            if (settings.hapticFeedback) vibrate()
         }
     }
 
