@@ -130,6 +130,7 @@ class ActionSettingsStore(context: Context) : SharedPreferences.OnSharedPreferen
             preferences.edit()
                 .putStringSet(KEY_DISABLED_IDS, currentIds - enabledByDefault)
                 .putStringSet(KEY_KNOWN_IDS, currentIds)
+                .putBoolean(KEY_CAPITALIZE_PREVIOUS_WORD_MIGRATED, true)
                 .apply()
             return true
         }
@@ -156,10 +157,27 @@ class ActionSettingsStore(context: Context) : SharedPreferences.OnSharedPreferen
             disabled -= enabledDefaults
         }
 
+        // capitalize_previous_word was introduced after the first previous-word
+        // case migration. Existing installs may therefore already know the action
+        // while still having it silently disabled. Migrate it once alongside its
+        // sibling mn/my actions so users who use either previous-word case action
+        // get the new nc trigger without having to discover and enable it manually.
+        val capitalizePreviousWordNeedsMigration =
+            !preferences.getBoolean(KEY_CAPITALIZE_PREVIOUS_WORD_MIGRATED, false)
+        if (capitalizePreviousWordNeedsMigration) {
+            val previousWordCaseEnabled =
+                "uppercase_previous_word" !in disabled ||
+                    "lowercase_previous_word" !in disabled
+            if (previousWordCaseEnabled) {
+                disabled -= "capitalize_previous_word"
+            }
+        }
+
         disabled.retainAll(currentIds)
         preferences.edit()
             .putStringSet(KEY_DISABLED_IDS, disabled)
             .putStringSet(KEY_KNOWN_IDS, currentIds)
+            .putBoolean(KEY_CAPITALIZE_PREVIOUS_WORD_MIGRATED, true)
             .apply()
         return true
     }
@@ -214,6 +232,8 @@ class ActionSettingsStore(context: Context) : SharedPreferences.OnSharedPreferen
         private const val FILE_NAME = "action_settings"
         private const val KEY_DISABLED_IDS = "disabled_action_ids"
         private const val KEY_KNOWN_IDS = "known_action_ids"
+        private const val KEY_CAPITALIZE_PREVIOUS_WORD_MIGRATED =
+            "capitalize_previous_word_migrated"
         private const val KEY_SHORTCUT_PREFIX = "action_shortcut_"
         private const val KEY_TRIGGERS_PREFIX = "action_triggers_"
         private val PREVIOUS_WORD_CASE_ACTION_IDS = setOf(
