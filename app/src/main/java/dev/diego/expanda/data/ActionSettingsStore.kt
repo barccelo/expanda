@@ -107,6 +107,12 @@ class ActionSettingsStore(context: Context) : SharedPreferences.OnSharedPreferen
             clear()
             putStringSet(KEY_DISABLED_IDS, knownIds - enabled)
             putStringSet(KEY_KNOWN_IDS, knownIds)
+            snapshot.suggestionEnabledIds?.let { restoredSuggestionIds ->
+                putStringSet(
+                    KEY_SUGGESTION_DISABLED_IDS,
+                    knownIds - restoredSuggestionIds.intersect(knownIds),
+                )
+            }
             val restoredTriggers = snapshot.shortcutOverrides
                 .mapValues { (_, shortcut) -> listOf(shortcut) }
                 .toMutableMap()
