@@ -175,6 +175,7 @@ import dev.diego.expanda.data.MatchOptions
 import dev.diego.expanda.data.MatchTrigger
 import dev.diego.expanda.data.OnboardingStatus
 import dev.diego.expanda.data.TextMatch
+import dev.diego.expanda.engine.ActionEngine
 import dev.diego.expanda.data.TriggerKind
 import dev.diego.expanda.data.ThemeMode
 import dev.diego.expanda.data.ColorSchemeMode
@@ -441,8 +442,10 @@ fun ExpandaApp(
                 Destination.ACTION -> ActionCatalogScreen(
                     enabledIds = state.enabledActionIds,
                     triggerOverrides = state.actionTriggerOverrides,
+                    suggestionEnabledIds = state.actionSuggestionEnabledIds,
                     onSetEnabled = viewModel::setActionEnabled,
                     onSetAllEnabled = viewModel::setAllActionsEnabled,
+                    onSetSuggestionEnabled = viewModel::setActionSuggestionEnabled,
                     onSetTriggers = viewModel::setActionTriggers,
                     onResetTriggers = viewModel::resetActionTriggers,
                 )
@@ -991,6 +994,7 @@ private fun SettingsScreen(
     var showGestureSelectorSettings by remember { mutableStateOf(false) }
     var showSuggestionOverlaySettings by remember { mutableStateOf(false) }
     var showSnippetSuggestionSettings by remember { mutableStateOf(false) }
+    var showActionSuggestionSettings by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
     Box(Modifier.fillMaxSize()) {
@@ -1445,6 +1449,9 @@ private fun SettingsScreen(
                 snippetSuggestionCount = state.matches.count(TextMatch::suggestionEnabled),
                 snippetCount = state.matches.size,
                 onConfigureSnippetSuggestions = { showSnippetSuggestionSettings = true },
+                actionSuggestionCount = state.actionSuggestionEnabledIds.size,
+                actionCount = ActionEngine.definitions.size,
+                onConfigureActionSuggestions = { showActionSuggestionSettings = true },
                 onMatchFromBeginningChanged = viewModel::setMatchFromBeginning,
             )
         }
@@ -1461,6 +1468,14 @@ private fun SettingsScreen(
                 matches = state.matches,
                 onDismiss = { showSnippetSuggestionSettings = false },
                 onSetEnabled = viewModel::setSnippetSuggestionEnabled,
+            )
+        }
+        if (showActionSuggestionSettings) {
+            ActionSuggestionSettingsDialog(
+                suggestionEnabledIds = state.actionSuggestionEnabledIds,
+                onDismiss = { showActionSuggestionSettings = false },
+                onSetEnabled = viewModel::setActionSuggestionEnabled,
+                onSetAllEnabled = viewModel::setAllActionSuggestionsEnabled,
             )
         }
         if (showSelectionToolbarSettings) {
@@ -1522,6 +1537,92 @@ private fun SettingsScreen(
             },
         )
     }
+}
+
+@Composable
+private fun ActionSuggestionSettingsDialog(
+    suggestionEnabledIds: Set<String>,
+    onDismiss: () -> Unit,
+    onSetEnabled: (String, Boolean) -> Unit,
+    onSetAllEnabled: (Boolean) -> Unit,
+) {
+    var query by remember { mutableStateOf("") }
+    val definitions = remember(query) {
+        val needle = query.trim()
+        ActionEngine.definitions
+            .filter { definition ->
+                needle.isBlank() ||
+                    definition.title.contains(needle, ignoreCase = true) ||
+                    definition.triggers.any { it.contains(needle, ignoreCase = true) }
+            }
+            .sortedBy { it.title.lowercase() }
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(tr("Action suggestions", "Sugerencias de Actions")) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    tr(
+                        "Choose which enabled Actions may appear in the floating suggestion panel.",
+                        "Elige qué Actions activadas pueden aparecer en el panel flotante de sugerencias.",
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    TextButton(
+                        onClick = { onSetAllEnabled(true) },
+                        modifier = Modifier.weight(1f),
+                    ) { Text(tr("Select all", "Marcar todas")) }
+                    TextButton(
+                        onClick = { onSetAllEnabled(false) },
+                        modifier = Modifier.weight(1f),
+                    ) { Text(tr("Clear all", "Desmarcar todas")) }
+                }
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    leadingIcon = { Icon(Icons.Default.Search, null) },
+                    placeholder = { Text(tr("Search actions", "Buscar Actions")) },
+                )
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    items(definitions, key = { it.id }) { definition ->
+                        val checked = definition.id in suggestionEnabledIds
+                        ListItem(
+                            headlineContent = { Text(tr(definition.title)) },
+                            supportingContent = {
+                                Text(
+                                    definition.triggers.joinToString(" · "),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            },
+                            trailingContent = {
+                                Checkbox(
+                                    checked = checked,
+                                    onCheckedChange = { onSetEnabled(definition.id, it) },
+                                )
+                            },
+                            modifier = Modifier.clickable {
+                                onSetEnabled(definition.id, !checked)
+                            },
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(tr("Done", "Listo")) }
+        },
+    )
 }
 
 @Composable
@@ -1705,6 +1806,9 @@ private fun SuggestionOverlaySettingsDialog(
     snippetSuggestionCount: Int,
     snippetCount: Int,
     onConfigureSnippetSuggestions: () -> Unit,
+    actionSuggestionCount: Int,
+    actionCount: Int,
+    onConfigureActionSuggestions: () -> Unit,
     onMatchFromBeginningChanged: (Boolean) -> Unit,
 ) {
     Dialog(
@@ -1748,6 +1852,9 @@ private fun SuggestionOverlaySettingsDialog(
                             snippetSuggestionCount = snippetSuggestionCount,
                             snippetCount = snippetCount,
                             onConfigureSnippetSuggestions = onConfigureSnippetSuggestions,
+                            actionSuggestionCount = actionSuggestionCount,
+                            actionCount = actionCount,
+                            onConfigureActionSuggestions = onConfigureActionSuggestions,
                             onMatchFromBeginningChanged = onMatchFromBeginningChanged,
                         )
                     }
