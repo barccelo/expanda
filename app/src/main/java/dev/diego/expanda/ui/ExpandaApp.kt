@@ -1114,7 +1114,7 @@ private fun SettingsScreen(
         }
         item {
             ListItem(
-                headlineContent = { Text(tr("Selection toolbar", "Barra de selección")) },
+                headlineContent = { Text(tr("Editing toolbar", "Barra de edición")) },
                 leadingContent = { Icon(Icons.Default.TextFields, null) },
                 supportingContent = {
                     Text(
@@ -2042,7 +2042,7 @@ private fun SelectionToolbarSettingsDialog(
 
     val title = when (val current = page) {
         SelectionToolbarSettingsPage.Overview ->
-            if (es) "Barra de selección" else "Selection toolbar"
+            if (es) "Barra de edición" else "Editing toolbar"
         SelectionToolbarSettingsPage.Size ->
             if (es) "Tamaño y posición" else "Size and position"
         SelectionToolbarSettingsPage.QuickActions ->
@@ -2119,7 +2119,7 @@ private fun SelectionToolbarSettingsDialog(
                         ) {
                             item {
                                 ListItem(
-                                    headlineContent = { Text(tr("Selection toolbar")) },
+                                    headlineContent = { Text(tr("Editing toolbar", "Barra de edición")) },
                                     supportingContent = {
                                         Text(tr("Show quick text transformations when you select editable text"))
                                     },
@@ -2269,7 +2269,7 @@ private fun SelectionToolbarSizeSetting(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text(tr("Selection toolbar size"), style = MaterialTheme.typography.titleSmall)
+                    Text(tr("Editing toolbar size", "Tamaño de la barra de edición"), style = MaterialTheme.typography.titleSmall)
                     Text(
                         tr(
                             "Drag ⠿ to move. Long-press ⠿ and drag to resize directly.",
@@ -2860,6 +2860,8 @@ private fun selectionActionGroupSettingsTitle(
     return when (groupId) {
         SettingsRepository.SELECTION_CASE_GROUP_ID -> if (es) "Grupo Case" else "Case group"
         SettingsRepository.SELECTION_WRAP_GROUP_ID -> if (es) "Grupo Envolver" else "Wrap group"
+        SettingsRepository.SELECTION_CLIPBOARD_GROUP_ID ->
+            if (es) "Grupo Portapapeles" else "Clipboard group"
         else -> if (es) "Grupo de acciones" else "Action group"
     }
 }
@@ -2872,10 +2874,12 @@ private fun toolbarQuickActionLabel(
     val es = usesSpanish(language)
     return when (id) {
         SettingsRepository.SELECTION_CASE_GROUP_ID,
-        SettingsRepository.SELECTION_WRAP_GROUP_ID ->
+        SettingsRepository.SELECTION_WRAP_GROUP_ID,
+        SettingsRepository.SELECTION_CLIPBOARD_GROUP_ID ->
             groupConfigs[id]?.label ?: when (id) {
                 SettingsRepository.SELECTION_CASE_GROUP_ID ->
                     if (es) "Mayúsculas/minúsculas" else "Letter case"
+                SettingsRepository.SELECTION_CLIPBOARD_GROUP_ID -> "⧉"
                 else -> "«»"
             }
         "wrap_guillemets" -> if (es) "Comillas angulares" else "Guillemets"
@@ -2889,6 +2893,9 @@ private fun toolbarQuickActionLabel(
         "lowercase" -> if (es) "Minúsculas" else "Lowercase"
         "sentence_case" -> if (es) "Tipo oración" else "Sentence case"
         "title_case" -> if (es) "Capitalizar palabras" else "Capitalize words"
+        "clipboard_cut" -> if (es) "Cortar" else "Cut"
+        "clipboard_copy" -> if (es) "Copiar" else "Copy"
+        "clipboard_paste" -> if (es) "Pegar" else "Paste"
         "find_replace" -> if (es) "Buscar y reemplazar" else "Find & replace"
         "sort_lines" -> if (es) "Ordenar líneas" else "Sort lines"
         "remove_duplicate_lines" -> if (es) "Eliminar líneas duplicadas" else "Remove duplicate lines"
@@ -2929,6 +2936,10 @@ private fun toolbarQuickActionDescription(id: String, language: DisplayLanguage)
             "Envuelve la selección con signos o marcadores"
         else
             "Wrap the selection with punctuation or markers"
+        SettingsRepository.SELECTION_CLIPBOARD_GROUP_ID -> if (es)
+            "Agrupa Cortar, Copiar y Pegar en un solo botón"
+        else
+            "Groups Cut, Copy and Paste in one button"
         "wrap_guillemets" -> "« texto »"
         "wrap_parentheses" -> "(texto)"
         "wrap_question" -> "¿texto?"
@@ -2936,6 +2947,9 @@ private fun toolbarQuickActionDescription(id: String, language: DisplayLanguage)
         "wrap_brackets" -> "[texto]"
         "wrap_double_asterisk" -> "**texto**"
         "wrap_double_underscore" -> "__texto__"
+        "clipboard_cut" -> if (es) "Corta la selección al portapapeles" else "Cut the selection to the clipboard"
+        "clipboard_copy" -> if (es) "Copia la selección al portapapeles" else "Copy the selection to the clipboard"
+        "clipboard_paste" -> if (es) "Pega sobre la selección" else "Paste over the selection"
         "find_replace" -> if (es) "Abre el panel Buscar/Reemplazar" else "Open the Find/Replace panel"
         "sort_lines" -> if (es) "Ordena alfabéticamente la selección" else "Sort the selection alphabetically"
         "remove_duplicate_lines" -> if (es) "Conserva una sola copia de cada línea" else "Keep one copy of each line"
