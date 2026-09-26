@@ -2727,7 +2727,14 @@ private fun SelectionActionGroupSetting(
                             "Customize the button, order, labels and which options appear.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )            if (adaptiveButton) {
+                    )
+                }
+                TextButton(onClick = onReset) {
+                    Text(if (es) "Restablecer" else "Reset")
+                }
+            }
+
+            if (adaptiveButton) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -2771,10 +2778,7 @@ private fun SelectionActionGroupSetting(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
                 )
-            }             },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-            )
+            }
 
             HorizontalDivider(Modifier.padding(vertical = 6.dp))
             Text(
