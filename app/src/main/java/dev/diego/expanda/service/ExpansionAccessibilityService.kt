@@ -100,6 +100,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private sealed interface VaultTriggerTarget {
         data class Entry(val entry: VaultEntry) : VaultTriggerTarget
         data class Category(val category: VaultCategory) : VaultTriggerTarget
+        data class Field(val entry: VaultEntry, val field: VaultField) : VaultTriggerTarget
     }
 
     private sealed interface PopupSuggestion {
@@ -124,6 +125,15 @@ class ExpansionAccessibilityService : AccessibilityService() {
 
         data class VaultCategoryItem(
             val category: VaultCategory,
+            val suggestionTrigger: String,
+            override val matchedText: String,
+        ) : PopupSuggestion {
+            override val shortcut: String get() = suggestionTrigger
+        }
+
+        data class VaultFieldItem(
+            val entry: VaultEntry,
+            val field: VaultField,
             val suggestionTrigger: String,
             override val matchedText: String,
         ) : PopupSuggestion {
@@ -412,9 +422,22 @@ class ExpansionAccessibilityService : AccessibilityService() {
             if (text == lastAppliedText && SystemClock.elapsedRealtime() - lastAppliedAt < REENTRANCY_WINDOW_MS) return
             findVaultTrigger(text, cursor)?.let { (target, trigger) ->
                 val triggerStart = cursor - trigger.length
-                val withoutTrigger = text.removeRange(triggerStart, cursor)
                 suppressedExpansion = null
                 hideSuggestions()
+                if (target is VaultTriggerTarget.Field) {
+                    applyVaultFieldValue(
+                        node = node,
+                        originalText = text,
+                        replaceStart = triggerStart,
+                        replaceEnd = cursor,
+                        target = target,
+                        settings = settings,
+                        anchor = activeAnchor,
+                    )
+                    return
+                }
+
+                val withoutTrigger = text.removeRange(triggerStart, cursor)
                 if (setFieldText(
                         node = node,
                         originalText = text,
@@ -437,6 +460,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                             anchor = activeAnchor,
                             insertionCursor = triggerStart,
                         )
+                        is VaultTriggerTarget.Field -> Unit
                     }
                 }
                 return
@@ -4752,6 +4776,16 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 )?.let { match ->
                     add(VaultTriggerTarget.Entry(entry) to match.trigger)
                 }
+                entry.fields.forEach { field ->
+                    TriggerMatcher.matchLiteralSuffix(
+                        text = text,
+                        cursor = cursor,
+                        triggers = field.triggers,
+                        caseSensitive = entry.caseSensitive,
+                    )?.let { match ->
+                        add(VaultTriggerTarget.Field(entry, field) to match.trigger)
+                    }
+                }
             }
             vaultRepository.categories.value.forEach { category ->
                 TriggerMatcher.matchLiteralSuffix(
@@ -6549,8 +6583,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
         fun suggestionTypeOrder(item: PopupSuggestion): Int = when (item) {
             is PopupSuggestion.TextSnippet -> 0
             is PopupSuggestion.VaultEntryItem -> 1
-            is PopupSuggestion.VaultCategoryItem -> 2
-            is PopupSuggestion.Action -> 3
+            is PopupSuggestion.VaultFieldItem -> 2
+            is PopupSuggestion.VaultCategoryItem -> 3
+            is PopupSuggestion.Action -> 4
         }
 
         val suggestions = buildList<PopupSuggestion> {
@@ -6573,6 +6608,16 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     .mapTo(this) { (entry, trigger) ->
                         PopupSuggestion.VaultEntryItem(entry, trigger, typed)
                     }
+                vaultRepository.entries.value.forEach { entry ->
+                    entry.fields.forEach { field ->
+                        field.triggers.asSequence()
+                            .filter(String::isNotBlank)
+                            .filter { trigger -> shortcutMatches(trigger, entry.caseSensitive) }
+                            .mapTo(this) { trigger ->
+                                PopupSuggestion.VaultFieldItem(entry, field, trigger, typed)
+                            }
+                    }
+                }
                 vaultRepository.categories.value.asSequence()
                     .flatMap { category -> category.triggers.asSequence().map { category to it } }
                     .filter { (_, trigger) -> trigger.isNotBlank() }
@@ -6772,6 +6817,25 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     onClick = {
                         applyVaultSuggestion(
                             target = VaultTriggerTarget.Entry(suggestion.entry),
+                            trigger = suggestion.suggestionTrigger,
+                            browseMode = showAll,
+                        )
+                    },
+                )
+                is PopupSuggestion.VaultFieldItem -> createVaultSuggestionRow(
+                    title = suggestion.field.label,
+                    subtitle = localizedSelectionUi(
+                        settings,
+                        "Vault field · ${suggestion.entry.title}",
+                        "Campo de bóveda · ${suggestion.entry.title}",
+                    ),
+                    trigger = suggestion.suggestionTrigger,
+                    typed = suggestion.matchedText,
+                    settings = settings,
+                    ui = ui,
+                    onClick = {
+                        applyVaultSuggestion(
+                            target = VaultTriggerTarget.Field(suggestion.entry, suggestion.field),
                             trigger = suggestion.suggestionTrigger,
                             browseMode = showAll,
                         )
@@ -7081,6 +7145,49 @@ class ExpansionAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun applyVaultFieldValue(
+        node: AccessibilityNodeInfo,
+        originalText: String,
+        replaceStart: Int,
+        replaceEnd: Int,
+        target: VaultTriggerTarget.Field,
+        settings: AppSettings,
+        anchor: SuggestionAnchor,
+    ): Boolean {
+        val start = replaceStart.coerceIn(0, originalText.length)
+        val end = replaceEnd.coerceIn(start, originalText.length)
+        val replacement = target.field.value
+        val finalText = originalText.replaceRange(start, end, replacement)
+        val finalCursor = start + replacement.length
+        if (!setFieldText(
+                node = node,
+                originalText = originalText,
+                newText = finalText,
+                selectionStart = finalCursor,
+                selectionEnd = finalCursor,
+                settings = settings,
+            )
+        ) {
+            return false
+        }
+
+        reversibleExpansion = ReversibleExpansion(
+            anchor = anchor,
+            appliedText = finalText,
+            appliedCursor = finalCursor,
+            restoredText = originalText,
+            restoredCursor = end,
+            matchId = VAULT_FIELD_UNDO_MATCH_ID_BASE xor target.field.id.hashCode().toLong(),
+            matchedText = originalText.substring(start, end),
+        )
+        suppressedExpansion = null
+        lastAppliedText = finalText
+        lastAppliedAt = SystemClock.elapsedRealtime()
+        if (settings.hapticFeedback) vibrate()
+        hideSuggestions()
+        return true
+    }
+
     private fun applyVaultSuggestion(
         target: VaultTriggerTarget,
         trigger: String,
@@ -7107,6 +7214,18 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 browseMode = browseMode,
             ) ?: return
             val currentSettings = settingsRepository.settings.value
+            if (target is VaultTriggerTarget.Field) {
+                applyVaultFieldValue(
+                    node = node,
+                    originalText = text,
+                    replaceStart = range.start,
+                    replaceEnd = range.end,
+                    target = target,
+                    settings = currentSettings,
+                    anchor = anchor,
+                )
+                return
+            }
             val withoutTypedPrefix = text.removeRange(range.start, range.end)
             if (!setFieldText(
                     node = node,
@@ -7132,6 +7251,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     anchor = anchor,
                     insertionCursor = range.start,
                 )
+                is VaultTriggerTarget.Field -> Unit
             }
         } finally {
             node.recycle()
@@ -7831,6 +7951,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         private const val HAPTIC_TICK_MS = 10L
         private const val HAPTIC_CONFIRM_MS = 25L
         private const val PREVIOUS_WORD_CASE_UNDO_MATCH_ID = Long.MIN_VALUE
+        private const val VAULT_FIELD_UNDO_MATCH_ID_BASE = Long.MIN_VALUE / 2
 
         private val PREVIOUS_WORD_CASE_ACTION_IDS = setOf(
             "uppercase_previous_word",
