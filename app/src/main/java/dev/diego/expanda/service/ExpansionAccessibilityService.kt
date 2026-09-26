@@ -85,6 +85,7 @@ import dev.diego.expanda.ui.suggestion.SuggestionOverlaySpec
 import dev.diego.expanda.ui.suggestion.SuggestionResizePolicy
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -170,6 +171,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private var vaultOverlayActive = false
     private var vaultOverlayOriginPackage: String? = null
     private var vaultOverlayShownAt = 0L
+    private var vaultCopyHistoryJob: Job? = null
     private var pendingFormNode: AccessibilityNodeInfo? = null
     private var pendingFormApply: Runnable? = null
     private var activeFieldDialog: Dialog? = null
@@ -652,6 +654,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
         hideSelectionToolbar()
         hideSelectionGestureHotspot()
         removeClipboardOverlay()
+        vaultCopyHistoryJob?.cancel()
+        vaultCopyHistoryJob = null
         if (activeService?.get() === this) activeService = null
         scope.cancel()
         super.onDestroy()
@@ -6773,8 +6777,15 @@ class ExpansionAccessibilityService : AccessibilityService() {
         fields: List<VaultField>,
         settings: AppSettings,
     ) {
-        if (fields.isEmpty()) return
-        scope.launch {
+        val snapshot = fields
+            .map { field -> field.copy() }
+            .filter { it.value.isNotEmpty() }
+        if (snapshot.isEmpty()) return
+
+        // A second vault copy gesture must replace the previous session rather
+        // than interleave delayed ClipboardManager writes from two entries.
+        vaultCopyHistoryJob?.cancel()
+        vaultCopyHistoryJob = scope.launch {
             // Gboard keeps clipboard history newest-first. Write bottom-to-top
             // so the resulting cards preserve the field order shown in Expanda.
             //
@@ -6782,9 +6793,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
             // items", so sensitive fields are still suppressed from Expanda's
             // own history but are not tagged IS_SENSITIVE for the system clip;
             // keyboards may intentionally omit IS_SENSITIVE clips from history.
-            fields.asReversed().forEachIndexed { index, field ->
+            snapshot.asReversed().forEachIndexed { index, field ->
                 writeVaultClipboardHistoryItem(field.value, field.sensitive)
-                if (index < fields.lastIndex) delay(VAULT_GBOARD_COPY_INTERVAL_MS)
+                if (index < snapshot.lastIndex) delay(VAULT_GBOARD_COPY_INTERVAL_MS)
             }
             if (settings.hapticFeedback) vibrate()
         }
@@ -6799,6 +6810,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
 
     private fun writeVaultClipboard(text: String, sensitive: Boolean) {
         if (text.isEmpty()) return
+        vaultCopyHistoryJob?.cancel()
+        vaultCopyHistoryJob = null
         val manager = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
         if (sensitive) clipboardMonitor.suppressHistoryOnce(text)
         val clip = ClipData.newPlainText(
@@ -7146,6 +7159,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                         applyVaultSuggestion(
                             target = VaultTriggerTarget.Entry(suggestion.entry),
                             trigger = suggestion.suggestionTrigger,
+                            matchedText = suggestion.matchedText,
                             browseMode = showAll,
                         )
                     },
@@ -7165,6 +7179,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                         applyVaultSuggestion(
                             target = VaultTriggerTarget.Field(suggestion.entry, suggestion.field),
                             trigger = suggestion.suggestionTrigger,
+                            matchedText = suggestion.matchedText,
                             browseMode = showAll,
                         )
                     },
@@ -7180,6 +7195,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                         applyVaultSuggestion(
                             target = VaultTriggerTarget.Category(suggestion.category),
                             trigger = suggestion.suggestionTrigger,
+                            matchedText = suggestion.matchedText,
                             browseMode = showAll,
                         )
                     },
@@ -7519,6 +7535,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private fun applyVaultSuggestion(
         target: VaultTriggerTarget,
         trigger: String,
+        matchedText: String,
         browseMode: Boolean,
     ) {
         val anchor = suggestionAnchor ?: run {
@@ -7540,6 +7557,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 cursor = cursor,
                 trigger = trigger,
                 browseMode = browseMode,
+                matchedText = matchedText,
             ) ?: return
             val currentSettings = settingsRepository.settings.value
             if (target is VaultTriggerTarget.Field) {
