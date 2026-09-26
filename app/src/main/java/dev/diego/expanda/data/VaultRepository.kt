@@ -261,7 +261,21 @@ class VaultRepository(
         }
 
     private fun validateEntryTriggers(entry: VaultEntry) {
-        entry.triggers.forEach { trigger ->
+        val allTriggers = buildList {
+            addAll(entry.triggers)
+            entry.fields.forEach { field -> addAll(field.triggers) }
+        }
+        allTriggers.forEachIndexed { index, trigger ->
+            for (otherIndex in index + 1 until allTriggers.size) {
+                require(
+                    !TriggerMatcher.conflicts(
+                        trigger,
+                        entry.caseSensitive,
+                        allTriggers[otherIndex],
+                        entry.caseSensitive,
+                    ),
+                ) { "Trigger already used in this vault entry: $trigger" }
+            }
             requireTriggerAvailable(
                 trigger = trigger,
                 caseSensitive = entry.caseSensitive,
@@ -290,7 +304,11 @@ class VaultRepository(
             .asSequence()
             .filterNot { it.id == excludeEntryId }
             .any { entry ->
-                entry.triggers.any { existing ->
+                val existingTriggers = buildList {
+                    addAll(entry.triggers)
+                    entry.fields.forEach { field -> addAll(field.triggers) }
+                }
+                existingTriggers.any { existing ->
                     TriggerMatcher.conflicts(
                         trigger,
                         caseSensitive,
@@ -375,7 +393,8 @@ class VaultRepository(
                         .put("id", field.id)
                         .put("label", field.label)
                         .put("value", field.value)
-                        .put("sensitive", field.sensitive),
+                        .put("sensitive", field.sensitive)
+                        .put("triggers", JSONArray(field.triggers)),
                 )
             }
         })
@@ -404,6 +423,7 @@ class VaultRepository(
                         label = item.optString("label"),
                         value = item.optString("value"),
                         sensitive = item.optBoolean("sensitive"),
+                        triggers = item.optJSONArray("triggers").strings(),
                     ),
                 )
             }
