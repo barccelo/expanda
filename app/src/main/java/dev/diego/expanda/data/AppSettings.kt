@@ -30,6 +30,8 @@ data class SelectionActionGroupConfig(
     val actionOrder: List<String>,
     val enabledActionIds: Set<String>,
     val actionLabels: Map<String, String>,
+    /** Last option chosen from an adaptive group. Used by the toolbar's short tap. */
+    val preferredActionId: String? = null,
 )
 
 data class AppSettings(
@@ -518,6 +520,7 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
                 "uppercase" to "ABC",
                 "title_case" to "AaA",
             ),
+            preferredActionId = "title_case",
         )
         val DEFAULT_SELECTION_WRAP_GROUP_CONFIG = SelectionActionGroupConfig(
             label = "«»",
@@ -566,6 +569,7 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
                 "clipboard_copy" to "⧉",
                 "clipboard_paste" to "▣",
             ),
+            preferredActionId = "clipboard_paste",
         )
         val DEFAULT_SELECTION_ACTION_GROUP_CONFIGS = mapOf(
             SELECTION_CASE_GROUP_ID to DEFAULT_SELECTION_CASE_GROUP_CONFIG,
@@ -646,6 +650,7 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
                     put("actionLabels", JSONObject().apply {
                         config.actionLabels.forEach { (actionId, label) -> put(actionId, label) }
                     })
+                    config.preferredActionId?.let { put("preferredActionId", it) }
                 })
             }
         }.toString()
@@ -691,6 +696,9 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
                         actionOrder = order,
                         enabledActionIds = enabled,
                         actionLabels = labels,
+                        preferredActionId = json.optString("preferredActionId")
+                            .takeIf(String::isNotBlank)
+                            ?: defaultConfig.preferredActionId,
                     ),
                 ) ?: defaultConfig
             }
@@ -719,11 +727,15 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
                 .take(MAX_SELECTION_GROUP_LABEL_LENGTH)
                 .takeIf(String::isNotBlank)
                 ?: defaultConfig.label
+            val preferredActionId = config.preferredActionId
+                ?.takeIf { it in available }
+                ?: defaultConfig.preferredActionId?.takeIf { it in available }
             return SelectionActionGroupConfig(
                 label = label,
                 actionOrder = order,
                 enabledActionIds = enabled,
                 actionLabels = labels,
+                preferredActionId = preferredActionId,
             )
         }
 
