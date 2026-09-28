@@ -960,10 +960,17 @@ class ExpansionAccessibilityService : AccessibilityService() {
         }
 
         var handleSettingsMode = false
-        val dragHandle = ImageView(this).apply {
-            scaleType = ImageView.ScaleType.CENTER
-            setImageResource(R.drawable.ic_move_fine)
-            setColorFilter(ui.theme.onSurfaceVariant)
+        val dragHandle = object : TextView(this) {
+            override fun performClick(): Boolean {
+                super.performClick()
+                return true
+            }
+        }.apply {
+            text = "⠿"
+            gravity = Gravity.CENTER
+            setTextColor(ui.theme.onSurfaceVariant)
+            textSize = ui.scaled(actionTextSize + 2f)
+            includeFontPadding = false
             background = ui.surface(10)
             isClickable = true
             isFocusable = true
@@ -977,7 +984,15 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     openSelectionToolbarSettings()
                 } else {
                     handleSettingsMode = true
-                    setImageResource(R.drawable.ic_settings_fine)
+                    text = ""
+                    setCompoundDrawablesWithIntrinsicBounds(
+                        R.drawable.ic_settings_fine,
+                        0,
+                        0,
+                        0,
+                    )
+                    compoundDrawableTintList =
+                        android.content.res.ColorStateList.valueOf(ui.theme.onSurfaceVariant)
                     contentDescription = localizedSelectionUi(
                         settings,
                         "Open editing toolbar settings",
@@ -1215,13 +1230,20 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 windowManager = windowManager,
                 bounds = screen,
                 restoreHandleIcon = {
-                    dragHandle.setImageResource(
-                        if (handleSettingsMode) {
-                            R.drawable.ic_settings_fine
-                        } else {
-                            R.drawable.ic_move_fine
-                        },
-                    )
+                    dragHandle.setCompoundDrawablesWithIntrinsicBounds(0, 0, 0, 0)
+                    if (handleSettingsMode) {
+                        dragHandle.text = ""
+                        dragHandle.setCompoundDrawablesWithIntrinsicBounds(
+                            R.drawable.ic_settings_fine,
+                            0,
+                            0,
+                            0,
+                        )
+                        dragHandle.compoundDrawableTintList =
+                            android.content.res.ColorStateList.valueOf(ui.theme.onSurfaceVariant)
+                    } else {
+                        dragHandle.text = "⠿"
+                    }
                 },
             ),
         )
@@ -4677,39 +4699,11 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     .takeIf { it != active }
                     ?: return false
             } else {
-                // Ask Android for the next visual-line position from the active
-                // endpoint, then restore the original opposite endpoint. This keeps
-                // wrapped-line behavior without collapsing a pre-existing selection.
-                if (!setSelection(node, active, active)) {
-                    node = refreshEditor() ?: return false
-                    if (!setSelection(node, active, active)) return false
-                }
-                val action = if (forward) {
-                    AccessibilityNodeInfo.ACTION_NEXT_AT_MOVEMENT_GRANULARITY
-                } else {
-                    AccessibilityNodeInfo.ACTION_PREVIOUS_AT_MOVEMENT_GRANULARITY
-                }
-                val args = Bundle().apply {
-                    putInt(
-                        AccessibilityNodeInfo.ACTION_ARGUMENT_MOVEMENT_GRANULARITY_INT,
-                        granularity,
-                    )
-                    putBoolean(
-                        AccessibilityNodeInfo.ACTION_ARGUMENT_EXTEND_SELECTION_BOOLEAN,
-                        false,
-                    )
-                }
-                var moved = node.performAction(action, args)
-                if (!moved) {
-                    node = refreshEditor() ?: return false
-                    setSelection(node, active, active)
-                    moved = node.performAction(action, args)
-                }
-                if (!moved) return false
-                runCatching { node.refresh() }
-                node.textSelectionEnd
-                    .takeIf { it in 0..editableText(node).length && it != active }
-                    ?: return false
+                SelectionGestureMovement.lineTarget(
+                    text = text,
+                    cursor = active,
+                    forward = forward,
+                ) ?: return false
             }
 
             val start = minOf(anchor, target)
@@ -8262,7 +8256,22 @@ class ExpansionAccessibilityService : AccessibilityService() {
                         if (!dragging) {
                             resizing = true
                             container.alpha = DRAG_ALPHA
-                            (handle as? ImageView)?.setImageResource(R.drawable.ic_resize_fine)
+                            (handle as? TextView)?.let { textHandle ->
+                                textHandle.text = ""
+                                textHandle.setCompoundDrawablesWithIntrinsicBounds(
+                                    R.drawable.ic_resize_fine,
+                                    0,
+                                    0,
+                                    0,
+                                )
+                                textHandle.compoundDrawableTintList =
+                                    android.content.res.ColorStateList.valueOf(
+                                        resolveNativeTheme(
+                                            this@ExpansionAccessibilityService,
+                                            settingsRepository.settings.value,
+                                        ).onSurfaceVariant,
+                                    )
+                            }
                             if (settingsRepository.settings.value.hapticFeedback) vibrateTick()
                         }
                     }
