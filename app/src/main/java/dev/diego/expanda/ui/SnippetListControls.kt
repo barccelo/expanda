@@ -10,16 +10,16 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Sort
-import androidx.compose.material.icons.automirrored.filled.Label
-import androidx.compose.material.icons.automirrored.filled.LabelOff
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.PowerSettingsNew
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.automirrored.outlined.Sort
+import androidx.compose.material.icons.automirrored.outlined.Label
+import androidx.compose.material.icons.automirrored.outlined.LabelOff
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.PowerSettingsNew
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.DropdownMenu
@@ -53,14 +53,14 @@ internal fun SnippetSortControl(
     var expanded by remember { mutableStateOf(false) }
     androidx.compose.foundation.layout.Box {
         IconButton(onClick = { expanded = true }) {
-            Icon(Icons.AutoMirrored.Filled.Sort, "Sort snippets: ${mode.label()}")
+            Icon(Icons.AutoMirrored.Outlined.Sort, "Sort snippets: ${mode.label()}")
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             SnippetSortMode.entries.forEach { option ->
                 DropdownMenuItem(
                     text = { Text(option.label()) },
                     leadingIcon = if (option == mode) {
-                        { Icon(Icons.Default.Check, null) }
+                        { Icon(Icons.Outlined.Check, null) }
                     } else null,
                     onClick = {
                         onModeChange(option)
@@ -91,13 +91,13 @@ internal fun SnippetActionBar(
         ) {
             Row(Modifier.padding(4.dp)) {
                 IconButton(onClick = onSearch) {
-                    Icon(Icons.Default.Search, "Search snippets")
+                    Icon(Icons.Outlined.Search, "Search snippets")
                 }
                 SnippetSortControl(mode = sortMode, onModeChange = onSortModeChange)
             }
         }
         FloatingActionButton(onClick = onCreate) {
-            Icon(Icons.Default.Add, "Create snippet")
+            Icon(Icons.Outlined.Add, "Create snippet")
         }
     }
 }
@@ -122,7 +122,7 @@ internal fun SnippetSelectionBar(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                IconButton(onClick = onClose) { Icon(Icons.Default.Close, tr("Cancel", "Cancelar")) }
+                IconButton(onClick = onClose) { Icon(Icons.Outlined.Close, tr("Cancel", "Cancelar")) }
                 Text(tr("$selectedCount selected", "$selectedCount seleccionados"), style = MaterialTheme.typography.titleSmall)
                 androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
                 TextButton(onClick = onSelectAll, enabled = selectedCount < visibleCount) { Text(tr("All")) }
@@ -134,7 +134,7 @@ internal fun SnippetSelectionBar(
                         onClick = onDuplicate,
                         enabled = selectedCount > 0,
                         label = { Text(tr("Duplicate")) },
-                        leadingIcon = { Icon(Icons.Default.ContentCopy, null) },
+                        leadingIcon = { Icon(Icons.Outlined.ContentCopy, null) },
                     )
                 }
                 item {
@@ -142,7 +142,7 @@ internal fun SnippetSelectionBar(
                         onClick = onToggleEnabled,
                         enabled = selectedCount > 0,
                         label = { Text(if (enableSelected) tr("Enable") else tr("Disable")) },
-                        leadingIcon = { Icon(Icons.Default.PowerSettingsNew, null) },
+                        leadingIcon = { Icon(Icons.Outlined.PowerSettingsNew, null) },
                     )
                 }
                 item {
@@ -150,7 +150,7 @@ internal fun SnippetSelectionBar(
                         onClick = onEditTags,
                         enabled = selectedCount > 0,
                         label = { Text(tr("Edit tags")) },
-                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.Label, null) },
+                        leadingIcon = { Icon(Icons.AutoMirrored.Outlined.Label, null) },
                     )
                 }
                 item {
@@ -158,7 +158,7 @@ internal fun SnippetSelectionBar(
                         onClick = onDeleteTags,
                         enabled = selectedCount > 0,
                         label = { Text(tr("Delete tags")) },
-                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.LabelOff, null) },
+                        leadingIcon = { Icon(Icons.AutoMirrored.Outlined.LabelOff, null) },
                     )
                 }
                 item {
@@ -166,7 +166,7 @@ internal fun SnippetSelectionBar(
                         onClick = onDelete,
                         enabled = selectedCount > 0,
                         label = { Text(tr("Delete")) },
-                        leadingIcon = { Icon(Icons.Default.Delete, null) },
+                        leadingIcon = { Icon(Icons.Outlined.Delete, null) },
                     )
                 }
             }
@@ -224,7 +224,7 @@ internal fun BulkTagEditorDialog(
                     keyboardActions = KeyboardActions(onDone = { addNewTag() }),
                     trailingIcon = {
                         IconButton(onClick = ::addNewTag, enabled = newTag.isNotBlank()) {
-                            Icon(Icons.Default.Add, tr("Add tag"))
+                            Icon(Icons.Outlined.Add, tr("Add tag"))
                         }
                     },
                 )
