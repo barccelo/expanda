@@ -959,25 +959,33 @@ class ExpansionAccessibilityService : AccessibilityService() {
             elevation = dp(8).toFloat()
         }
 
-        val dragHandle = object : TextView(this) {
-            override fun performClick(): Boolean {
-                super.performClick()
-                return true
-            }
-        }.apply {
-            text = "⠿"
-            gravity = Gravity.CENTER
-            setTextColor(ui.theme.onSurfaceVariant)
-            textSize = ui.scaled(actionTextSize + 2f)
-            includeFontPadding = false
+        var handleSettingsMode = false
+        val dragHandle = ImageView(this).apply {
+            scaleType = ImageView.ScaleType.CENTER
+            setImageResource(R.drawable.ic_move_fine)
+            setColorFilter(ui.theme.onSurfaceVariant)
             background = ui.surface(10)
             isClickable = true
             isFocusable = true
             contentDescription = localizedSelectionUi(
                 settings,
-                "Move editing toolbar. Long press and drag to resize.",
-                "Mover barra de edición. Mantén pulsado y arrastra para redimensionar.",
+                "Move editing toolbar. Tap for settings. Long press and drag to resize.",
+                "Mover barra de edición. Toca para configuración. Mantén pulsado y arrastra para redimensionar.",
             )
+            setOnClickListener {
+                if (handleSettingsMode) {
+                    openSelectionToolbarSettings()
+                } else {
+                    handleSettingsMode = true
+                    setImageResource(R.drawable.ic_settings_fine)
+                    contentDescription = localizedSelectionUi(
+                        settings,
+                        "Open editing toolbar settings",
+                        "Abrir configuración de la barra de edición",
+                    )
+                    if (settings.hapticFeedback) vibrateTick()
+                }
+            }
         }
         container.addView(
             dragHandle,
@@ -1206,6 +1214,15 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 handle = dragHandle,
                 windowManager = windowManager,
                 bounds = screen,
+                restoreHandleIcon = {
+                    dragHandle.setImageResource(
+                        if (handleSettingsMode) {
+                            R.drawable.ic_settings_fine
+                        } else {
+                            R.drawable.ic_move_fine
+                        },
+                    )
+                },
             ),
         )
 
@@ -6956,6 +6973,22 @@ class ExpansionAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun openSelectionToolbarSettings() {
+        hideSelectionToolbar()
+        runCatching {
+            startActivity(
+                Intent(this, MainActivity::class.java).apply {
+                    putExtra(EXTRA_OPEN_SELECTION_TOOLBAR_SETTINGS, true)
+                    addFlags(
+                        Intent.FLAG_ACTIVITY_NEW_TASK or
+                            Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                            Intent.FLAG_ACTIVITY_SINGLE_TOP,
+                    )
+                },
+            )
+        }
+    }
+
     private fun pasteReplacement(
         node: AccessibilityNodeInfo,
         start: Int,
@@ -8177,6 +8210,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         handle: View,
         windowManager: WindowManager,
         bounds: Rect,
+        restoreHandleIcon: () -> Unit,
     ): View.OnTouchListener {
         val touchSlop = ViewConfiguration.get(this).scaledTouchSlop
         val longPressTimeout = ViewConfiguration.getLongPressTimeout().toLong()
@@ -8228,7 +8262,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                         if (!dragging) {
                             resizing = true
                             container.alpha = DRAG_ALPHA
-                            (handle as? TextView)?.text = "↘"
+                            (handle as? ImageView)?.setImageResource(R.drawable.ic_resize_fine)
                             if (settingsRepository.settings.value.hapticFeedback) vibrateTick()
                         }
                     }
@@ -8276,7 +8310,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     cancelLongPress()
                     val params = selectionToolbarWindowParams ?: return@OnTouchListener false
                     container.alpha = 1f
-                    (handle as? TextView)?.text = "⠿"
+                    restoreHandleIcon()
                     when {
                         resizing -> {
                             constrain(params)
@@ -8656,6 +8690,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
         private const val MIN_WIDTH_DP = 180
         /** MainActivity may consume this extra to open its snippet editor. */
         const val EXTRA_OPEN_NEW_SNIPPET = "dev.diego.expanda.OPEN_NEW_SNIPPET"
+        /** Opens Settings directly on the editing-toolbar configuration dialog. */
+        const val EXTRA_OPEN_SELECTION_TOOLBAR_SETTINGS =
+            "dev.diego.expanda.OPEN_SELECTION_TOOLBAR_SETTINGS"
 
     }
 }
