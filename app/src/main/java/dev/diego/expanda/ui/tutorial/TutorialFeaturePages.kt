@@ -32,13 +32,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Undo
-import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Casino
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Code
-import androidx.compose.material.icons.filled.DynamicForm
-import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.automirrored.outlined.Undo
+import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.Casino
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.DynamicForm
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -98,7 +98,7 @@ internal fun UndoExpansionAnimation() {
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         FeatureHeading(
-            Icons.AutoMirrored.Filled.Undo,
+            Icons.AutoMirrored.Outlined.Undo,
             tr("Undo in one tap", "Deshacer con un toque"),
             tr("Backspace restores the original trigger.", "Retroceso restaura el disparador original."),
         )
@@ -133,7 +133,7 @@ internal fun UndoExpansionAnimation() {
         TutorialKeyboard(pressedKey = pressedKey, pressProgress = press)
         AnimatedVisibility(visible = stage >= UndoStage.RESTORED, enter = fadeIn() + scaleIn()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Outlined.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(6.dp))
                 Text(
                     if (stage == UndoStage.RESTORED) {
@@ -164,14 +164,14 @@ internal fun DynamicValuesAnimation() {
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         FeatureHeading(
-            Icons.Default.CalendarMonth,
+            Icons.Outlined.CalendarMonth,
             tr("Dynamic text", "Texto dinámico"),
             tr("Generate fresh values every time.", "Genera valores nuevos en cada expansión."),
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            VariableBadge(Icons.Default.CalendarMonth, tr("Date", "Fecha"))
-            VariableBadge(Icons.Default.Schedule, tr("Time", "Hora"))
-            VariableBadge(Icons.Default.Casino, tr("Random", "Aleatorio"))
+            VariableBadge(Icons.Outlined.CalendarMonth, tr("Date", "Fecha"))
+            VariableBadge(Icons.Outlined.Schedule, tr("Time", "Hora"))
+            VariableBadge(Icons.Outlined.Casino, tr("Random", "Aleatorio"))
         }
         TutorialTextField(minHeight = 112) {
             if (!expanded) {
@@ -221,7 +221,7 @@ internal fun FormChoiceAnimation() {
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         FeatureHeading(
-            Icons.Default.DynamicForm,
+            Icons.Outlined.DynamicForm,
             tr("Ask only when needed", "Pregunta sólo cuando sea necesario"),
             tr("Complete a form before inserting text.", "Completa un formulario antes de insertar el texto."),
         )
@@ -292,7 +292,7 @@ internal fun RegexAnimation() {
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         FeatureHeading(
-            Icons.Default.Code,
+            Icons.Outlined.Code,
             tr("Reuse changing details", "Reutiliza datos variables"),
             tr("Use regular expressions.", "Usa expresiones regulares."),
         )
