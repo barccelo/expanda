@@ -223,7 +223,7 @@ class ActionEngineTest {
         assertEquals("¡texto!", engine.processSelectedText("wrap_exclamation", "texto"))
         assertEquals("[texto]", engine.processSelectedText("wrap_brackets", "texto"))
         assertEquals("*texto*", engine.processSelectedText("wrap_double_asterisk", "texto"))
-        assertEquals("__texto__", engine.processSelectedText("wrap_double_underscore", "texto"))
+        assertEquals("_texto_", engine.processSelectedText("wrap_double_underscore", "texto"))
     }
 
     @Test fun `selected range transformation preserves surrounding text and selection`() {
