@@ -7357,7 +7357,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     ui = ui,
                     onClick = {
                         applyVaultSuggestion(
-                            target = VaultTriggerTarget.Field(suggestion.entry, suggestion.field),
+                            target = VaultTriggerTarget.Entry(suggestion.entry),
                             trigger = suggestion.suggestionTrigger,
                             matchedText = suggestion.matchedText,
                             browseMode = showAll,
