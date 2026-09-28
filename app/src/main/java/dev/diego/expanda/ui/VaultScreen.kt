@@ -18,12 +18,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Favorite
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -158,7 +158,7 @@ fun VaultScreen(
                     horizontalArrangement = Arrangement.End,
                 ) {
                     TextButton(onClick = { creatingCategory = true }) {
-                        Icon(Icons.Default.Add, null)
+                        Icon(Icons.Outlined.Add, null)
                         Text(tr("Category", "Categoría"))
                     }
                     TextButton(onClick = { showTriggerManager = true }) {
@@ -175,7 +175,7 @@ fun VaultScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Icon(Icons.Default.Lock, null)
+                    Icon(Icons.Outlined.Lock, null)
                     Text(
                         if (entries.isEmpty() && categories.isEmpty()) {
                             tr("Your vault is empty", "Tu bóveda está vacía")
@@ -233,13 +233,13 @@ fun VaultScreen(
                                         },
                                     ) {
                                         Icon(
-                                            Icons.Default.Add,
+                                            Icons.Outlined.Add,
                                             tr("New entry in category", "Nueva entrada en categoría"),
                                         )
                                     }
                                     IconButton(onClick = { editingCategory = categoryEntity }) {
                                         Icon(
-                                            Icons.Default.Edit,
+                                            Icons.Outlined.Edit,
                                             tr("Edit category", "Editar categoría"),
                                         )
                                     }
@@ -304,7 +304,7 @@ fun VaultScreen(
                                             )
                                         } else {
                                             Icon(
-                                                if (entry.favorite) Icons.Default.Favorite else Icons.Default.Lock,
+                                                if (entry.favorite) Icons.Outlined.Favorite else Icons.Outlined.Lock,
                                                 null,
                                             )
                                         }
@@ -326,7 +326,7 @@ fun VaultScreen(
                 .align(Alignment.BottomEnd)
                 .padding(20.dp),
         ) {
-            Icon(Icons.Default.Add, tr("New vault entry", "Nueva entrada"))
+            Icon(Icons.Outlined.Add, tr("New vault entry", "Nueva entrada"))
         }
     }
 
@@ -679,7 +679,7 @@ private fun VaultEntryDialog(
         onDismissRequest = onDismiss,
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Lock, null)
+                Icon(Icons.Outlined.Lock, null)
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text(entry.title)
@@ -696,7 +696,7 @@ private fun VaultEntryDialog(
                     }
                 }
                 IconButton(onClick = { onEdit(entry) }) {
-                    Icon(Icons.Default.Edit, tr("Edit", "Editar"))
+                    Icon(Icons.Outlined.Edit, tr("Edit", "Editar"))
                 }
             }
         },
@@ -761,7 +761,7 @@ private fun VaultEntryDialog(
         },
         dismissButton = {
             TextButton(onClick = { onDelete(entry) }) {
-                Icon(Icons.Default.Delete, null)
+                Icon(Icons.Outlined.Delete, null)
                 Text(tr("Delete", "Eliminar"))
             }
         },
@@ -887,7 +887,7 @@ private fun VaultEditorDialog(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
-                            if (favorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                            if (favorite) Icons.Outlined.Favorite else Icons.Outlined.FavoriteBorder,
                             null,
                         )
                         Spacer(Modifier.width(10.dp))
@@ -981,7 +981,7 @@ private fun VaultEditorDialog(
                                     },
                                     enabled = fields.size > 1,
                                 ) {
-                                    Icon(Icons.Default.Delete, tr("Delete field", "Eliminar campo"))
+                                    Icon(Icons.Outlined.Delete, tr("Delete field", "Eliminar campo"))
                                 }
                             }
                         }
@@ -996,7 +996,7 @@ private fun VaultEditorDialog(
                             )
                         },
                     ) {
-                        Icon(Icons.Default.Add, null)
+                        Icon(Icons.Outlined.Add, null)
                         Text(tr("Add field", "Agregar campo"))
                     }
                 }
@@ -1135,7 +1135,7 @@ private fun VaultCategoryEditorDialog(
             Row {
                 if (initial.id != 0L) {
                     TextButton(onClick = { onDelete(initial) }) {
-                        Icon(Icons.Default.Delete, null)
+                        Icon(Icons.Outlined.Delete, null)
                         Text(tr("Delete category", "Eliminar categoría"))
                     }
                 }
