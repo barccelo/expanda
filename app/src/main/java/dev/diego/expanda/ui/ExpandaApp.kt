@@ -39,44 +39,44 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Accessibility
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Apps
-import androidx.compose.material.icons.filled.BatteryStd
-import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Accessibility
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Apps
+import androidx.compose.material.icons.outlined.BatteryStd
+import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material.icons.filled.Colorize
-import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.FormatSize
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.LinkOff
-import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material.icons.filled.ImportExport
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Lightbulb
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.PauseCircle
-import androidx.compose.material.icons.filled.QueryStats
-import androidx.compose.material.icons.filled.Upload
-import androidx.compose.material.icons.filled.Vibration
-import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.ContentPaste
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Code
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.TextFields
-import androidx.compose.material.icons.filled.TouchApp
-import androidx.compose.material.icons.filled.EditNote
-import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.FormatSize
+import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.LinkOff
+import androidx.compose.material.icons.outlined.Sync
+import androidx.compose.material.icons.outlined.ImportExport
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Lightbulb
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.PauseCircle
+import androidx.compose.material.icons.outlined.QueryStats
+import androidx.compose.material.icons.outlined.Upload
+import androidx.compose.material.icons.outlined.Vibration
+import androidx.compose.material.icons.outlined.Bolt
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.ContentPaste
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Security
+import androidx.compose.material.icons.outlined.TextFields
+import androidx.compose.material.icons.outlined.TouchApp
+import androidx.compose.material.icons.outlined.EditNote
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -203,12 +203,12 @@ import dev.diego.expanda.R
 import java.util.UUID
 
 private enum class Destination(val label: String, val icon: ImageVector) {
-    TEXT("Snippets", Icons.Default.TextFields),
-    TEST("Playground", Icons.Default.EditNote),
-    ACTION("Actions", Icons.Default.Bolt),
-    VAULT("Vault", Icons.Default.Lock),
-    SOURCE("Source", Icons.Default.Code),
-    SETTINGS("Settings", Icons.Default.Settings),
+    TEXT("Snippets", Icons.Outlined.TextFields),
+    TEST("Playground", Icons.Outlined.EditNote),
+    ACTION("Actions", Icons.Outlined.Bolt),
+    VAULT("Vault", Icons.Outlined.Lock),
+    SOURCE("Source", Icons.Outlined.Code),
+    SETTINGS("Settings", Icons.Outlined.Settings),
 }
 
 private val PORTABLE_VARIABLE_TYPES = setOf("echo", "date", "choice", "random", "clipboard", "form", "match")
@@ -713,7 +713,7 @@ private fun SnippetList(
                 onValueChange = viewModel::setSearch,
                 modifier = Modifier.fillMaxWidth().padding(16.dp).focusRequester(searchFocusRequester),
                 placeholder = { Text(tr("Search snippets", "Buscar fragmentos")) },
-                leadingIcon = { Icon(Icons.Default.Search, null) },
+                leadingIcon = { Icon(Icons.Outlined.Search, null) },
                 trailingIcon = {
                     IconButton(onClick = {
                         viewModel.setSearch("")
@@ -721,7 +721,7 @@ private fun SnippetList(
                         keyboardController?.hide()
                         onHideSearch()
                     }) {
-                        Icon(Icons.Default.Close, tr("Close search", "Cerrar búsqueda"))
+                        Icon(Icons.Outlined.Close, tr("Close search", "Cerrar búsqueda"))
                     }
                 },
                 singleLine = true,
@@ -886,7 +886,7 @@ private fun EmptyState(
 ) =
     Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Icon(Icons.Default.TextFields, null)
+        Icon(Icons.Outlined.TextFields, null)
         Text(
             if (hasSnippets) tr("No matching snippets", "No hay fragmentos coincidentes")
             else tr("No snippets yet", "Aún no hay fragmentos"),
@@ -1002,19 +1002,19 @@ private fun SettingsScreen(
 
     Box(Modifier.fillMaxSize()) {
         LazyColumn {
-        item { SettingsSectionHeader(Icons.Default.Settings, tr("General", "General")) }
+        item { SettingsSectionHeader(Icons.Outlined.Settings, tr("General", "General")) }
         item {
             ListItem(
                 headlineContent = { Text(tr("About Expanda")) },
                 supportingContent = { Text(tr("Project, source code and contact links")) },
-                leadingContent = { Icon(Icons.Default.Info, null) },
+                leadingContent = { Icon(Icons.Outlined.Info, null) },
                 modifier = Modifier.selectable(false, onClick = onOpenAbout),
             )
         }
         item {
             ListItem(
                 headlineContent = { Text(tr("Learn Expanda")) },
-                leadingContent = { Icon(Icons.Default.AutoAwesome, null) },
+                leadingContent = { Icon(Icons.Outlined.AutoAwesome, null) },
                 supportingContent = { Text(tr("Reopen the animated introduction")) },
                 modifier = Modifier.selectable(false, onClick = viewModel::showTutorial),
             )
@@ -1022,16 +1022,16 @@ private fun SettingsScreen(
         item {
             ListItem(
                 headlineContent = { Text(tr("Text expansion")) },
-                leadingContent = { Icon(Icons.Default.Lightbulb, null) },
+                leadingContent = { Icon(Icons.Outlined.Lightbulb, null) },
                 supportingContent = { Text(if (serviceEnabled) tr("Accessibility service enabled", "Servicio de accesibilidad activado") else tr("Service disabled", "Servicio desactivado")) },
                 trailingContent = { Switch(state.settings.expansionEnabled, viewModel::setExpansionEnabled) },
             )
         }
-        item { ListItem(leadingContent = { Icon(Icons.Default.Accessibility, null) }, headlineContent = { Text(tr("Accessibility service")) }, modifier = Modifier.selectable(false, onClick = openAccessibility)) }
+        item { ListItem(leadingContent = { Icon(Icons.Outlined.Accessibility, null) }, headlineContent = { Text(tr("Accessibility service")) }, modifier = Modifier.selectable(false, onClick = openAccessibility)) }
         item {
             ListItem(
                 headlineContent = { Text(tr("Run reliably in background")) },
-                leadingContent = { Icon(Icons.Default.BatteryStd, null) },
+                leadingContent = { Icon(Icons.Outlined.BatteryStd, null) },
                 supportingContent = {
                     Text(
                         if (backgroundAllowed) tr("Battery optimization exemption granted", "Exención de optimización de batería concedida")
@@ -1045,7 +1045,7 @@ private fun SettingsScreen(
         item {
             ListItem(
                 headlineContent = { Text(if (state.settings.isPaused) tr("Resume now") else tr("Pause for one hour")) },
-                leadingContent = { Icon(Icons.Default.PauseCircle, null) },
+                leadingContent = { Icon(Icons.Outlined.PauseCircle, null) },
                 modifier = Modifier.selectable(false) {
                     if (state.settings.isPaused) viewModel.resume() else viewModel.pauseFor(60 * 60 * 1000L)
                 }
@@ -1054,7 +1054,7 @@ private fun SettingsScreen(
         item {
             ListItem(
                 headlineContent = { Text(tr("Excluded apps")) },
-                leadingContent = { Icon(Icons.Default.Apps, null) },
+                leadingContent = { Icon(Icons.Outlined.Apps, null) },
                 supportingContent = {
                     Text(
                         if (state.settings.globallyExcludedPackages.isEmpty()) {
@@ -1071,11 +1071,11 @@ private fun SettingsScreen(
             )
         }
         item { HorizontalDivider() }
-        item { SettingsSectionHeader(Icons.Default.Tune, tr("Interaction", "Interacción")) }
+        item { SettingsSectionHeader(Icons.Outlined.Tune, tr("Interaction", "Interacción")) }
         item {
             ListItem(
                 headlineContent = { Text(tr("Clipboard history")) },
-                leadingContent = { Icon(Icons.Default.ContentPaste, null) },
+                leadingContent = { Icon(Icons.Outlined.ContentPaste, null) },
                 supportingContent = { Text(tr("Save copied text for clipboard snippets in other apps")) },
                 trailingContent = { Switch(state.settings.clipboardHistoryEnabled, viewModel::setClipboardHistoryEnabled) },
             )
@@ -1083,14 +1083,14 @@ private fun SettingsScreen(
         item {
             ListItem(
                 headlineContent = { Text(tr("Haptic feedback")) },
-                leadingContent = { Icon(Icons.Default.Vibration, null) },
+                leadingContent = { Icon(Icons.Outlined.Vibration, null) },
                 trailingContent = { Switch(state.settings.hapticFeedback, viewModel::setHapticFeedback) },
             )
         }
         item {
             ListItem(
                 headlineContent = { Text(tr("Compatibility paste fallback")) },
-                leadingContent = { Icon(Icons.Default.Build, null) },
+                leadingContent = { Icon(Icons.Outlined.Build, null) },
                 supportingContent = { Text(tr("For editors that reject direct replacement. Temporarily uses and restores the clipboard.")) },
                 trailingContent = { Switch(state.settings.pasteFallbackEnabled, viewModel::setPasteFallbackEnabled) },
             )
@@ -1099,7 +1099,7 @@ private fun SettingsScreen(
         item { HorizontalDivider() }
         item {
             SettingsSectionHeader(
-                Icons.Default.AutoAwesome,
+                Icons.Outlined.AutoAwesome,
                 tr("Advanced features", "Funciones avanzadas"),
             )
         }
@@ -1114,7 +1114,7 @@ private fun SettingsScreen(
                         ),
                     )
                 },
-                leadingContent = { Icon(Icons.Default.Lock, null) },
+                leadingContent = { Icon(Icons.Outlined.Lock, null) },
                 trailingContent = { SettingsChevron() },
                 modifier = Modifier.clickable(onClick = onOpenVault),
             )
@@ -1122,7 +1122,7 @@ private fun SettingsScreen(
         item {
             ListItem(
                 headlineContent = { Text(tr("Editing toolbar", "Barra de edición")) },
-                leadingContent = { Icon(Icons.Default.TextFields, null) },
+                leadingContent = { Icon(Icons.Outlined.TextFields, null) },
                 supportingContent = {
                     Text(
                         if (state.settings.selectionToolbarEnabled) {
@@ -1142,7 +1142,7 @@ private fun SettingsScreen(
         item {
             ListItem(
                 headlineContent = { Text(tr("Gesture selector", "Selector gestual")) },
-                leadingContent = { Icon(Icons.Default.Accessibility, null) },
+                leadingContent = { Icon(Icons.Outlined.Accessibility, null) },
                 supportingContent = {
                     Text(
                         if (state.settings.selectionGestureHotspotEnabled) {
@@ -1164,7 +1164,7 @@ private fun SettingsScreen(
                 headlineContent = {
                     Text(tr("Smart cursor capitalization", "Capitalización inteligente del cursor"))
                 },
-                leadingContent = { Icon(Icons.Default.TextFields, null) },
+                leadingContent = { Icon(Icons.Outlined.TextFields, null) },
                 supportingContent = {
                     Text(
                         tr(
@@ -1184,7 +1184,7 @@ private fun SettingsScreen(
         item {
             ListItem(
                 headlineContent = { Text(tr("Suggestions", "Sugerencias")) },
-                leadingContent = { Icon(Icons.Default.Lightbulb, null) },
+                leadingContent = { Icon(Icons.Outlined.Lightbulb, null) },
                 supportingContent = {
                     Text(
                         if (state.settings.suggestionEnabled) {
@@ -1199,23 +1199,23 @@ private fun SettingsScreen(
             )
         }
 
-        item { SettingsSectionHeader(Icons.Default.QueryStats, tr("Statistics")) }
+        item { SettingsSectionHeader(Icons.Outlined.QueryStats, tr("Statistics")) }
         item {
             val stats = viewModel.stats()
             ListItem(
                 headlineContent = { Text(tr("${stats.estimatedCharactersSaved} characters saved", "${stats.estimatedCharactersSaved} caracteres ahorrados")) },
-                leadingContent = { Icon(Icons.Default.QueryStats, null) },
+                leadingContent = { Icon(Icons.Outlined.QueryStats, null) },
                 supportingContent = { Text(tr("${stats.totalExpansions} expansions", "${stats.totalExpansions} expansiones")) },
                 trailingContent = { Switch(state.settings.statisticsEnabled, viewModel::setStatisticsEnabled) },
             )
         }
         item { HorizontalDivider() }
-        item { SettingsSectionHeader(Icons.Default.Palette, tr("Appearance")) }
+        item { SettingsSectionHeader(Icons.Outlined.Palette, tr("Appearance")) }
         item {
             Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                 Column(Modifier.padding(vertical = 8.dp)) {
                     CompactChoiceSetting(
-                        icon = Icons.Default.TextFields,
+                        icon = Icons.Outlined.TextFields,
                         title = tr("Display language"),
                         options = DisplayLanguage.entries,
                         selected = state.settings.displayLanguage,
@@ -1224,7 +1224,7 @@ private fun SettingsScreen(
                     )
                     HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                     CompactChoiceSetting(
-                        icon = Icons.Default.Palette,
+                        icon = Icons.Outlined.Palette,
                         title = tr("Color scheme"),
                         options = ColorSchemeMode.entries,
                         selected = state.settings.colorSchemeMode,
@@ -1248,7 +1248,7 @@ private fun SettingsScreen(
                     )
                     HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                     CompactChoiceSetting(
-                        icon = Icons.Default.DarkMode,
+                        icon = Icons.Outlined.DarkMode,
                         title = tr("Theme mode"),
                         options = ThemeMode.entries,
                         selected = state.settings.themeMode,
@@ -1259,12 +1259,12 @@ private fun SettingsScreen(
             }
         }
         item { HorizontalDivider() }
-        item { SettingsSectionHeader(Icons.Default.ImportExport, tr("Import & export")) }
+        item { SettingsSectionHeader(Icons.Outlined.ImportExport, tr("Import & export")) }
         item {
             Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.ImportExport, null, tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Outlined.ImportExport, null, tint = MaterialTheme.colorScheme.primary)
                         Spacer(Modifier.width(12.dp))
                         Column {
                             Text("Espanso", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -1280,11 +1280,11 @@ private fun SettingsScreen(
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = onImport, modifier = Modifier.weight(1f)) {
-                            Icon(Icons.Default.Upload, null)
+                            Icon(Icons.Outlined.Upload, null)
                             Text("  " + tr("Import"))
                         }
                         OutlinedButton(onClick = onExportEspanso, modifier = Modifier.weight(1f)) {
-                            Icon(Icons.Default.Download, null)
+                            Icon(Icons.Outlined.Download, null)
                             Text("  " + tr("Export"))
                         }
                     }
@@ -1292,7 +1292,7 @@ private fun SettingsScreen(
                         onClick = onChooseEspansoFolder,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Icon(Icons.Default.Folder, null)
+                        Icon(Icons.Outlined.Folder, null)
                         Text(
                             if (state.settings.espansoFolderUri == null) "  " + tr("Link match folder", "Vincular carpeta de coincidencias")
                             else "  " + tr("Change match folder", "Cambiar carpeta de coincidencias"),
@@ -1312,7 +1312,7 @@ private fun SettingsScreen(
                                 },
                                 modifier = Modifier.weight(1f),
                             ) {
-                                Icon(Icons.Default.Sync, null)
+                                Icon(Icons.Outlined.Sync, null)
                                 Text("  " + tr("Sync now"))
                             }
                             TextButton(
@@ -1322,7 +1322,7 @@ private fun SettingsScreen(
                                 },
                                 modifier = Modifier.weight(1f),
                             ) {
-                                Icon(Icons.Default.LinkOff, null)
+                                Icon(Icons.Outlined.LinkOff, null)
                                 Text("  " + tr("Unlink"))
                             }
                         }
@@ -1334,7 +1334,7 @@ private fun SettingsScreen(
                         onClick = onOpenSnippetSource,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Icon(Icons.Default.Code, null)
+                        Icon(Icons.Outlined.Code, null)
                         Text("  " + tr("Open Espanso source files"))
                     }
                 }
@@ -1362,11 +1362,11 @@ private fun SettingsScreen(
                     )
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = onImport, modifier = Modifier.weight(1f)) {
-                            Icon(Icons.Default.Upload, null)
+                            Icon(Icons.Outlined.Upload, null)
                             Text("  " + tr("Restore"))
                         }
                         Button(onClick = onExportJson, modifier = Modifier.weight(1f)) {
-                            Icon(Icons.Default.Download, null)
+                            Icon(Icons.Outlined.Download, null)
                             Text("  " + tr("Back up"))
                         }
                     }
@@ -1381,20 +1381,20 @@ private fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        item { ListItem(leadingContent = { Icon(Icons.Default.Upload, null) }, headlineContent = { Text(tr("Import snippets from CSV")) }, modifier = Modifier.selectable(false, onClick = onImport)) }
-        item { ListItem(leadingContent = { Icon(Icons.Default.Download, null) }, headlineContent = { Text(tr("Export snippets as CSV")) }, modifier = Modifier.selectable(false, onClick = onExportCsv)) }
+        item { ListItem(leadingContent = { Icon(Icons.Outlined.Upload, null) }, headlineContent = { Text(tr("Import snippets from CSV")) }, modifier = Modifier.selectable(false, onClick = onImport)) }
+        item { ListItem(leadingContent = { Icon(Icons.Outlined.Download, null) }, headlineContent = { Text(tr("Export snippets as CSV")) }, modifier = Modifier.selectable(false, onClick = onExportCsv)) }
         item { HorizontalDivider() }
-        item { SettingsSectionHeader(Icons.Default.Security, tr("Privacy & data", "Privacidad y datos")) }
+        item { SettingsSectionHeader(Icons.Outlined.Security, tr("Privacy & data", "Privacidad y datos")) }
         item {
             ListItem(
-                leadingContent = { Icon(Icons.Default.Security, null) },
+                leadingContent = { Icon(Icons.Outlined.Security, null) },
                 headlineContent = { Text(tr("Privacy")) },
                 supportingContent = { Text(tr("All snippets stay on this device. Password fields are ignored. No analytics or network access.")) },
             )
         }
         item {
             ListItem(
-                leadingContent = { Icon(Icons.Default.ContentPaste, null) },
+                leadingContent = { Icon(Icons.Outlined.ContentPaste, null) },
                 headlineContent = { Text(tr("Clear clipboard history")) },
                 supportingContent = { Text(tr("${state.clipboardEntries.size} saved entries", "${state.clipboardEntries.size} entradas guardadas")) },
                 modifier = Modifier.clickable(enabled = state.clipboardEntries.isNotEmpty()) {
@@ -1405,7 +1405,7 @@ private fun SettingsScreen(
         item {
             val stats = viewModel.stats()
             ListItem(
-                leadingContent = { Icon(Icons.Default.QueryStats, null) },
+                leadingContent = { Icon(Icons.Outlined.QueryStats, null) },
                 headlineContent = { Text(tr("Reset usage statistics")) },
                 supportingContent = { Text(tr("Clears ${stats.totalExpansions} expansion counts and local usage records", "Borra ${stats.totalExpansions} conteos de expansión y registros locales de uso")) },
                 modifier = Modifier.clickable(enabled = stats.totalExpansions > 0) {
@@ -1415,7 +1415,7 @@ private fun SettingsScreen(
         }
         item {
             ListItem(
-                leadingContent = { Icon(Icons.Default.Info, null) },
+                leadingContent = { Icon(Icons.Outlined.Info, null) },
                 headlineContent = { Text(if (diagnosticsCopied) tr("Diagnostics copied") else tr("Copy diagnostics")) },
                 supportingContent = { Text(tr("Version and device state only; no text, clipboard or app names")) },
                 modifier = Modifier.clickable {
@@ -1429,7 +1429,7 @@ private fun SettingsScreen(
         }
         item {
             ListItem(
-                leadingContent = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
+                leadingContent = { Icon(Icons.Outlined.Delete, null, tint = MaterialTheme.colorScheme.error) },
                 headlineContent = { Text(tr("Reset Expanda"), color = MaterialTheme.colorScheme.error) },
                 supportingContent = { Text(tr("Delete local data and return to the first-run tutorial")) },
                 modifier = Modifier.clickable { confirmResetAll = true },
@@ -1590,7 +1590,7 @@ private fun ActionSuggestionSettingsDialog(
                     onValueChange = { query = it },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    leadingIcon = { Icon(Icons.Default.Search, null) },
+                    leadingIcon = { Icon(Icons.Outlined.Search, null) },
                     placeholder = { Text(tr("Search actions", "Buscar Actions")) },
                 )
                 LazyColumn(
@@ -1677,7 +1677,7 @@ private fun SnippetSuggestionSettingsDialog(
                     onValueChange = { query = it },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    leadingIcon = { Icon(Icons.Default.Search, null) },
+                    leadingIcon = { Icon(Icons.Outlined.Search, null) },
                     placeholder = { Text(tr("Search snippets", "Buscar snippets")) },
                 )
                 LazyColumn(
@@ -2105,7 +2105,7 @@ private fun SettingsDialogHeader(
             )
         }
         IconButton(onClick = onClose) {
-            Icon(Icons.Default.Close, tr("Close"))
+            Icon(Icons.Outlined.Close, tr("Close"))
         }
     }
 }
@@ -2196,7 +2196,7 @@ private fun SelectionToolbarSettingsDialog(
                 ) {
                     if (page != SelectionToolbarSettingsPage.Overview) {
                         IconButton(onClick = ::goBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back"))
+                            Icon(Icons.AutoMirrored.Outlined.ArrowBack, tr("Back"))
                         }
                     } else {
                         Spacer(Modifier.width(12.dp))
@@ -2214,7 +2214,7 @@ private fun SelectionToolbarSettingsDialog(
                         )
                     }
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, tr("Close"))
+                        Icon(Icons.Outlined.Close, tr("Close"))
                     }
                 }
                 HorizontalDivider()
@@ -2233,7 +2233,7 @@ private fun SelectionToolbarSettingsDialog(
                                     supportingContent = {
                                         Text(tr("Show quick text transformations when you select editable text"))
                                     },
-                                    leadingContent = { Icon(Icons.Default.TextFields, null) },
+                                    leadingContent = { Icon(Icons.Outlined.TextFields, null) },
                                     trailingContent = {
                                         Switch(
                                             checked = settings.selectionToolbarEnabled,
@@ -2255,7 +2255,7 @@ private fun SelectionToolbarSettingsDialog(
                                                     "${settings.selectionToolbarHeightDp} dp",
                                             )
                                         },
-                                        leadingContent = { Icon(Icons.Default.Tune, null) },
+                                        leadingContent = { Icon(Icons.Outlined.Tune, null) },
                                         trailingContent = { SettingsChevron() },
                                         modifier = Modifier.clickable {
                                             page = SelectionToolbarSettingsPage.Size
@@ -2279,7 +2279,7 @@ private fun SelectionToolbarSettingsDialog(
                                             Text(if (es) "Accesos rápidos" else "Quick actions")
                                         },
                                         supportingContent = { Text(summary) },
-                                        leadingContent = { Icon(Icons.Default.Settings, null) },
+                                        leadingContent = { Icon(Icons.Outlined.Settings, null) },
                                         trailingContent = { SettingsChevron() },
                                         modifier = Modifier.clickable {
                                             page = SelectionToolbarSettingsPage.QuickActions
@@ -2651,7 +2651,7 @@ private fun SelectionToolbarQuickActionsSetting(
                             if (groupConfig != null) {
                                 IconButton(onClick = { onOpenGroup(id) }) {
                                     Icon(
-                                        Icons.Default.Settings,
+                                        Icons.Outlined.Settings,
                                         if (es) "Configurar grupo" else "Configure group",
                                     )
                                 }
@@ -2748,7 +2748,7 @@ private fun SelectionActionGroupSetting(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
-                        Icons.Default.TouchApp,
+                        Icons.Outlined.TouchApp,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -2920,7 +2920,7 @@ private fun SelectionActionGroupSetting(
                             headlineContent = {
                                 Column {
                                     Text(
-                                        toolbarQuickActionLabel(actionId, language),
+                                        actionTitle,
                                         style = MaterialTheme.typography.labelLarge,
                                     )
                                     Text(
@@ -2969,7 +2969,7 @@ private fun SelectionActionGroupSetting(
                                             },
                                         ) {
                                             Icon(
-                                                Icons.Default.Delete,
+                                                Icons.Outlined.Delete,
                                                 if (es) "Eliminar envoltorio" else "Delete wrapper",
                                             )
                                         }
@@ -3033,7 +3033,7 @@ private fun SelectionActionGroupSetting(
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 10.dp),
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = null)
+                    Icon(Icons.Outlined.Add, contentDescription = null)
                     Text(
                         if (es) "Agregar envoltorio" else "Add wrapper",
                         modifier = Modifier.padding(start = 8.dp),
@@ -3261,7 +3261,7 @@ private fun TextScaleSetting(value: Float, onValueChanged: (Float) -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Icon(Icons.Default.FormatSize, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(Icons.Outlined.FormatSize, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(tr("Text size"), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
             Text("${(draft * 100).roundToInt()}%", color = MaterialTheme.colorScheme.primary)
             TextButton(
@@ -3474,7 +3474,7 @@ private fun SnippetEditorScreen(
                         Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        IconButton(onClick = onDismiss) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
+                        IconButton(onClick = onDismiss) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") }
                         Text(
                             if (initial == null) "Create snippet" else "Edit snippet",
                             style = MaterialTheme.typography.titleLarge,
@@ -3554,7 +3554,7 @@ private fun SnippetEditorScreen(
                                 ))
                             },
                         ) {
-                            Icon(Icons.Default.Check, null)
+                            Icon(Icons.Outlined.Check, null)
                             Text(tr("Save"))
                         }
                     }
@@ -3667,7 +3667,7 @@ private fun SnippetEditorScreen(
                                 showAdvanced = !showAdvanced
                             }) {
                                 Icon(
-                                    if (showAdvanced) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                    if (showAdvanced) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
                                     if (showAdvanced) "Hide matching options" else "Show matching options",
                                 )
                             }
@@ -3777,7 +3777,7 @@ private fun SnippetEditorScreen(
                         IconButton(onClick = {
                             replacementFields = replacementFields.toMutableList().also { it.removeAt(index) }
                             activeTemplateIndex = null
-                        }) { Icon(Icons.Default.Delete, "Delete replacement") }
+                        }) { Icon(Icons.Outlined.Delete, "Delete replacement") }
                     }) else null,
                 )
             }
@@ -3786,7 +3786,7 @@ private fun SnippetEditorScreen(
                     replacementFields = replacementFields + TextFieldValue("")
                     activeTemplateIndex = null
                 }) {
-                    Icon(Icons.Default.Add, null)
+                    Icon(Icons.Outlined.Add, null)
                     Text(tr("Add replacement"))
                 }
             }
@@ -4049,7 +4049,7 @@ private fun TagEditor(
                             .heightIn(min = 32.dp)
                             .semantics { contentDescription = uiText("Remove tag $tag", "Quitar etiqueta $tag") },
                         label = { Text(tag, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                        trailingIcon = { Icon(Icons.Default.Close, null) },
+                        trailingIcon = { Icon(Icons.Outlined.Close, null) },
                     )
                 }
             }
@@ -4058,7 +4058,7 @@ private fun TagEditor(
                     onClick = { inputVisible = true },
                     modifier = Modifier.semantics { contentDescription = uiText("Add tag", "Agregar etiqueta") },
                 ) {
-                    Icon(Icons.Default.Add, null)
+                    Icon(Icons.Outlined.Add, null)
                 }
             }
         }
@@ -4087,13 +4087,13 @@ private fun TagEditor(
                     enabled = input.trim().removePrefix("#").isNotBlank(),
                     modifier = Modifier.semantics { contentDescription = uiText("Save tag", "Guardar etiqueta") },
                 ) {
-                    Icon(Icons.Default.Check, null)
+                    Icon(Icons.Outlined.Check, null)
                 }
                 IconButton(
                     onClick = ::closeInput,
                     modifier = Modifier.semantics { contentDescription = uiText("Cancel adding tag", "Cancelar agregar etiqueta") },
                 ) {
-                    Icon(Icons.Default.Close, null)
+                    Icon(Icons.Outlined.Close, null)
                 }
             }
             if (suggestions.isNotEmpty()) {
