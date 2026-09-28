@@ -2566,26 +2566,29 @@ private fun SelectionToolbarQuickActionsSetting(
                                     modifier = dragHandleModifier,
                                     contentAlignment = Alignment.Center,
                                 ) {
-                                    Text(
-                                        "≡",
-                                        style = MaterialTheme.typography.titleLarge,
-                                        color = if (isDragging) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.ic_drag_handle_fine),
+                                        contentDescription = null,
+                                        tint = if (isDragging) {
                                             MaterialTheme.colorScheme.primary
                                         } else {
                                             MaterialTheme.colorScheme.onSurfaceVariant
                                         },
+                                        modifier = Modifier.size(20.dp),
                                     )
                                 }
                             },
-                            headlineContent = { Text(toolbarQuickActionLabel(id, language, groupConfigs)) },
+                            headlineContent = {
+                                ToolbarQuickActionSettingsHeadline(id, language, groupConfigs)
+                            },
                             supportingContent = {
                                 Text(
                                     if (isDragging) {
                                         if (es) "Moviendo… suelta para colocar"
                                         else "Moving… release to place"
                                     } else {
-                                        if (es) "Mantén pulsado ≡ y arrastra"
-                                        else "Long-press ≡ and drag"
+                                        if (es) "Mantén pulsado el control y arrastra"
+                                        else "Long-press the handle and drag"
                                     },
                                 )
                             },
@@ -2626,7 +2629,9 @@ private fun SelectionToolbarQuickActionsSetting(
                     workingOrder.size < SettingsRepository.MAX_SELECTION_TOOLBAR_QUICK_ACTIONS
                 val groupConfig = groupConfigs[id]
                 ListItem(
-                    headlineContent = { Text(toolbarQuickActionLabel(id, language, groupConfigs)) },
+                    headlineContent = {
+                        ToolbarQuickActionSettingsHeadline(id, language, groupConfigs)
+                    },
                     supportingContent = {
                         val description = toolbarQuickActionDescription(id, language)
                         if (groupConfig == null) {
@@ -2940,14 +2945,15 @@ private fun SelectionActionGroupSetting(
                                     modifier = dragHandleModifier,
                                     contentAlignment = Alignment.Center,
                                 ) {
-                                    Text(
-                                        "≡",
-                                        style = MaterialTheme.typography.titleLarge,
-                                        color = if (isDragging) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.ic_drag_handle_fine),
+                                        contentDescription = null,
+                                        tint = if (isDragging) {
                                             MaterialTheme.colorScheme.primary
                                         } else {
                                             MaterialTheme.colorScheme.onSurfaceVariant
                                         },
+                                        modifier = Modifier.size(20.dp),
                                     )
                                 }
                             },
@@ -3148,6 +3154,28 @@ private fun selectionActionGroupSettingsTitle(
     }
 }
 
+@Composable
+private fun ToolbarQuickActionSettingsHeadline(
+    id: String,
+    language: DisplayLanguage,
+    groupConfigs: Map<String, SelectionActionGroupConfig>,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        if (id == SettingsRepository.SELECTION_CLIPBOARD_GROUP_ID) {
+            Icon(
+                painter = painterResource(R.drawable.ic_copy_fine),
+                contentDescription = null,
+                modifier = Modifier.size(19.dp),
+                tint = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+        Text(toolbarQuickActionLabel(id, language, groupConfigs))
+    }
+}
+
 private fun toolbarQuickActionLabel(
     id: String,
     language: DisplayLanguage,
@@ -3155,15 +3183,18 @@ private fun toolbarQuickActionLabel(
 ): String {
     val es = usesSpanish(language)
     return when (id) {
-        SettingsRepository.SELECTION_CASE_GROUP_ID,
-        SettingsRepository.SELECTION_WRAP_GROUP_ID,
-        SettingsRepository.SELECTION_CLIPBOARD_GROUP_ID ->
-            groupConfigs[id]?.label ?: when (id) {
-                SettingsRepository.SELECTION_CASE_GROUP_ID ->
-                    if (es) "Mayúsculas/minúsculas" else "Letter case"
-                SettingsRepository.SELECTION_CLIPBOARD_GROUP_ID -> "⧉"
-                else -> "«»"
+        SettingsRepository.SELECTION_CASE_GROUP_ID ->
+            groupConfigs[id]?.label ?: if (es) "Mayúsculas/minúsculas" else "Letter case"
+        SettingsRepository.SELECTION_WRAP_GROUP_ID ->
+            groupConfigs[id]?.label ?: if (es) "Envolver" else "Wrap"
+        SettingsRepository.SELECTION_CLIPBOARD_GROUP_ID -> {
+            val configured = groupConfigs[id]?.label
+            if (configured.isNullOrBlank() || configured == "⧉" || configured == "▣") {
+                if (es) "Portapapeles" else "Clipboard"
+            } else {
+                configured
             }
+        }
         "wrap_guillemets" -> if (es) "Comillas angulares" else "Guillemets"
         "wrap_parentheses" -> if (es) "Paréntesis" else "Parentheses"
         "wrap_question" -> if (es) "Interrogación" else "Question marks"
