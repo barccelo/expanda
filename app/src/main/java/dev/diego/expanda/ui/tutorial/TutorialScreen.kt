@@ -36,10 +36,10 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.automirrored.outlined.ArrowForward
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Bolt
+import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -389,7 +389,7 @@ internal fun TutorialTip(text: String, modifier: Modifier = Modifier) {
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.Default.Lightbulb, contentDescription = null, modifier = Modifier.size(18.dp))
+            Icon(Icons.Outlined.Lightbulb, contentDescription = null, modifier = Modifier.size(18.dp))
             Column {
                 Text(tr("Tip", "Consejo"), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                 Text(text, style = MaterialTheme.typography.bodySmall)
@@ -411,7 +411,7 @@ private fun NextButton(label: String, onClick: () -> Unit) {
     ) {
         Text(label, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.width(8.dp))
-        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null)
+        Icon(Icons.AutoMirrored.Outlined.ArrowForward, contentDescription = null)
     }
 }
 
@@ -463,7 +463,7 @@ private fun ShortcutExpansionAnimation() {
             color = MaterialTheme.colorScheme.primaryContainer,
         ) {
             Icon(
-                Icons.Default.Bolt,
+                Icons.Outlined.Bolt,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onPrimaryContainer,
                 modifier = Modifier.padding(15.dp),
@@ -509,7 +509,7 @@ private fun ShortcutExpansionAnimation() {
                                 exit = fadeOut() + scaleOut(),
                             ) {
                                 Icon(
-                                    Icons.Default.AutoAwesome,
+                                    Icons.Outlined.AutoAwesome,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.padding(start = 6.dp).size(20.dp)
