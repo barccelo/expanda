@@ -22,15 +22,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.PhoneAndroid
-import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.PhoneAndroid
+import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -205,7 +205,7 @@ internal fun SnippetSourceScreen(
                     title = { Text(tr("Espanso source")) },
                     navigationIcon = {
                         IconButton(onClick = ::leave) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
+                            Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back")
                         }
                     },
                     actions = {
@@ -214,7 +214,7 @@ internal fun SnippetSourceScreen(
                                 onClick = { validate()?.let { pendingDocument = it } },
                                 enabled = changed && !saving && !syncing && selected != null,
                             ) {
-                                Icon(Icons.Default.Check, contentDescription = tr("Save source"))
+                                Icon(Icons.Outlined.Check, contentDescription = tr("Save source"))
                             }
                         }
                     },
@@ -230,7 +230,7 @@ internal fun SnippetSourceScreen(
                     ) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(onClick = { showGuide = true }, modifier = Modifier.weight(1f)) {
-                                Icon(Icons.Default.Info, null)
+                                Icon(Icons.Outlined.Info, null)
                                 Text(" " + tr("Guide"))
                             }
                             OutlinedButton(
@@ -238,7 +238,7 @@ internal fun SnippetSourceScreen(
                                 modifier = Modifier.weight(1f),
                                 enabled = selected != null,
                             ) {
-                                Icon(Icons.Default.ContentCopy, null)
+                                Icon(Icons.Outlined.ContentCopy, null)
                                 Text(" " + tr("Copy"))
                             }
                             if (linkedFolderUri != null) {
@@ -247,7 +247,7 @@ internal fun SnippetSourceScreen(
                                     modifier = Modifier.weight(1f),
                                     enabled = selected != null && !saving && !syncing,
                                 ) {
-                                    Icon(Icons.Default.Edit, null)
+                                    Icon(Icons.Outlined.Edit, null)
                                     Text(" " + tr("Open"))
                                 }
                             }
@@ -257,7 +257,7 @@ internal fun SnippetSourceScreen(
                             modifier = Modifier.fillMaxWidth(),
                             enabled = changed && !saving && !syncing && selected != null,
                         ) {
-                            Icon(Icons.Default.Check, null)
+                            Icon(Icons.Outlined.Check, null)
                             Text(" " + tr("Save source"))
                         }
                     }
@@ -288,7 +288,7 @@ internal fun SnippetSourceScreen(
                         onClick = { validate()?.let { pendingDocument = it } },
                         enabled = changed && !saving && !syncing && selected != null,
                     ) {
-                        Icon(Icons.Default.Check, contentDescription = tr("Save source"))
+                        Icon(Icons.Outlined.Check, contentDescription = tr("Save source"))
                     }
                 }
             }
@@ -442,7 +442,7 @@ internal fun SnippetSourceScreen(
 private fun SourceGuideDialog(onDismiss: () -> Unit, onCopyPrompt: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Default.AutoAwesome, null) },
+        icon = { Icon(Icons.Outlined.AutoAwesome, null) },
         title = { Text(tr("Source and AI guide")) },
         text = {
             Column(
@@ -458,7 +458,7 @@ private fun SourceGuideDialog(onDismiss: () -> Unit, onCopyPrompt: () -> Unit) {
         },
         confirmButton = {
             Button(onClick = onCopyPrompt) {
-                Icon(Icons.Default.AutoAwesome, null)
+                Icon(Icons.Outlined.AutoAwesome, null)
                 Text(" " + tr("Copy AI prompt"))
             }
         },
@@ -485,7 +485,7 @@ private fun SourceFolderControls(
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Icon(
-                    if (linked) Icons.Default.Folder else Icons.Default.PhoneAndroid,
+                    if (linked) Icons.Outlined.Folder else Icons.Outlined.PhoneAndroid,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                 )
@@ -511,7 +511,7 @@ private fun SourceFolderControls(
                     modifier = Modifier.weight(1f),
                     enabled = !changed && !busy,
                 ) {
-                    Icon(Icons.Default.Folder, null)
+                    Icon(Icons.Outlined.Folder, null)
                     Text(" " + if (linked) tr("Change folder") else tr("Link folder"))
                 }
                 if (linked) {
@@ -520,7 +520,7 @@ private fun SourceFolderControls(
                         modifier = Modifier.weight(1f),
                         enabled = !changed && !busy,
                     ) {
-                        Icon(Icons.Default.Sync, null)
+                        Icon(Icons.Outlined.Sync, null)
                         Text(" " + tr("Sync folder"))
                     }
                 }
