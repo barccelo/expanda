@@ -2616,14 +2616,24 @@ class ExpansionAccessibilityService : AccessibilityService() {
         val root = rootInActiveWindow ?: return
         val focused = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
         try {
-            if (focused == null || !focused.isEditable || focused.isPassword || isPasswordInput(focused.inputType)) return
+            if (focused == null || !focused.isEditable) return
             val packageName = focused.packageName?.toString().orEmpty()
             if (packageName.isBlank()) return
             val settings = settingsRepository.settings.value
             if (!settings.expansionEnabled || settings.isPaused || packageName in settings.globallyExcludedPackages) return
+            val passwordField = focused.isPassword || isPasswordInput(focused.inputType)
+            if (passwordField && !settings.suggestionShowVault) return
             val text = editableText(focused)
             val cursor = focused.textSelectionEnd.takeIf { it in 0..text.length } ?: text.length
-            showSuggestions(focused, text, cursor, packageName, settings, showAll = true)
+            showSuggestions(
+                anchorNode = focused,
+                text = text,
+                cursor = cursor,
+                packageName = packageName,
+                settings = settings,
+                showAll = true,
+                vaultOnly = passwordField,
+            )
         } finally {
             focused?.recycle()
             root.recycle()
@@ -6824,7 +6834,11 @@ class ExpansionAccessibilityService : AccessibilityService() {
         field: VaultField,
         settings: AppSettings,
     ) {
-        val node = findAnchoredEditor(anchor, requireActiveWindow = false) ?: return
+        val node = findAnchoredEditor(
+            anchor,
+            requireActiveWindow = false,
+            allowPassword = true,
+        ) ?: return
         try {
             runCatching { node.refresh() }
             val originalText = editableText(node)
@@ -6973,6 +6987,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         packageName: String,
         settings: AppSettings,
         showAll: Boolean = false,
+        vaultOnly: Boolean = false,
     ) {
         val typed = if (showAll) "" else currentToken(text, cursor)
         val minimumCharacters = settings.suggestionMinChars.coerceIn(1, MAX_SUGGESTION_LENGTH)
@@ -7006,16 +7021,18 @@ class ExpansionAccessibilityService : AccessibilityService() {
         }
 
         val suggestions = buildList<PopupSuggestion> {
-            repository.matches.value.asSequence()
-                .filter {
-                    it.enabled &&
-                        it.suggestionEnabled &&
-                        it.runsOnAndroid &&
-                        packageName !in it.excludedPackages
-                }
-                .flatMap { match -> match.textTriggers().asSequence().map { match to it } }
-                .filter { (_, trigger) -> shortcutMatches(trigger) }
-                .mapTo(this) { (match, trigger) -> PopupSuggestion.TextSnippet(match, trigger, typed) }
+            if (!vaultOnly) {
+                repository.matches.value.asSequence()
+                    .filter {
+                        it.enabled &&
+                            it.suggestionEnabled &&
+                            it.runsOnAndroid &&
+                            packageName !in it.excludedPackages
+                    }
+                    .flatMap { match -> match.textTriggers().asSequence().map { match to it } }
+                    .filter { (_, trigger) -> shortcutMatches(trigger) }
+                    .mapTo(this) { (match, trigger) -> PopupSuggestion.TextSnippet(match, trigger, typed) }
+            }
 
             if (settings.suggestionShowVault) {
                 vaultRepository.entries.value.asSequence()
@@ -7044,7 +7061,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     }
             }
 
-            if (settings.suggestionShowActions && !showAll) {
+            if (!vaultOnly && settings.suggestionShowActions && !showAll) {
                 val enabledActions = actionSettingsStore.enabledIds.value
                 val suggestionEnabledActions = actionSettingsStore.suggestionEnabledIds.value
                 val triggerOverrides = actionSettingsStore.triggerOverrides.value
@@ -7346,6 +7363,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
             suggestionOverlay = container
             suggestionWindowParams = params
             suggestionAnchor = anchor
+            suggestionVaultOnly = vaultOnly
         }
     }
 
@@ -7619,12 +7637,12 @@ class ExpansionAccessibilityService : AccessibilityService() {
             return
         }
         clearAccessibilityCache()
-        val node = findAnchoredEditor(anchor) ?: run {
+        val node = findAnchoredEditor(anchor, allowPassword = true) ?: run {
             hideSuggestions()
             return
         }
         try {
-            if (!node.isEditable || node.isPassword || isPasswordInput(node.inputType)) return
+            if (!node.isEditable) return
             runCatching { node.refresh() }
             val text = editableText(node)
             val cursor = node.textSelectionEnd.takeIf { it in 0..text.length } ?: text.length
@@ -7810,7 +7828,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private fun validateSuggestionAnchor() {
         suggestionValidation = null
         val anchor = suggestionAnchor ?: return
-        val active = findAnchoredEditor(anchor)
+        val active = findAnchoredEditor(anchor, allowPassword = suggestionVaultOnly)
         if (active == null) {
             hideSuggestions()
         } else {
@@ -7834,6 +7852,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private fun findAnchoredEditor(
         anchor: SuggestionAnchor,
         requireActiveWindow: Boolean = true,
+        allowPassword: Boolean = false,
     ): AccessibilityNodeInfo? {
         val availableWindows = runCatching { windows }.getOrDefault(emptyList())
         val roots = mutableListOf<AccessibilityNodeInfo>()
@@ -7851,9 +7870,10 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 if (focused != null) {
                     val packageName = focused.packageName?.toString().orEmpty()
                     val candidate = createSuggestionAnchor(focused, packageName)
+                    val passwordAllowed =
+                        allowPassword || (!focused.isPassword && !isPasswordInput(focused.inputType))
                     val valid = focused.isEditable &&
-                        !focused.isPassword &&
-                        !isPasswordInput(focused.inputType) &&
+                        passwordAllowed &&
                         SuggestionAnchorPolicy.shouldKeep(anchor, candidate)
                     if (valid) matched = focused else focused.recycle()
                 }
@@ -7869,6 +7889,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         suggestionOverlay = null
         suggestionWindowParams = null
         suggestionAnchor = null
+        suggestionVaultOnly = false
         if (overlay != null) {
             runCatching { (getSystemService(WINDOW_SERVICE) as WindowManager).removeView(overlay) }
         }
