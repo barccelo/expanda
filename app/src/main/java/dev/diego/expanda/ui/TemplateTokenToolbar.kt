@@ -14,24 +14,24 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.CallMerge
-import androidx.compose.material.icons.automirrored.filled.KeyboardReturn
-import androidx.compose.material.icons.filled.AddLink
-import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.Casino
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Checklist
-import androidx.compose.material.icons.filled.ContentPaste
-import androidx.compose.material.icons.filled.DataObject
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.DynamicForm
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.TextFields
-import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.material.icons.automirrored.outlined.CallMerge
+import androidx.compose.material.icons.automirrored.outlined.KeyboardReturn
+import androidx.compose.material.icons.outlined.AddLink
+import androidx.compose.material.icons.outlined.ArrowDownward
+import androidx.compose.material.icons.outlined.ArrowUpward
+import androidx.compose.material.icons.outlined.Casino
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Checklist
+import androidx.compose.material.icons.outlined.ContentPaste
+import androidx.compose.material.icons.outlined.DataObject
+import androidx.compose.material.icons.outlined.DateRange
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.DynamicForm
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.TextFields
+import androidx.compose.material.icons.outlined.TouchApp
 import androidx.compose.material3.AlertDialog
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
@@ -86,13 +86,13 @@ internal enum class TemplateVariableKind(
     val defaultName: String,
     val icon: ImageVector,
 ) {
-    TEXT("Text", "echo", "text", Icons.Default.TextFields),
-    DATE("Date/time", "date", "date", Icons.Default.DateRange),
-    CLIPBOARD("Clipboard", "clipboard", "clipboard", Icons.Default.ContentPaste),
-    RANDOM("Random", "random", "random", Icons.Default.Casino),
-    CHOICE("Choice", "choice", "choice", Icons.Default.Checklist),
-    FORM("Form", "form", "form", Icons.Default.DynamicForm),
-    MATCH("Snippet", "match", "match", Icons.AutoMirrored.Filled.CallMerge),
+    TEXT("Text", "echo", "text", Icons.Outlined.TextFields),
+    DATE("Date/time", "date", "date", Icons.Outlined.DateRange),
+    CLIPBOARD("Clipboard", "clipboard", "clipboard", Icons.Outlined.ContentPaste),
+    RANDOM("Random", "random", "random", Icons.Outlined.Casino),
+    CHOICE("Choice", "choice", "choice", Icons.Outlined.Checklist),
+    FORM("Form", "form", "form", Icons.Outlined.DynamicForm),
+    MATCH("Snippet", "match", "match", Icons.AutoMirrored.Outlined.CallMerge),
     ;
 
     companion object {
@@ -216,12 +216,12 @@ fun TemplateTokenToolbar(
         TokenButton(
             "Cursor",
             "$|$",
-            Icons.Default.TouchApp,
+            Icons.Outlined.TouchApp,
         ),
         TokenButton(
             "New line",
             "\n",
-            Icons.AutoMirrored.Filled.KeyboardReturn,
+            Icons.AutoMirrored.Outlined.KeyboardReturn,
         ),
     )
 
@@ -260,16 +260,16 @@ fun TemplateTokenToolbar(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             if (regexPattern != null) {
-                TokenChip("Capture", Icons.Default.DataObject) {
+                TokenChip("Capture", Icons.Outlined.DataObject) {
                     dialog = ToolbarDialog.Capture
                 }
             }
 
-            TokenChip("Variables", Icons.Default.AddLink) {
+            TokenChip("Variables", Icons.Outlined.AddLink) {
                 dialog = ToolbarDialog.Variables
             }
 
-            TokenChip("Clipboard", Icons.Default.ContentPaste) {
+            TokenChip("Clipboard", Icons.Outlined.ContentPaste) {
                 val existingClipboard =
                     (variables + globalVariables).firstOrNull {
                         TemplateVariableKind.from(it) ==
@@ -1882,7 +1882,7 @@ private fun VariableRow(
 
                 IconButton(onClick = onEdit) {
                     Icon(
-                        Icons.Default.Edit,
+                        Icons.Outlined.Edit,
                         contentDescription = tr("Edit {{${variable.name}}}", "Editar {{${variable.name}}}"),
                     )
                 }
@@ -1916,9 +1916,9 @@ private fun VariableAdvancedSection(
         ) {
             Icon(
                 if (expanded) {
-                    Icons.Default.ExpandLess
+                    Icons.Outlined.ExpandLess
                 } else {
-                    Icons.Default.ExpandMore
+                    Icons.Outlined.ExpandMore
                 },
                 contentDescription = null,
             )
@@ -2072,7 +2072,7 @@ private fun EditableOptionList(
                     },
                 ) {
                     Icon(
-                        Icons.Default.ArrowUpward,
+                        Icons.Outlined.ArrowUpward,
                         contentDescription =
                             "Move up",
                     )
@@ -2098,7 +2098,7 @@ private fun EditableOptionList(
                     },
                 ) {
                     Icon(
-                        Icons.Default.ArrowDownward,
+                        Icons.Outlined.ArrowDownward,
                         contentDescription =
                             "Move down",
                     )
@@ -2118,7 +2118,7 @@ private fun EditableOptionList(
                     },
                 ) {
                     Icon(
-                        Icons.Default.Delete,
+                        Icons.Outlined.Delete,
                         contentDescription =
                             "Delete option",
                     )
@@ -2146,7 +2146,7 @@ private fun EditableOptionList(
                         input.isNotBlank(),
                 ) {
                     Icon(
-                        Icons.Default.Check,
+                        Icons.Outlined.Check,
                         contentDescription =
                             tr("Add option", "Agregar opción"),
                     )
@@ -2302,7 +2302,7 @@ private fun ChoiceEditor(
                             },
                         ) {
                             Icon(
-                                Icons.Default.ArrowUpward,
+                                Icons.Outlined.ArrowUpward,
                                 contentDescription = tr("Move up", "Mover arriba"),
                             )
                         }
@@ -2316,7 +2316,7 @@ private fun ChoiceEditor(
                             },
                         ) {
                             Icon(
-                                Icons.Default.ArrowDownward,
+                                Icons.Outlined.ArrowDownward,
                                 contentDescription = tr("Move down", "Mover abajo"),
                             )
                         }
@@ -2329,7 +2329,7 @@ private fun ChoiceEditor(
                             },
                         ) {
                             Icon(
-                                Icons.Default.Delete,
+                                Icons.Outlined.Delete,
                                 contentDescription = tr("Delete option", "Eliminar opción"),
                             )
                         }
@@ -2401,7 +2401,7 @@ private fun ChoiceEditor(
                     },
                 ) {
                     Icon(
-                        Icons.Default.Check,
+                        Icons.Outlined.Check,
                         contentDescription = tr("Add option", "Agregar opción"),
                     )
                 }
@@ -3061,7 +3061,7 @@ private fun FormFieldTypePicker(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(tr("Type: ${selected.label}", "Tipo: ${selected.label}"))
-                Icon(Icons.Default.ExpandMore, contentDescription = null)
+                Icon(Icons.Outlined.ExpandMore, contentDescription = null)
             }
         }
         DropdownMenu(
