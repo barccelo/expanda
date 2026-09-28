@@ -52,6 +52,7 @@ class MainActivity : ComponentActivity() {
 
     private val viewModel: MainViewModel by viewModels()
     private val openNewSnippetRequest = mutableStateOf(false)
+    private val openSelectionToolbarSettingsRequest = mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -60,15 +61,33 @@ class MainActivity : ComponentActivity() {
         // resize policy Android may pan the whole activity to reveal the focused
         // field, which also drags Scaffold bottom bars far above the keyboard.
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
-        openNewSnippetRequest.value = intent.getBooleanExtra(dev.diego.expanda.service.ExpansionAccessibilityService.EXTRA_OPEN_NEW_SNIPPET, false)
+        openNewSnippetRequest.value = intent.getBooleanExtra(
+            dev.diego.expanda.service.ExpansionAccessibilityService.EXTRA_OPEN_NEW_SNIPPET,
+            false,
+        )
+        openSelectionToolbarSettingsRequest.value = intent.getBooleanExtra(
+            dev.diego.expanda.service.ExpansionAccessibilityService.EXTRA_OPEN_SELECTION_TOOLBAR_SETTINGS,
+            false,
+        )
         setContent { ExpandaRoot(viewModel) }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        if (intent.getBooleanExtra(dev.diego.expanda.service.ExpansionAccessibilityService.EXTRA_OPEN_NEW_SNIPPET, false)) {
+        if (intent.getBooleanExtra(
+                dev.diego.expanda.service.ExpansionAccessibilityService.EXTRA_OPEN_NEW_SNIPPET,
+                false,
+            )
+        ) {
             openNewSnippetRequest.value = true
+        }
+        if (intent.getBooleanExtra(
+                dev.diego.expanda.service.ExpansionAccessibilityService.EXTRA_OPEN_SELECTION_TOOLBAR_SETTINGS,
+                false,
+            )
+        ) {
+            openSelectionToolbarSettingsRequest.value = true
         }
     }
 
@@ -186,6 +205,10 @@ class MainActivity : ComponentActivity() {
                 snackbarHostState = snackbar,
                 openNewSnippetRequest = openNewSnippetRequest.value,
                 onNewSnippetRequestConsumed = { openNewSnippetRequest.value = false },
+                openSelectionToolbarSettingsRequest = openSelectionToolbarSettingsRequest.value,
+                onSelectionToolbarSettingsRequestConsumed = {
+                    openSelectionToolbarSettingsRequest.value = false
+                },
                 onOpenAccessibilitySettings = {
                     accessibilitySetupPending = true
                     startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
