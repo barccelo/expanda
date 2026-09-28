@@ -7533,12 +7533,12 @@ class ExpansionAccessibilityService : AccessibilityService() {
         contentDescription = "$subtitle $trigger: $title"
         setOnClickListener { onClick() }
 
-        addView(TextView(this@ExpansionAccessibilityService).apply {
-            text = "▣"
-            gravity = Gravity.CENTER
-            setTextColor(ui.theme.primary)
-            textSize = ui.scaled(17f)
+        addView(ImageView(this@ExpansionAccessibilityService).apply {
+            setImageResource(R.drawable.ic_lock_fine)
+            setColorFilter(ui.theme.primary)
+            scaleType = ImageView.ScaleType.CENTER
             background = ui.surface(9, emphasized = true)
+            contentDescription = localizedSelectionUi(settings, "Vault", "Bóveda")
         }, LinearLayout.LayoutParams(dp(34), dp(34)).apply { marginEnd = dp(9) })
 
         addView(LinearLayout(this@ExpansionAccessibilityService).apply {
@@ -7612,12 +7612,12 @@ class ExpansionAccessibilityService : AccessibilityService() {
         contentDescription = "${definition.category.name.lowercase()} action ${definition.shortcut}: ${definition.title}"
         setOnClickListener { applyActionSuggestion(definition) }
 
-        addView(TextView(this@ExpansionAccessibilityService).apply {
-            text = actionCategoryGlyph(definition.category)
-            gravity = Gravity.CENTER
-            setTextColor(ui.theme.onPrimaryContainer)
-            textSize = ui.scaled(17f)
+        addView(ImageView(this@ExpansionAccessibilityService).apply {
+            setImageResource(actionCategoryIcon(definition.category))
+            setColorFilter(ui.theme.onPrimaryContainer)
+            scaleType = ImageView.ScaleType.CENTER
             background = ui.surface(9, emphasized = true)
+            contentDescription = definition.category.name.lowercase()
         }, LinearLayout.LayoutParams(dp(34), dp(34)).apply { marginEnd = dp(9) })
 
         addView(LinearLayout(this@ExpansionAccessibilityService).apply {
@@ -7647,15 +7647,15 @@ class ExpansionAccessibilityService : AccessibilityService() {
         }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
     }
 
-    private fun actionCategoryGlyph(category: ActionCategory): String = when (category) {
-        ActionCategory.NUMBER -> "∑"
-        ActionCategory.TEXT -> "T"
-        ActionCategory.SELECTION -> "◉"
-        ActionCategory.DELETION -> "⌫"
-        ActionCategory.CURSOR -> "↦"
-        ActionCategory.CLIPBOARD -> "▣"
-        ActionCategory.ANDROID -> "◇"
-        ActionCategory.EXPANDA -> "⚡"
+    private fun actionCategoryIcon(category: ActionCategory): Int = when (category) {
+        ActionCategory.NUMBER -> R.drawable.ic_calculator_fine
+        ActionCategory.TEXT -> R.drawable.ic_text_fine
+        ActionCategory.SELECTION -> R.drawable.ic_select_fine
+        ActionCategory.DELETION -> R.drawable.ic_delete_fine
+        ActionCategory.CURSOR -> R.drawable.ic_cursor_fine
+        ActionCategory.CLIPBOARD -> R.drawable.ic_clipboard_fine
+        ActionCategory.ANDROID -> R.drawable.ic_phone_fine
+        ActionCategory.EXPANDA -> R.drawable.ic_bolt_fine
     }
 
     private fun applySuggestion(
