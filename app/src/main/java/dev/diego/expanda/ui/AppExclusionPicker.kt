@@ -17,8 +17,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Apps
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.Apps
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -112,7 +112,7 @@ internal fun AppExclusionPicker(
                 onValueChange = { query = it },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                leadingIcon = { Icon(Icons.Default.Search, null) },
+                leadingIcon = { Icon(Icons.Outlined.Search, null) },
                 label = { Text(tr("Search apps")) },
             )
             Row(
@@ -160,7 +160,7 @@ internal fun AppExclusionPicker(
                                     modifier = Modifier.size(40.dp),
                                 )
                             } else {
-                                Icon(Icons.Default.Apps, null, modifier = Modifier.size(32.dp))
+                                Icon(Icons.Outlined.Apps, null, modifier = Modifier.size(32.dp))
                             }
                         },
                         headlineContent = { Text(app.label, maxLines = 1) },
