@@ -4699,63 +4699,54 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     .takeIf { it != active }
                     ?: return false
             } else {
-                // Keep Android's visual-line granularity. The previous implementation
-                // collapsed the range to a caret before probing the next line, which
-                // produced visible overshoot/snap-back in some editors. Preserve the
-                // opposite endpoint and ask Android to extend the selection instead.
-                if (!setSelection(node, anchor, active)) {
-                    node = refreshEditor() ?: return false
-                    if (!setSelection(node, anchor, active)) return false
-                }
+                // Ask Android for the next/previous *visual* line from a collapsed
+                // caret, then immediately restore our anchored selection. This is
+                // the behavior that preserves wrapped-line selection. The result is
+                // accepted only when it actually advances in the requested
+                // direction, so editors cannot bounce the endpoint backwards.
+                fun probeVisualLineTarget(targetNode: AccessibilityNodeInfo): Int? {
+                    if (!setSelection(targetNode, active, active)) return null
 
-                val action = if (forward) {
-                    AccessibilityNodeInfo.ACTION_NEXT_AT_MOVEMENT_GRANULARITY
-                } else {
-                    AccessibilityNodeInfo.ACTION_PREVIOUS_AT_MOVEMENT_GRANULARITY
-                }
-                val args = Bundle().apply {
-                    putInt(
-                        AccessibilityNodeInfo.ACTION_ARGUMENT_MOVEMENT_GRANULARITY_INT,
-                        AccessibilityNodeInfo.MOVEMENT_GRANULARITY_LINE,
+                    val action = if (forward) {
+                        AccessibilityNodeInfo.ACTION_NEXT_AT_MOVEMENT_GRANULARITY
+                    } else {
+                        AccessibilityNodeInfo.ACTION_PREVIOUS_AT_MOVEMENT_GRANULARITY
+                    }
+                    val args = Bundle().apply {
+                        putInt(
+                            AccessibilityNodeInfo.ACTION_ARGUMENT_MOVEMENT_GRANULARITY_INT,
+                            AccessibilityNodeInfo.MOVEMENT_GRANULARITY_LINE,
+                        )
+                        putBoolean(
+                            AccessibilityNodeInfo.ACTION_ARGUMENT_EXTEND_SELECTION_BOOLEAN,
+                            false,
+                        )
+                    }
+
+                    if (!targetNode.performAction(action, args)) return null
+                    runCatching { targetNode.refresh() }
+
+                    val candidates = listOf(
+                        targetNode.textSelectionStart,
+                        targetNode.textSelectionEnd,
                     )
-                    putBoolean(
-                        AccessibilityNodeInfo.ACTION_ARGUMENT_EXTEND_SELECTION_BOOLEAN,
-                        true,
-                    )
-                }
-
-                var moved = node.performAction(action, args)
-                if (!moved) {
-                    node = refreshEditor() ?: return false
-                    if (!setSelection(node, anchor, active)) return false
-                    moved = node.performAction(action, args)
-                }
-                runCatching { node.refresh() }
-
-                val candidates = if (moved) {
-                    listOf(node.textSelectionStart, node.textSelectionEnd)
                         .filter { it in 0..text.length }
                         .filter { candidate ->
                             if (forward) candidate > active else candidate < active
                         }
-                } else {
-                    emptyList()
+
+                    return if (forward) candidates.minOrNull() else candidates.maxOrNull()
                 }
 
-                // Selection start/end may be normalized by the target editor, so
-                // choose whichever endpoint actually advanced in the requested
-                // direction. This also prevents a buggy line action from bouncing
-                // back across the previous endpoint.
-                val movedTarget = if (forward) {
-                    candidates.minOrNull()
-                } else {
-                    candidates.maxOrNull()
+                var movedTarget = probeVisualLineTarget(node)
+                if (movedTarget == null) {
+                    node = refreshEditor() ?: return false
+                    movedTarget = probeVisualLineTarget(node)
                 }
 
                 movedTarget ?: run {
-                    // A one-line field has no previous/next visual line. In that
-                    // special boundary case, vertical movement should still select
-                    // the remainder of the current line.
+                    // No adjacent visual line exists. Still make vertical movement
+                    // useful inside a one-line field by extending to its boundary.
                     val boundary = if (forward) text.length else 0
                     boundary.takeIf {
                         if (forward) it > active else it < active
