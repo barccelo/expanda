@@ -4699,11 +4699,68 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     .takeIf { it != active }
                     ?: return false
             } else {
-                SelectionGestureMovement.lineTarget(
-                    text = text,
-                    cursor = active,
-                    forward = forward,
-                ) ?: return false
+                // Keep Android's visual-line granularity. The previous implementation
+                // collapsed the range to a caret before probing the next line, which
+                // produced visible overshoot/snap-back in some editors. Preserve the
+                // opposite endpoint and ask Android to extend the selection instead.
+                if (!setSelection(node, anchor, active)) {
+                    node = refreshEditor() ?: return false
+                    if (!setSelection(node, anchor, active)) return false
+                }
+
+                val action = if (forward) {
+                    AccessibilityNodeInfo.ACTION_NEXT_AT_MOVEMENT_GRANULARITY
+                } else {
+                    AccessibilityNodeInfo.ACTION_PREVIOUS_AT_MOVEMENT_GRANULARITY
+                }
+                val args = Bundle().apply {
+                    putInt(
+                        AccessibilityNodeInfo.ACTION_ARGUMENT_MOVEMENT_GRANULARITY_INT,
+                        AccessibilityNodeInfo.MOVEMENT_GRANULARITY_LINE,
+                    )
+                    putBoolean(
+                        AccessibilityNodeInfo.ACTION_ARGUMENT_EXTEND_SELECTION_BOOLEAN,
+                        true,
+                    )
+                }
+
+                var moved = node.performAction(action, args)
+                if (!moved) {
+                    node = refreshEditor() ?: return false
+                    if (!setSelection(node, anchor, active)) return false
+                    moved = node.performAction(action, args)
+                }
+                runCatching { node.refresh() }
+
+                val candidates = if (moved) {
+                    listOf(node.textSelectionStart, node.textSelectionEnd)
+                        .filter { it in 0..text.length }
+                        .filter { candidate ->
+                            if (forward) candidate > active else candidate < active
+                        }
+                } else {
+                    emptyList()
+                }
+
+                // Selection start/end may be normalized by the target editor, so
+                // choose whichever endpoint actually advanced in the requested
+                // direction. This also prevents a buggy line action from bouncing
+                // back across the previous endpoint.
+                val movedTarget = if (forward) {
+                    candidates.minOrNull()
+                } else {
+                    candidates.maxOrNull()
+                }
+
+                movedTarget ?: run {
+                    // A one-line field has no previous/next visual line. In that
+                    // special boundary case, vertical movement should still select
+                    // the remainder of the current line.
+                    val boundary = if (forward) text.length else 0
+                    boundary.takeIf {
+                        if (forward) it > active else it < active
+                    } ?: return false
+                }
             }
 
             val start = minOf(anchor, target)
