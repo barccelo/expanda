@@ -83,7 +83,7 @@ class ActionEngine {
         "wrap_exclamation" -> wrap(text, "¡", "!")
         "wrap_brackets" -> wrap(text, "[", "]")
         "wrap_double_asterisk" -> wrap(text, "*", "*")
-        "wrap_double_underscore" -> wrap(text, "__", "__")
+        "wrap_double_underscore" -> wrap(text, "_", "_")
         "space_underscore" -> text.replace(' ', '_')
         "space_dash" -> text.replace(' ', '-')
         "underscore_space" -> text.replace('_', ' ')
