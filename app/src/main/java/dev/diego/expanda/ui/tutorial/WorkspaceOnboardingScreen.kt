@@ -18,9 +18,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
@@ -97,7 +97,7 @@ fun WorkspaceOnboardingScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
-                            Icons.Default.CheckCircle,
+                            Icons.Outlined.CheckCircle,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(28.dp),
@@ -128,7 +128,7 @@ fun WorkspaceOnboardingScreen(
                 SelectableStorageOption(
                     selected = storageChoice == StorageChoice.InExpanda,
                     onClick = { storageChoice = StorageChoice.InExpanda },
-                    icon = Icons.Default.PhoneAndroid,
+                    icon = Icons.Outlined.PhoneAndroid,
                     title = tr("In Expanda", "En Expanda"),
                     detail = tr("Simplest option. Snippets stay inside the app. You can link a folder later from Espanso source.", "La opción más simple. Los fragmentos permanecen dentro de la app. Puedes vincular una carpeta más tarde desde Fuente Espanso."),
                 )
@@ -136,7 +136,7 @@ fun WorkspaceOnboardingScreen(
                 SelectableStorageOption(
                     selected = storageChoice == StorageChoice.LocalFolder,
                     onClick = { storageChoice = StorageChoice.LocalFolder },
-                    icon = Icons.Default.Folder,
+                    icon = Icons.Outlined.Folder,
                     title = tr("Local folder", "Carpeta local"),
                     detail = tr("Same files on disk. Sync with Espanso desktop or edit with other apps.", "Los mismos archivos en el dispositivo. Sincronízalos con Espanso de escritorio o edítalos con otras apps."),
                 )
