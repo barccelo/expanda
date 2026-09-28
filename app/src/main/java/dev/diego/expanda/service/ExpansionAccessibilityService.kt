@@ -73,6 +73,7 @@ import dev.diego.expanda.engine.TriggerMatcher
 import dev.diego.expanda.data.AppSettings
 import dev.diego.expanda.data.DisplayLanguage
 import dev.diego.expanda.data.SettingsRepository
+import dev.diego.expanda.data.SelectionCustomWrapper
 import dev.diego.expanda.data.TextMatch
 import dev.diego.expanda.data.TemplateSelectionMode
 import dev.diego.expanda.data.VaultCategory
@@ -1645,9 +1646,19 @@ class ExpansionAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun customSelectionWrapper(actionId: String): SelectionCustomWrapper? =
+        settingsRepository.settings.value
+            .selectionActionGroupConfigs[SettingsRepository.SELECTION_WRAP_GROUP_ID]
+            ?.customWraps
+            ?.get(actionId)
+
     private fun selectionGroupActionApplicable(actionId: String): Boolean {
         val state = selectionToolbarState ?: return false
+        val customWrapper = customSelectionWrapper(actionId)
         return when {
+            customWrapper != null ->
+                state.selectedText.isNotEmpty() &&
+                    (customWrapper.prefix.isNotEmpty() || customWrapper.suffix.isNotEmpty())
             actionId in SELECTION_CLIPBOARD_ACTION_IDS -> state.selectedText.isNotEmpty()
             actionId in SELECTION_INTERACTIVE_ACTION_IDS -> state.selectedText.isNotEmpty()
             else -> actionEngine.processSelectedText(actionId, state.selectedText)
@@ -1715,7 +1726,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
             if (
                 showAll ||
                 actionId in SELECTION_INTERACTIVE_ACTION_IDS ||
-                actionId in SELECTION_CLIPBOARD_ACTION_IDS
+                actionId in SELECTION_CLIPBOARD_ACTION_IDS ||
+                customSelectionWrapper(actionId) != null
             ) {
                 true
             } else {
@@ -1755,7 +1767,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
             val titleText = actionLabels[actionId]
                 ?.takeIf(String::isNotBlank)
                 ?: selectionActionTitle(actionId, settings, definition?.title.orEmpty())
-            val descriptionText = selectionActionDescription(actionId, settings, definition?.description.orEmpty())
+            val descriptionText = customSelectionWrapper(actionId)?.let {
+                "${it.prefix}texto${it.suffix}"
+            } ?: selectionActionDescription(actionId, settings, definition?.description.orEmpty())
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(12), dp(10), dp(12), dp(10))
@@ -2412,7 +2426,19 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 hideSelectionToolbar()
                 return
             }
-            val outcome = actionEngine.processSelectedRange(actionId, text, start, end) ?: return
+            val customWrapper = customSelectionWrapper(actionId)
+            val outcome = if (customWrapper != null) {
+                val selected = text.substring(start, end)
+                val replacement = customWrapper.prefix + selected + customWrapper.suffix
+                SelectedTextOutcome(
+                    text = text.replaceRange(start, end, replacement),
+                    selectionStart = start,
+                    selectionEnd = start + replacement.length,
+                    replacement = replacement,
+                )
+            } else {
+                actionEngine.processSelectedRange(actionId, text, start, end) ?: return
+            }
             val settings = settingsRepository.settings.value
             hideSelectionToolbar()
             if (applySelectedTextOutcome(node, text, outcome, settings)) {
