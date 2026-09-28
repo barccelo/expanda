@@ -222,6 +222,8 @@ fun ExpandaApp(
     snackbarHostState: SnackbarHostState,
     openNewSnippetRequest: Boolean = false,
     onNewSnippetRequestConsumed: () -> Unit = {},
+    openSelectionToolbarSettingsRequest: Boolean = false,
+    onSelectionToolbarSettingsRequestConsumed: () -> Unit = {},
     onOpenAccessibilitySettings: () -> Unit,
     onOpenBackgroundSettings: () -> Unit,
     needsRestrictedSettings: Boolean = false,
@@ -306,6 +308,11 @@ fun ExpandaApp(
             pagerState.scrollToPage(Destination.TEXT.ordinal)
             creating = true
             onNewSnippetRequestConsumed()
+        }
+    }
+    LaunchedEffect(openSelectionToolbarSettingsRequest) {
+        if (openSelectionToolbarSettingsRequest) {
+            pagerState.scrollToPage(Destination.SETTINGS.ordinal)
         }
     }
 
@@ -530,6 +537,9 @@ fun ExpandaApp(
                     state, serviceEnabled, backgroundAllowed, viewModel, onOpenAccessibilitySettings,
                     onOpenBackgroundSettings, onExportJson, onExportCsv, onExportEspanso, onImport,
                     onChooseEspansoFolder,
+                    openSelectionToolbarSettingsRequest = openSelectionToolbarSettingsRequest,
+                    onSelectionToolbarSettingsRequestConsumed =
+                        onSelectionToolbarSettingsRequestConsumed,
                     onOpenAbout = { showAbout = true },
                     onOpenSnippetSource = { openSource() },
                     onOpenVault = {
@@ -982,6 +992,8 @@ private fun SettingsScreen(
     onExportEspanso: () -> Unit,
     onImport: () -> Unit,
     onChooseEspansoFolder: () -> Unit,
+    openSelectionToolbarSettingsRequest: Boolean = false,
+    onSelectionToolbarSettingsRequestConsumed: () -> Unit = {},
     onOpenAbout: () -> Unit,
     onOpenSnippetSource: () -> Unit,
     onOpenVault: () -> Unit,
@@ -998,6 +1010,13 @@ private fun SettingsScreen(
     var showSnippetSuggestionSettings by remember { mutableStateOf(false) }
     var showActionSuggestionSettings by remember { mutableStateOf(false) }
     val context = LocalContext.current
+
+    LaunchedEffect(openSelectionToolbarSettingsRequest) {
+        if (openSelectionToolbarSettingsRequest) {
+            showSelectionToolbarSettings = true
+            onSelectionToolbarSettingsRequestConsumed()
+        }
+    }
 
     Box(Modifier.fillMaxSize()) {
         LazyColumn {
