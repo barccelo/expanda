@@ -183,6 +183,7 @@ import dev.diego.expanda.data.ColorSchemeMode
 import dev.diego.expanda.data.DisplayLanguage
 import dev.diego.expanda.data.SettingsRepository
 import dev.diego.expanda.data.SelectionActionGroupConfig
+import dev.diego.expanda.data.SelectionCustomWrapper
 import dev.diego.expanda.data.SnippetSortMode
 import dev.diego.expanda.data.TemplateSelectionMode
 import dev.diego.expanda.data.TemplateVariable
@@ -199,6 +200,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import dev.diego.expanda.R
+import java.util.UUID
 
 private enum class Destination(val label: String, val icon: ImageVector) {
     TEXT("Snippets", Icons.Default.TextFields),
@@ -2693,6 +2695,10 @@ private fun SelectionActionGroupSetting(
     var workingOrder by remember(config.actionOrder) { mutableStateOf(config.actionOrder) }
     var groupLabelDraft by remember(config.label) { mutableStateOf(config.label) }
     var draggingActionId by remember { mutableStateOf<String?>(null) }
+    var showAddWrapperDialog by remember { mutableStateOf(false) }
+    var newWrapperLabel by remember { mutableStateOf("") }
+    var newWrapperPrefix by remember { mutableStateOf("") }
+    var newWrapperSuffix by remember { mutableStateOf("") }
     val reorderThresholdPx = with(LocalDensity.current) { 32.dp.toPx() }
     val localView = LocalView.current
     val es = usesSpanish(language)
@@ -2817,7 +2823,15 @@ private fun SelectionActionGroupSetting(
                         ?: defaults.actionLabels[actionId].orEmpty()
                     var labelDraft by remember(actionId, displayLabel) { mutableStateOf(displayLabel) }
                     val isDragging = draggingActionId == actionId
-                    val actionTitle = toolbarQuickActionLabel(actionId, language)
+                    val customWrapper = config.customWraps[actionId]
+                    val actionTitle = customWrapper?.let {
+                        config.actionLabels[actionId]
+                            ?.takeIf(String::isNotBlank)
+                            ?: if (es) "Envoltorio personalizado" else "Custom wrapper"
+                    } ?: toolbarQuickActionLabel(actionId, language)
+                    val actionDescription = customWrapper?.let {
+                        "${it.prefix}texto${it.suffix}"
+                    } ?: toolbarQuickActionDescription(actionId, language)
                     val dragHandleModifier = Modifier
                         .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
                         .semantics {
@@ -2914,7 +2928,7 @@ private fun SelectionActionGroupSetting(
                                             if (es) "Moviendo… suelta para colocar"
                                             else "Moving… release to place"
                                         } else {
-                                            toolbarQuickActionDescription(actionId, language)
+                                            actionDescription
                                         },
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -2938,14 +2952,37 @@ private fun SelectionActionGroupSetting(
                                 }
                             },
                             trailingContent = {
-                                Switch(
-                                    checked = enabled,
-                                    onCheckedChange = { checked ->
-                                        val enabledIds = config.enabledActionIds.toMutableSet()
-                                        if (checked) enabledIds += actionId else enabledIds -= actionId
-                                        onChanged(config.copy(enabledActionIds = enabledIds))
-                                    },
-                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (customWrapper != null) {
+                                        IconButton(
+                                            onClick = {
+                                                val updatedOrder = workingOrder.filterNot { it == actionId }
+                                                workingOrder = updatedOrder
+                                                onChanged(
+                                                    config.copy(
+                                                        actionOrder = updatedOrder,
+                                                        enabledActionIds = config.enabledActionIds - actionId,
+                                                        actionLabels = config.actionLabels - actionId,
+                                                        customWraps = config.customWraps - actionId,
+                                                    ),
+                                                )
+                                            },
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Delete,
+                                                if (es) "Eliminar envoltorio" else "Delete wrapper",
+                                            )
+                                        }
+                                    }
+                                    Switch(
+                                        checked = enabled,
+                                        onCheckedChange = { checked ->
+                                            val enabledIds = config.enabledActionIds.toMutableSet()
+                                            if (checked) enabledIds += actionId else enabledIds -= actionId
+                                            onChanged(config.copy(enabledActionIds = enabledIds))
+                                        },
+                                    )
+                                }
                             },
                             colors = ListItemDefaults.colors(
                                 containerColor = if (isDragging) {
@@ -2983,7 +3020,117 @@ private fun SelectionActionGroupSetting(
                     }
                 }
             }
+
+            if (groupId == SettingsRepository.SELECTION_WRAP_GROUP_ID) {
+                OutlinedButton(
+                    onClick = {
+                        newWrapperLabel = ""
+                        newWrapperPrefix = ""
+                        newWrapperSuffix = ""
+                        showAddWrapperDialog = true
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null)
+                    Text(
+                        if (es) "Agregar envoltorio" else "Add wrapper",
+                        modifier = Modifier.padding(start = 8.dp),
+                    )
+                }
+            }
         }
+    }
+
+    if (showAddWrapperDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddWrapperDialog = false },
+            title = { Text(if (es) "Nuevo envoltorio" else "New wrapper") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        if (es)
+                            "Define lo que irá antes y después del texto seleccionado."
+                        else
+                            "Define what goes before and after the selected text.",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    OutlinedTextField(
+                        value = newWrapperLabel,
+                        onValueChange = {
+                            newWrapperLabel = it.take(SettingsRepository.MAX_SELECTION_GROUP_LABEL_LENGTH)
+                        },
+                        label = { Text(if (es) "Etiqueta visible" else "Visible label") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = newWrapperPrefix,
+                            onValueChange = {
+                                newWrapperPrefix = it.take(SettingsRepository.MAX_CUSTOM_WRAP_AFFIX_LENGTH)
+                            },
+                            label = { Text(if (es) "Antes" else "Before") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                        )
+                        OutlinedTextField(
+                            value = newWrapperSuffix,
+                            onValueChange = {
+                                newWrapperSuffix = it.take(SettingsRepository.MAX_CUSTOM_WRAP_AFFIX_LENGTH)
+                            },
+                            label = { Text(if (es) "Después" else "After") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    if (newWrapperPrefix.isNotEmpty() || newWrapperSuffix.isNotEmpty()) {
+                        Text(
+                            "${newWrapperPrefix}texto${newWrapperSuffix}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = newWrapperPrefix.isNotEmpty() || newWrapperSuffix.isNotEmpty(),
+                    onClick = {
+                        val id = SettingsRepository.CUSTOM_SELECTION_WRAP_PREFIX + UUID.randomUUID()
+                        val fallbackLabel = "${newWrapperPrefix} ${newWrapperSuffix}"
+                            .trim()
+                            .take(SettingsRepository.MAX_SELECTION_GROUP_LABEL_LENGTH)
+                            .ifBlank { "• •" }
+                        val label = newWrapperLabel.trim().ifBlank { fallbackLabel }
+                        val updatedOrder = workingOrder + id
+                        workingOrder = updatedOrder
+                        onChanged(
+                            config.copy(
+                                actionOrder = updatedOrder,
+                                enabledActionIds = config.enabledActionIds + id,
+                                actionLabels = config.actionLabels + (id to label),
+                                customWraps = config.customWraps + (
+                                    id to SelectionCustomWrapper(
+                                        prefix = newWrapperPrefix,
+                                        suffix = newWrapperSuffix,
+                                    )
+                                ),
+                            ),
+                        )
+                        showAddWrapperDialog = false
+                    },
+                ) {
+                    Text(if (es) "Agregar" else "Add")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddWrapperDialog = false }) {
+                    Text(if (es) "Cancelar" else "Cancel")
+                }
+            },
+        )
     }
 }
 
@@ -3080,8 +3227,8 @@ private fun toolbarQuickActionDescription(id: String, language: DisplayLanguage)
         "wrap_question" -> "¿texto?"
         "wrap_exclamation" -> "¡texto!"
         "wrap_brackets" -> "[texto]"
-        "wrap_double_asterisk" -> "**texto**"
-        "wrap_double_underscore" -> "__texto__"
+        "wrap_double_asterisk" -> "*texto*"
+        "wrap_double_underscore" -> "_texto_"
         "clipboard_cut" -> if (es) "Corta la selección al portapapeles" else "Cut the selection to the clipboard"
         "clipboard_copy" -> if (es) "Copia la selección al portapapeles" else "Copy the selection to the clipboard"
         "clipboard_paste" -> if (es) "Pega sobre la selección" else "Paste over the selection"
