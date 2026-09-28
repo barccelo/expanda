@@ -14,11 +14,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.BugReport
-import androidx.compose.material.icons.filled.Code
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.automirrored.outlined.ArrowForward
+import androidx.compose.material.icons.outlined.BugReport
+import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.Favorite
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -105,25 +105,25 @@ internal fun AboutExpandaSheet(onDismiss: () -> Unit) {
             Spacer(Modifier.height(12.dp))
 
             AboutLink(
-                icon = Icons.Default.Code,
+                icon = Icons.Outlined.Code,
                 title = tr("Source code", "Código fuente"),
                 subtitle = "github.com/diegomarzaa/expanda",
                 onClick = { uriHandler.openUri(ProjectLinks.REPOSITORY) },
             )
             AboutLink(
-                icon = Icons.Default.BugReport,
+                icon = Icons.Outlined.BugReport,
                 title = tr("Issues and contributions", "Problemas y contribuciones"),
                 subtitle = tr("Report bugs or open a pull request", "Reportar errores o abrir un pull request"),
                 onClick = { uriHandler.openUri(ProjectLinks.ISSUES) },
             )
             AboutLink(
-                icon = Icons.Default.Person,
+                icon = Icons.Outlined.Person,
                 title = tr("Diego on GitHub", "Diego en GitHub"),
                 subtitle = "@diegomarzaa",
                 onClick = { uriHandler.openUri(ProjectLinks.AUTHOR_GITHUB) },
             )
             AboutLink(
-                icon = Icons.Default.Favorite,
+                icon = Icons.Outlined.Favorite,
                 title = tr("Support Expanda", "Apoyar Expanda"),
                 subtitle = tr("Buy me a coffee on Ko-fi", "Invítame un café en Ko-fi"),
                 onClick = { uriHandler.openUri(ProjectLinks.SUPPORT) },
@@ -153,7 +153,7 @@ private fun AboutLink(
         headlineContent = { Text(title) },
         supportingContent = { Text(subtitle) },
         leadingContent = { Icon(icon, null, tint = MaterialTheme.colorScheme.primary) },
-        trailingContent = { Icon(Icons.AutoMirrored.Filled.ArrowForward, null) },
+        trailingContent = { Icon(Icons.AutoMirrored.Outlined.ArrowForward, null) },
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
     )
 }
