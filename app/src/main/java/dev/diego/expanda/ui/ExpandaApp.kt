@@ -1257,7 +1257,7 @@ private fun SettingsScreen(
                 }
             }
         }
-        item { HorizontalDivider() }
+        item { Spacer(Modifier.height(10.dp)) }
         item { SettingsSectionHeader(Icons.Outlined.ImportExport, tr("Import & export")) }
         item {
             Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
@@ -2465,7 +2465,7 @@ private fun SelectionToolbarQuickActionsSetting(
             )
 
             if (workingOrder.isNotEmpty()) {
-                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                Spacer(Modifier.height(14.dp))
                 Text(
                     if (es) "Orden en la barra" else "Toolbar order",
                     style = MaterialTheme.typography.labelLarge,
@@ -2614,7 +2614,7 @@ private fun SelectionToolbarQuickActionsSetting(
                         }
                     }
                 }
-                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                Spacer(Modifier.height(16.dp))
                 Text(
                     if (es) "Herramientas disponibles" else "Available tools",
                     style = MaterialTheme.typography.labelLarge,
@@ -2731,10 +2731,16 @@ private fun SelectionActionGroupSetting(
                         style = MaterialTheme.typography.titleSmall,
                     )
                     Text(
-                        if (es)
-                            "Personaliza el botón, el orden, los nombres y qué opciones aparecen."
-                        else
-                            "Customize the button, order, labels and which options appear.",
+                        when {
+                            groupId == SettingsRepository.SELECTION_CLIPBOARD_GROUP_ID && es ->
+                                "Personaliza el orden y qué opciones aparecen."
+                            groupId == SettingsRepository.SELECTION_CLIPBOARD_GROUP_ID ->
+                                "Customize the order and which options appear."
+                            es ->
+                                "Personaliza el botón, el orden, los nombres y qué opciones aparecen."
+                            else ->
+                                "Customize the button, order, labels and which options appear."
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -2790,17 +2796,23 @@ private fun SelectionActionGroupSetting(
                 )
             }
 
-            HorizontalDivider(Modifier.padding(vertical = 6.dp))
+            Spacer(Modifier.height(14.dp))
             Text(
                 if (es) "Elementos del submenú" else "Submenu items",
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             )
             Text(
-                if (es)
-                    "Mantén pulsado y arrastra para reordenar. Puedes ocultar o renombrar cada acción."
-                else
-                    "Long-press and drag to reorder. Each action can be hidden or renamed.",
+                when {
+                    groupId == SettingsRepository.SELECTION_CLIPBOARD_GROUP_ID && es ->
+                        "Mantén pulsado y arrastra para reordenar. Puedes ocultar cada acción."
+                    groupId == SettingsRepository.SELECTION_CLIPBOARD_GROUP_ID ->
+                        "Long-press and drag to reorder. Each action can be hidden."
+                    es ->
+                        "Mantén pulsado y arrastra para reordenar. Puedes ocultar o renombrar cada acción."
+                    else ->
+                        "Long-press and drag to reorder. Each action can be hidden or renamed."
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
@@ -2998,23 +3010,25 @@ private fun SelectionActionGroupSetting(
                             ),
                             modifier = Modifier.fillMaxWidth(),
                         )
-                        OutlinedTextField(
-                            value = labelDraft,
-                            onValueChange = { value ->
-                                val updated = value.take(SettingsRepository.MAX_SELECTION_GROUP_LABEL_LENGTH)
-                                labelDraft = updated
-                                if (updated.isNotBlank()) {
-                                    val labels = config.actionLabels.toMutableMap()
-                                    labels[actionId] = updated
-                                    onChanged(config.copy(actionLabels = labels))
-                                }
-                            },
-                            label = { Text(if (es) "Etiqueta visible" else "Visible label") },
-                            singleLine = true,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(start = 52.dp, end = 16.dp, bottom = 8.dp),
-                        )
+                        if (groupId != SettingsRepository.SELECTION_CLIPBOARD_GROUP_ID) {
+                            OutlinedTextField(
+                                value = labelDraft,
+                                onValueChange = { value ->
+                                    val updated = value.take(SettingsRepository.MAX_SELECTION_GROUP_LABEL_LENGTH)
+                                    labelDraft = updated
+                                    if (updated.isNotBlank()) {
+                                        val labels = config.actionLabels.toMutableMap()
+                                        labels[actionId] = updated
+                                        onChanged(config.copy(actionLabels = labels))
+                                    }
+                                },
+                                label = { Text(if (es) "Etiqueta visible" else "Visible label") },
+                                singleLine = true,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 52.dp, end = 16.dp, bottom = 8.dp),
+                            )
+                        }
                     }
                     if (isDragging && dragDirection > 0) {
                         HorizontalDivider(
