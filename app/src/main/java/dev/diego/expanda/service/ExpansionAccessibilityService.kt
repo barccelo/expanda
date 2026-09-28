@@ -4699,58 +4699,70 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     .takeIf { it != active }
                     ?: return false
             } else {
-                // Ask Android for the next/previous *visual* line from a collapsed
-                // caret, then immediately restore our anchored selection. This is
-                // the behavior that preserves wrapped-line selection. The result is
-                // accepted only when it actually advances in the requested
-                // direction, so editors cannot bounce the endpoint backwards.
-                fun probeVisualLineTarget(targetNode: AccessibilityNodeInfo): Int? {
-                    if (!setSelection(targetNode, active, active)) return null
-
-                    val action = if (forward) {
-                        AccessibilityNodeInfo.ACTION_NEXT_AT_MOVEMENT_GRANULARITY
-                    } else {
-                        AccessibilityNodeInfo.ACTION_PREVIOUS_AT_MOVEMENT_GRANULARITY
-                    }
-                    val args = Bundle().apply {
-                        putInt(
-                            AccessibilityNodeInfo.ACTION_ARGUMENT_MOVEMENT_GRANULARITY_INT,
-                            AccessibilityNodeInfo.MOVEMENT_GRANULARITY_LINE,
-                        )
-                        putBoolean(
-                            AccessibilityNodeInfo.ACTION_ARGUMENT_EXTEND_SELECTION_BOOLEAN,
-                            false,
-                        )
-                    }
-
-                    if (!targetNode.performAction(action, args)) return null
-                    runCatching { targetNode.refresh() }
-
-                    val candidates = listOf(
-                        targetNode.textSelectionStart,
-                        targetNode.textSelectionEnd,
-                    )
-                        .filter { it in 0..text.length }
-                        .filter { candidate ->
-                            if (forward) candidate > active else candidate < active
-                        }
-
-                    return if (forward) candidates.minOrNull() else candidates.maxOrNull()
-                }
-
-                var movedTarget = probeVisualLineTarget(node)
-                if (movedTarget == null) {
+                // Preserve the original visual-line behavior: Android calculates
+                // the next visual line from a collapsed caret and textSelectionEnd
+                // is the endpoint it reports. Do not infer the target from
+                // textSelectionStart: some editors expose a paragraph boundary
+                // there, which makes a single vertical step select the paragraph.
+                if (!setSelection(node, active, active)) {
                     node = refreshEditor() ?: return false
-                    movedTarget = probeVisualLineTarget(node)
+                    if (!setSelection(node, active, active)) return false
                 }
 
-                movedTarget ?: run {
-                    // No adjacent visual line exists. Still make vertical movement
-                    // useful inside a one-line field by extending to its boundary.
+                val action = if (forward) {
+                    AccessibilityNodeInfo.ACTION_NEXT_AT_MOVEMENT_GRANULARITY
+                } else {
+                    AccessibilityNodeInfo.ACTION_PREVIOUS_AT_MOVEMENT_GRANULARITY
+                }
+                val args = Bundle().apply {
+                    putInt(
+                        AccessibilityNodeInfo.ACTION_ARGUMENT_MOVEMENT_GRANULARITY_INT,
+                        AccessibilityNodeInfo.MOVEMENT_GRANULARITY_LINE,
+                    )
+                    putBoolean(
+                        AccessibilityNodeInfo.ACTION_ARGUMENT_EXTEND_SELECTION_BOOLEAN,
+                        false,
+                    )
+                }
+
+                var moved = node.performAction(action, args)
+                if (!moved) {
+                    node = refreshEditor() ?: return false
+                    if (!setSelection(node, active, active)) return false
+                    moved = node.performAction(action, args)
+                }
+
+                if (!moved) {
+                    // A single visual line has no adjacent line. Extend to the
+                    // current text boundary so vertical movement still does
+                    // something useful instead of silently failing.
                     val boundary = if (forward) text.length else 0
                     boundary.takeIf {
                         if (forward) it > active else it < active
                     } ?: return false
+                } else {
+                    runCatching { node.refresh() }
+                    val reportedTarget = node.textSelectionEnd
+                        .takeIf { it in 0..editableText(node).length }
+                        ?: run {
+                            setSelection(node, minOf(anchor, active), maxOf(anchor, active))
+                            return false
+                        }
+
+                    // Some editors report a successful movement even when they are
+                    // already at the visual boundary, or briefly return an endpoint
+                    // in the opposite direction. Reject that result and restore the
+                    // stable range instead of allowing an overshoot/snap-back loop.
+                    val advancesCorrectly = if (forward) {
+                        reportedTarget > active
+                    } else {
+                        reportedTarget < active
+                    }
+                    if (!advancesCorrectly) {
+                        setSelection(node, minOf(anchor, active), maxOf(anchor, active))
+                        return false
+                    }
+                    reportedTarget
                 }
             }
 
