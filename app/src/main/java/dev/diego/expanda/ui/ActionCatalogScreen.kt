@@ -9,19 +9,19 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardTab
-import androidx.compose.material.icons.filled.Android
-import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.Calculate
-import androidx.compose.material.icons.filled.ContentPaste
-import androidx.compose.material.icons.filled.DeleteSweep
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.Lightbulb
-import androidx.compose.material.icons.filled.RestartAlt
-import androidx.compose.material.icons.filled.SelectAll
-import androidx.compose.material.icons.filled.TextFields
+import androidx.compose.material.icons.automirrored.outlined.KeyboardTab
+import androidx.compose.material.icons.outlined.Android
+import androidx.compose.material.icons.outlined.Bolt
+import androidx.compose.material.icons.outlined.Calculate
+import androidx.compose.material.icons.outlined.ContentPaste
+import androidx.compose.material.icons.outlined.DeleteSweep
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.Lightbulb
+import androidx.compose.material.icons.outlined.RestartAlt
+import androidx.compose.material.icons.outlined.SelectAll
+import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
@@ -87,7 +87,7 @@ fun ActionCatalogScreen(
                             },
                             leadingContent = { Icon(category.icon(), null) },
                             trailingContent = {
-                                Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null)
+                                Icon(if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, null)
                             },
                             modifier = Modifier.clickable {
                                 expandedCategories = if (expanded) expandedCategories - category
@@ -174,7 +174,7 @@ private fun ActionRow(
                 )
             }
             IconButton(onClick = onEdit) {
-                Icon(Icons.Default.Edit, tr("Edit shortcut"))
+                Icon(Icons.Outlined.Edit, tr("Edit shortcut"))
             }
             Switch(
                 checked = enabled,
@@ -207,7 +207,7 @@ private fun ActionRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                Icons.Default.Lightbulb,
+                Icons.Outlined.Lightbulb,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -322,7 +322,7 @@ private fun TriggerEditorDialog(
                     onClick = onReset,
                     enabled = currentTriggers != definition.triggers,
                 ) {
-                    Icon(Icons.Default.RestartAlt, null)
+                    Icon(Icons.Outlined.RestartAlt, null)
                     Text(tr("Restore defaults", "Restablecer predeterminados"))
                 }
             }
@@ -351,12 +351,12 @@ private fun ActionCategory.displayName(): String = when (this) {
 }
 
 private fun ActionCategory.icon(): ImageVector = when (this) {
-    ActionCategory.NUMBER -> Icons.Default.Calculate
-    ActionCategory.TEXT -> Icons.Default.TextFields
-    ActionCategory.SELECTION -> Icons.Default.SelectAll
-    ActionCategory.DELETION -> Icons.Default.DeleteSweep
-    ActionCategory.CURSOR -> Icons.AutoMirrored.Filled.KeyboardTab
-    ActionCategory.CLIPBOARD -> Icons.Default.ContentPaste
-    ActionCategory.ANDROID -> Icons.Default.Android
-    ActionCategory.EXPANDA -> Icons.Default.Bolt
+    ActionCategory.NUMBER -> Icons.Outlined.Calculate
+    ActionCategory.TEXT -> Icons.Outlined.TextFields
+    ActionCategory.SELECTION -> Icons.Outlined.SelectAll
+    ActionCategory.DELETION -> Icons.Outlined.DeleteSweep
+    ActionCategory.CURSOR -> Icons.AutoMirrored.Outlined.KeyboardTab
+    ActionCategory.CLIPBOARD -> Icons.Outlined.ContentPaste
+    ActionCategory.ANDROID -> Icons.Outlined.Android
+    ActionCategory.EXPANDA -> Icons.Outlined.Bolt
 }
