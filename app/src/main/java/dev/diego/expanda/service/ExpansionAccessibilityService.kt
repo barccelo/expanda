@@ -6035,10 +6035,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
             ).apply { bottomMargin = dp(8) },
         )
 
-        val preferredIds = entry.preferredCopyFieldIds?.toSet()
-        val copyFields = entry.fields
-            .filter { preferredIds == null || it.id in preferredIds }
-            .ifEmpty { entry.fields }
+        val copyFields = preferredVaultFields(entry)
         val copyLabel = if (copyFields.size == entry.fields.size) {
             localizedSelectionUi(settings, "Copy all", "Copiar todo")
         } else {
@@ -6980,6 +6977,78 @@ class ExpansionAccessibilityService : AccessibilityService() {
         return pasted
     }
 
+    private fun preferredVaultFields(entry: VaultEntry): List<VaultField> {
+        val preferredIds = entry.preferredCopyFieldIds?.toSet()
+        return entry.fields
+            .filter { preferredIds == null || it.id in preferredIds }
+            .ifEmpty { entry.fields }
+    }
+
+    private fun copyVaultSuggestionValues(
+        fields: List<VaultField>,
+        settings: AppSettings,
+    ) {
+        if (fields.isEmpty()) return
+        if (settings.hapticFeedback) vibrateTick()
+        val values = fields.joinToString("\n", transform = VaultField::value)
+        writeVaultClipboard(values, fields.any(VaultField::sensitive))
+    }
+
+    private fun insertVaultSuggestionValues(
+        fields: List<VaultField>,
+        trigger: String,
+        matchedText: String,
+        browseMode: Boolean,
+    ) {
+        if (fields.isEmpty()) return
+        val anchor = suggestionAnchor ?: return
+        clearAccessibilityCache()
+        val node = findAnchoredEditor(anchor, allowPassword = true) ?: return
+        try {
+            runCatching { node.refresh() }
+            if (!node.isEditable) return
+            val text = editableText(node)
+            val cursor = node.textSelectionEnd.takeIf { it in 0..text.length } ?: text.length
+            val range = SuggestionApplyLocator.locate(
+                text = text,
+                cursor = cursor,
+                trigger = trigger,
+                browseMode = browseMode,
+                matchedText = matchedText,
+            ) ?: return
+            val replacement = fields.joinToString("\n", transform = VaultField::value)
+            val finalCursor = range.start + replacement.length
+            val settings = settingsRepository.settings.value
+            val passwordField = node.isPassword || isPasswordInput(node.inputType)
+            val success = if (passwordField) {
+                pasteReplacement(
+                    node = node,
+                    start = range.start,
+                    end = range.end,
+                    replacement = replacement,
+                    cursor = finalCursor,
+                )
+            } else {
+                val finalText = text.replaceRange(range.start, range.end, replacement)
+                setFieldText(
+                    node = node,
+                    originalText = text,
+                    newText = finalText,
+                    selectionStart = finalCursor,
+                    selectionEnd = finalCursor,
+                    settings = settings,
+                )
+            }
+            if (success) {
+                if (settings.hapticFeedback) vibrateTick()
+                hideSuggestions()
+            }
+        } finally {
+            @Suppress("DEPRECATION")
+            node.recycle()
+        }
+    }
+
     private fun showSuggestions(
         anchorNode: AccessibilityNodeInfo,
         text: String,
@@ -7256,6 +7325,20 @@ class ExpansionAccessibilityService : AccessibilityService() {
                             browseMode = showAll,
                         )
                     },
+                    onCopy = {
+                        copyVaultSuggestionValues(
+                            preferredVaultFields(suggestion.entry),
+                            settings,
+                        )
+                    },
+                    onInsert = {
+                        insertVaultSuggestionValues(
+                            fields = preferredVaultFields(suggestion.entry),
+                            trigger = suggestion.suggestionTrigger,
+                            matchedText = suggestion.matchedText,
+                            browseMode = showAll,
+                        )
+                    },
                 )
                 is PopupSuggestion.VaultFieldItem -> createVaultSuggestionRow(
                     title = suggestion.field.label,
@@ -7271,6 +7354,17 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     onClick = {
                         applyVaultSuggestion(
                             target = VaultTriggerTarget.Field(suggestion.entry, suggestion.field),
+                            trigger = suggestion.suggestionTrigger,
+                            matchedText = suggestion.matchedText,
+                            browseMode = showAll,
+                        )
+                    },
+                    onCopy = {
+                        copyVaultSuggestionValues(listOf(suggestion.field), settings)
+                    },
+                    onInsert = {
+                        insertVaultSuggestionValues(
+                            fields = listOf(suggestion.field),
                             trigger = suggestion.suggestionTrigger,
                             matchedText = suggestion.matchedText,
                             browseMode = showAll,
@@ -7423,6 +7517,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
         settings: AppSettings,
         ui: OverlayViews,
         onClick: () -> Unit,
+        onCopy: (() -> Unit)? = null,
+        onInsert: (() -> Unit)? = null,
     ): View = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
@@ -7458,6 +7554,43 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 ellipsize = android.text.TextUtils.TruncateAt.END
             })
         }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+
+        fun quickIcon(
+            iconRes: Int,
+            description: String,
+            action: () -> Unit,
+        ) {
+            addView(
+                ImageView(this@ExpansionAccessibilityService).apply {
+                    setImageResource(iconRes)
+                    setColorFilter(ui.theme.onSurface)
+                    scaleType = ImageView.ScaleType.CENTER
+                    background = ui.surface(9)
+                    isClickable = true
+                    isFocusable = true
+                    contentDescription = description
+                    setOnClickListener { action() }
+                },
+                LinearLayout.LayoutParams(dp(36), dp(36)).apply {
+                    marginStart = dp(5)
+                },
+            )
+        }
+
+        onCopy?.let {
+            quickIcon(
+                R.drawable.ic_copy_fine,
+                localizedSelectionUi(settings, "Copy vault value", "Copiar valor de bóveda"),
+                it,
+            )
+        }
+        onInsert?.let {
+            quickIcon(
+                R.drawable.ic_insert_fine,
+                localizedSelectionUi(settings, "Insert vault value", "Insertar valor de bóveda"),
+                it,
+            )
+        }
     }
 
     private fun createActionSuggestionRow(
