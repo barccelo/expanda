@@ -19,10 +19,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ViewList
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.EditNote
-import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.automirrored.outlined.ViewList
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.EditNote
+import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -90,7 +90,7 @@ fun TestScreen(serviceEnabled: Boolean, active: Boolean) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
-                    if (serviceEnabled) Icons.Default.CheckCircle else Icons.Default.Warning,
+                    if (serviceEnabled) Icons.Outlined.CheckCircle else Icons.Outlined.Warning,
                     contentDescription = null,
                     tint = if (serviceEnabled) colors.onSecondaryContainer else colors.onErrorContainer,
                 )
@@ -115,7 +115,7 @@ fun TestScreen(serviceEnabled: Boolean, active: Boolean) {
             enabled = serviceEnabled,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Icon(Icons.AutoMirrored.Filled.ViewList, contentDescription = null)
+            Icon(Icons.AutoMirrored.Outlined.ViewList, contentDescription = null)
             Text("  " + tr("Open suggestion overlay"))
         }
         Surface(
@@ -159,7 +159,7 @@ fun TestScreen(serviceEnabled: Boolean, active: Boolean) {
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.Default.EditNote, contentDescription = null, tint = colors.primary)
+            Icon(Icons.Outlined.EditNote, contentDescription = null, tint = colors.primary)
             Text(
                 tr("Tip: undo an expansion with Backspace.", "Consejo: deshaz una expansión con Retroceso."),
                 style = MaterialTheme.typography.bodySmall,
