@@ -12,19 +12,19 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.AlignHorizontalLeft
-import androidx.compose.material.icons.automirrored.filled.AlignHorizontalRight
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.AddLink
-import androidx.compose.material.icons.filled.Apps
-import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Filter1
-import androidx.compose.material.icons.filled.FormatSize
-import androidx.compose.material.icons.filled.Repeat
-import androidx.compose.material.icons.filled.Shuffle
-import androidx.compose.material.icons.filled.SpaceBar
-import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.material.icons.automirrored.outlined.AlignHorizontalLeft
+import androidx.compose.material.icons.automirrored.outlined.AlignHorizontalRight
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.AddLink
+import androidx.compose.material.icons.outlined.Apps
+import androidx.compose.material.icons.outlined.Bolt
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Filter1
+import androidx.compose.material.icons.outlined.FormatSize
+import androidx.compose.material.icons.outlined.Repeat
+import androidx.compose.material.icons.outlined.Shuffle
+import androidx.compose.material.icons.outlined.SpaceBar
+import androidx.compose.material.icons.outlined.TouchApp
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -100,17 +100,17 @@ internal fun SnippetMatchingOptionsCard(
                     ActivationOption(
                         TriggerActivation.IMMEDIATE,
                         tr("Immediate", "Inmediato"),
-                        Icons.Default.Bolt,
+                        Icons.Outlined.Bolt,
                     ),
                     ActivationOption(
                         TriggerActivation.SPACE,
                         tr("Space", "Espacio"),
-                        Icons.Default.SpaceBar,
+                        Icons.Outlined.SpaceBar,
                     ),
                     ActivationOption(
                         TriggerActivation.DELIMITER,
                         tr("Delimiter", "Delimitador"),
-                        Icons.Default.TouchApp,
+                        Icons.Outlined.TouchApp,
                     ),
                 )
                 SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
@@ -228,7 +228,7 @@ internal fun SnippetMatchingOptionsCard(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Icon(
-                        Icons.Default.FormatSize,
+                        Icons.Outlined.FormatSize,
                         null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -254,7 +254,7 @@ internal fun SnippetMatchingOptionsCard(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Icon(
-                        Icons.Default.FormatSize,
+                        Icons.Outlined.FormatSize,
                         null,
                         tint = if (caseSensitive) {
                             MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
@@ -349,7 +349,7 @@ internal fun SnippetMatchingOptionsCard(
                 } else {
                     TextButton(onClick = { editingAlternativeTriggers = true }) {
                         Icon(
-                            if (alternativeCount == 0) Icons.Default.AddLink else Icons.Default.Edit,
+                            if (alternativeCount == 0) Icons.Outlined.AddLink else Icons.Outlined.Edit,
                             null,
                         )
                         Text(
@@ -377,10 +377,10 @@ internal fun SnippetMatchingOptionsCard(
                         else "$excludedAppCount ${if (excludedAppCount == 1) "app" else "apps"} excluded",
                     )
                 },
-                leadingContent = { Icon(Icons.Default.Apps, null) },
+                leadingContent = { Icon(Icons.Outlined.Apps, null) },
                 modifier = Modifier.padding(horizontal = 4.dp).clickable(onClick = onOpenExcludedApps),
                 trailingContent = {
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Choose excluded apps")
+                    Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, "Choose excluded apps")
                 },
             )
         }
@@ -394,10 +394,10 @@ internal fun ReplacementSelectionCard(
 ) {
     val options = TemplateSelectionMode.entries.map { mode ->
         when (mode) {
-            TemplateSelectionMode.FIRST -> SelectionOption(mode, "First", "Always use the first", Icons.Default.Filter1)
-            TemplateSelectionMode.RANDOM -> SelectionOption(mode, "Random", "Pick one at random", Icons.Default.Shuffle)
-            TemplateSelectionMode.SEQUENTIAL -> SelectionOption(mode, "Sequential", "Android only", Icons.Default.Repeat)
-            TemplateSelectionMode.MANUAL -> SelectionOption(mode, "Choose", "Ask each time", Icons.Default.TouchApp)
+            TemplateSelectionMode.FIRST -> SelectionOption(mode, "First", "Always use the first", Icons.Outlined.Filter1)
+            TemplateSelectionMode.RANDOM -> SelectionOption(mode, "Random", "Pick one at random", Icons.Outlined.Shuffle)
+            TemplateSelectionMode.SEQUENTIAL -> SelectionOption(mode, "Sequential", "Android only", Icons.Outlined.Repeat)
+            TemplateSelectionMode.MANUAL -> SelectionOption(mode, "Choose", "Ask each time", Icons.Outlined.TouchApp)
         }
     }
     val selectedDescription = options.first { it.mode == selectionMode }.description
@@ -475,8 +475,8 @@ private val DELIMITER_OPTIONS = listOf(
 )
 
 private enum class BoundaryOption(val label: String, val icon: ImageVector) {
-    LEFT("Left edge", Icons.AutoMirrored.Filled.AlignHorizontalLeft),
-    RIGHT("Right edge", Icons.AutoMirrored.Filled.AlignHorizontalRight),
+    LEFT("Left edge", Icons.AutoMirrored.Outlined.AlignHorizontalLeft),
+    RIGHT("Right edge", Icons.AutoMirrored.Outlined.AlignHorizontalRight),
 }
 
 private data class SelectionOption(
