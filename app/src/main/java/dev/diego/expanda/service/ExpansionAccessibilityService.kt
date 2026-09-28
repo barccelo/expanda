@@ -4648,11 +4648,13 @@ class ExpansionAccessibilityService : AccessibilityService() {
         var lastRawY = 0f
         var accumulatedX = 0f
         var accumulatedY = 0f
+        var returnedToOrigin = false
 
         fun moveSelectionEndpoint(
             granularity: Int,
             forward: Boolean,
         ): Boolean {
+            returnedToOrigin = false
             var node = selectionGestureEditor ?: return false
             suppressSelectionToolbarUntil =
                 SystemClock.elapsedRealtime() + SELECTION_GESTURE_TOOLBAR_SUPPRESSION_MS
@@ -4695,75 +4697,65 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 ?: return false
             val anchor = selectionGestureAnchorCursor.coerceIn(0, text.length)
 
-            val target = if (granularity == AccessibilityNodeInfo.MOVEMENT_GRANULARITY_CHARACTER) {
+            val target = if (
+                granularity == AccessibilityNodeInfo.MOVEMENT_GRANULARITY_CHARACTER
+            ) {
                 (active + if (forward) 1 else -1).coerceIn(0, text.length)
                     .takeIf { it != active }
                     ?: return false
             } else {
-                // Preserve the original visual-line behavior: Android calculates
-                // the next visual line from a collapsed caret and textSelectionEnd
-                // is the endpoint it reports. Do not infer the target from
-                // textSelectionStart: some editors expose a paragraph boundary
-                // there, which makes a single vertical step select the paragraph.
-                if (!setSelection(node, active, active)) {
-                    node = refreshEditor() ?: return false
-                    if (!setSelection(node, active, active)) return false
-                }
-
-                val action = if (forward) {
-                    AccessibilityNodeInfo.ACTION_NEXT_AT_MOVEMENT_GRANULARITY
-                } else {
-                    AccessibilityNodeInfo.ACTION_PREVIOUS_AT_MOVEMENT_GRANULARITY
-                }
-                val args = Bundle().apply {
-                    putInt(
-                        AccessibilityNodeInfo.ACTION_ARGUMENT_MOVEMENT_GRANULARITY_INT,
-                        AccessibilityNodeInfo.MOVEMENT_GRANULARITY_LINE,
-                    )
-                    putBoolean(
-                        AccessibilityNodeInfo.ACTION_ARGUMENT_EXTEND_SELECTION_BOOLEAN,
-                        false,
-                    )
-                }
-
-                var moved = node.performAction(action, args)
-                if (!moved) {
-                    node = refreshEditor() ?: return false
-                    if (!setSelection(node, active, active)) return false
-                    moved = node.performAction(action, args)
-                }
-
-                if (!moved) {
-                    // A single visual line has no adjacent line. Extend to the
-                    // current text boundary so vertical movement still does
-                    // something useful instead of silently failing.
-                    val boundary = if (forward) text.length else 0
-                    boundary.takeIf {
-                        if (forward) it > active else it < active
-                    } ?: return false
-                } else {
-                    runCatching { node.refresh() }
-                    val reportedTarget = node.textSelectionEnd
-                        .takeIf { it in 0..editableText(node).length }
-                        ?: run {
-                            setSelection(node, minOf(anchor, active), maxOf(anchor, active))
-                            return false
+                visualLineTargetFromAccessibilityGeometry(
+                    node = node,
+                    text = text,
+                    cursor = active,
+                    forward = forward,
+                ) ?: run {
+                    // Compatibility fallback for editors that do not expose
+                    // per-character geometry. This preserves the old visual-line
+                    // behavior, but it is no longer the primary path.
+                    fun probeFrom(probeCursor: Int): Int? {
+                        if (!setSelection(node, probeCursor, probeCursor)) return null
+                        val action = if (forward) {
+                            AccessibilityNodeInfo.ACTION_NEXT_AT_MOVEMENT_GRANULARITY
+                        } else {
+                            AccessibilityNodeInfo.ACTION_PREVIOUS_AT_MOVEMENT_GRANULARITY
                         }
+                        val args = Bundle().apply {
+                            putInt(
+                                AccessibilityNodeInfo.ACTION_ARGUMENT_MOVEMENT_GRANULARITY_INT,
+                                AccessibilityNodeInfo.MOVEMENT_GRANULARITY_LINE,
+                            )
+                            putBoolean(
+                                AccessibilityNodeInfo.ACTION_ARGUMENT_EXTEND_SELECTION_BOOLEAN,
+                                false,
+                            )
+                        }
+                        if (!node.performAction(action, args)) return null
+                        runCatching { node.refresh() }
+                        return node.textSelectionEnd
+                            .takeIf { it in 0..editableText(node).length }
+                            ?.takeIf {
+                                if (forward) it > active else it < active
+                            }
+                    }
 
-                    // Some editors report a successful movement even when they are
-                    // already at the visual boundary, or briefly return an endpoint
-                    // in the opposite direction. Reject that result and restore the
-                    // stable range instead of allowing an overshoot/snap-back loop.
-                    val advancesCorrectly = if (forward) {
-                        reportedTarget > active
-                    } else {
-                        reportedTarget < active
+                    var probed = probeFrom(active)
+                    if (probed == null && active == anchor) {
+                        // Some editors refuse the first vertical move from a
+                        // collapsed caret. Seed that probe internally by one
+                        // character so the user never has to do it manually.
+                        val seed = (active + if (forward) 1 else -1)
+                            .coerceIn(0, text.length)
+                        if (seed != active) {
+                            probed = probeFrom(seed)
+                        }
                     }
-                    if (!advancesCorrectly) {
-                        setSelection(node, minOf(anchor, active), maxOf(anchor, active))
-                        return false
+                    probed ?: run {
+                        val boundary = if (forward) text.length else 0
+                        boundary.takeIf {
+                            if (forward) it > active else it < active
+                        } ?: return false
                     }
-                    reportedTarget
                 }
             }
 
@@ -4774,6 +4766,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 if (!setSelection(node, start, end)) return false
             }
             selectionGestureActiveCursor = target
+            returnedToOrigin = target == anchor
             return true
         }
 
@@ -4819,6 +4812,14 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 }
 
                 if (!moved) break
+                if (returnedToOrigin) {
+                    // Returning exactly to the original caret is a neutral point.
+                    // Drop residual motion from the gesture that just collapsed the
+                    // range so it cannot immediately leak into another direction.
+                    accumulatedX = 0f
+                    accumulatedY = 0f
+                    break
+                }
             }
         }
 
@@ -4829,7 +4830,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     lastRawY = event.rawY
                     accumulatedX = 0f
                     accumulatedY = 0f
-                            true
+                    returnedToOrigin = false
+                    true
                 }
 
                 MotionEvent.ACTION_MOVE -> {
@@ -4844,7 +4846,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     accumulatedX = 0f
                     accumulatedY = 0f
-                            true
+                    returnedToOrigin = false
+                    true
                 }
 
                 else -> true
@@ -8651,6 +8654,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         private const val SELECTION_GESTURE_CHAR_STEP_DP = 10
         private const val SELECTION_GESTURE_LINE_STEP_DP = 34
         private const val SELECTION_GESTURE_MAX_STEPS_PER_MOVE = 24
+        private const val SELECTION_GESTURE_CHARACTER_LOCATION_RADIUS = 1200
         private const val SELECTION_GESTURE_TOOLBAR_SUPPRESSION_MS = 450L
         private const val VAULT_KEYBOARD_DIALOG_MARGIN_DP = 18
         private const val VAULT_ENTRY_FORM_CONTENT_RATIO = 0.38f
