@@ -25,11 +25,18 @@ enum class ThemeMode { SYSTEM, LIGHT, DARK, AMOLED }
 enum class ColorSchemeMode { WALLPAPER, DEFAULT, CUSTOM }
 enum class DisplayLanguage { SYSTEM, ENGLISH, SPANISH }
 
+data class SelectionCustomWrapper(
+    val prefix: String,
+    val suffix: String,
+)
+
 data class SelectionActionGroupConfig(
     val label: String,
     val actionOrder: List<String>,
     val enabledActionIds: Set<String>,
     val actionLabels: Map<String, String>,
+    /** User-created wrappers available only inside the Wrap group. */
+    val customWraps: Map<String, SelectionCustomWrapper> = emptyMap(),
     /** Last option chosen from an adaptive group. Used by the toolbar's short tap. */
     val preferredActionId: String? = null,
 )
@@ -497,6 +504,8 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         const val MIN_SELECTION_GESTURE_SIZE = 0.08f
         const val MAX_SELECTION_GESTURE_SIZE = 0.30f
         const val MAX_SELECTION_GROUP_LABEL_LENGTH = 12
+        const val MAX_CUSTOM_WRAP_AFFIX_LENGTH = 24
+        const val CUSTOM_SELECTION_WRAP_PREFIX = "custom_wrap_"
         const val SELECTION_CASE_GROUP_ID = "case_group"
         const val SELECTION_WRAP_GROUP_ID = "wrap_group"
         const val SELECTION_CLIPBOARD_GROUP_ID = "clipboard_group"
@@ -549,7 +558,7 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
                 "wrap_exclamation" to "¡ !",
                 "wrap_brackets" to "[ ]",
                 "wrap_double_asterisk" to "* *",
-                "wrap_double_underscore" to "__ __",
+                "wrap_double_underscore" to "_ _",
             ),
         )
         val DEFAULT_SELECTION_CLIPBOARD_GROUP_CONFIG = SelectionActionGroupConfig(
@@ -650,6 +659,14 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
                     put("actionLabels", JSONObject().apply {
                         config.actionLabels.forEach { (actionId, label) -> put(actionId, label) }
                     })
+                    put("customWraps", JSONObject().apply {
+                        config.customWraps.forEach { (actionId, wrapper) ->
+                            put(actionId, JSONObject().apply {
+                                put("prefix", wrapper.prefix)
+                                put("suffix", wrapper.suffix)
+                            })
+                        }
+                    })
                     put("preferredActionId", config.preferredActionId ?: JSONObject.NULL)
                 })
             }
@@ -665,6 +682,19 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
                 val orderArray = json.optJSONArray("actionOrder")
                 val enabledArray = json.optJSONArray("enabledActionIds")
                 val labelsJson = json.optJSONObject("actionLabels")
+                val customWrapsJson = json.optJSONObject("customWraps")
+                val customWraps = buildMap {
+                    customWrapsJson?.keys()?.forEach { actionId ->
+                        val item = customWrapsJson.optJSONObject(actionId) ?: return@forEach
+                        put(
+                            actionId,
+                            SelectionCustomWrapper(
+                                prefix = item.optString("prefix"),
+                                suffix = item.optString("suffix"),
+                            ),
+                        )
+                    }
+                }
                 val order = if (orderArray == null) {
                     defaultConfig.actionOrder
                 } else {
@@ -696,6 +726,7 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
                         actionOrder = order,
                         enabledActionIds = enabled,
                         actionLabels = labels,
+                        customWraps = customWraps,
                         preferredActionId = if (json.has("preferredActionId")) {
                             if (json.isNull("preferredActionId")) null
                             else json.optString("preferredActionId").takeIf(String::isNotBlank)
@@ -713,30 +744,62 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         ): SelectionActionGroupConfig? {
             val available = AVAILABLE_SELECTION_ACTION_GROUP_ACTIONS[groupId] ?: return null
             val defaultConfig = DEFAULT_SELECTION_ACTION_GROUP_CONFIGS[groupId] ?: return null
+            val customWraps = if (groupId == SELECTION_WRAP_GROUP_ID) {
+                config.customWraps
+                    .filterKeys { it.startsWith(CUSTOM_SELECTION_WRAP_PREFIX) }
+                    .mapValues { (_, wrapper) ->
+                        SelectionCustomWrapper(
+                            prefix = wrapper.prefix.take(MAX_CUSTOM_WRAP_AFFIX_LENGTH),
+                            suffix = wrapper.suffix.take(MAX_CUSTOM_WRAP_AFFIX_LENGTH),
+                        )
+                    }
+                    .filterValues { it.prefix.isNotEmpty() || it.suffix.isNotEmpty() }
+            } else {
+                emptyMap()
+            }
+            val validIds = available.toSet() + customWraps.keys
             val order = buildList {
                 config.actionOrder.forEach { id ->
-                    if (id in available && id !in this) add(id)
+                    if (id in validIds && id !in this) add(id)
                 }
                 available.forEach { id -> if (id !in this) add(id) }
+                customWraps.keys.forEach { id -> if (id !in this) add(id) }
             }
-            val enabled = config.enabledActionIds.filterTo(linkedSetOf()) { it in available }
-            val labels = available.associateWith { actionId ->
-                config.actionLabels[actionId]
-                    ?.take(MAX_SELECTION_GROUP_LABEL_LENGTH)
-                    ?.takeIf(String::isNotBlank)
-                    ?: defaultConfig.actionLabels.getValue(actionId)
+            val enabled = config.enabledActionIds.filterTo(linkedSetOf()) { it in validIds }
+            val labels = buildMap {
+                available.forEach { actionId ->
+                    var candidate = config.actionLabels[actionId]
+                        ?.take(MAX_SELECTION_GROUP_LABEL_LENGTH)
+                        ?.takeIf(String::isNotBlank)
+                        ?: defaultConfig.actionLabels.getValue(actionId)
+                    // One-time semantic cleanup from the old "__ __" default.
+                    if (actionId == "wrap_double_underscore" && candidate == "__ __") {
+                        candidate = "_ _"
+                    }
+                    put(actionId, candidate)
+                }
+                customWraps.keys.forEach { actionId ->
+                    put(
+                        actionId,
+                        config.actionLabels[actionId]
+                            ?.take(MAX_SELECTION_GROUP_LABEL_LENGTH)
+                            ?.takeIf(String::isNotBlank)
+                            ?: "• •",
+                    )
+                }
             }
             val label = config.label
                 .take(MAX_SELECTION_GROUP_LABEL_LENGTH)
                 .takeIf(String::isNotBlank)
                 ?: defaultConfig.label
             val preferredActionId = config.preferredActionId
-                ?.takeIf { it in available }
+                ?.takeIf { it in validIds }
             return SelectionActionGroupConfig(
                 label = label,
                 actionOrder = order,
                 enabledActionIds = enabled,
                 actionLabels = labels,
+                customWraps = customWraps,
                 preferredActionId = preferredActionId,
             )
         }
