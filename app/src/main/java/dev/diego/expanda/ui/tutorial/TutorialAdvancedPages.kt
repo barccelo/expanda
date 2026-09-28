@@ -31,14 +31,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.filled.Calculate
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Code
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
+import androidx.compose.material.icons.outlined.Calculate
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -87,7 +87,7 @@ internal fun ActionsAnimation() {
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         FeatureHeading(
-            Icons.Default.Calculate,
+            Icons.Outlined.Calculate,
             tr("Transform text instantly", "Transforma texto al instante"),
             tr(
                 "Use shortcuts or Android’s selection menu.",
@@ -190,7 +190,7 @@ private fun ActionShortcutPreview(
                 Text(shortcut, Modifier.padding(horizontal = 11.dp, vertical = 7.dp), fontFamily = FontFamily.Monospace)
             }
             AnimatedVisibility(visible = transformed, enter = fadeIn() + scaleIn()) {
-                Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Outlined.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
             }
         }
     }
@@ -270,7 +270,7 @@ private fun SelectionActionPreview(localElapsed: Float, showResult: Boolean) {
             }
         } else {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Outlined.Check, null, tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(6.dp))
                 Text(tr("Capitalization applied", "Capitalización aplicada"), color = MaterialTheme.colorScheme.primary)
             }
@@ -296,7 +296,7 @@ internal fun EspansoCompatibilityAnimation() {
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         FeatureHeading(
-            Icons.Default.Description,
+            Icons.Outlined.Description,
             tr("Your snippets are plain-text .yml", "Tus fragmentos son archivos .yml de texto plano"),
             tr(
                 "Plain-text files you can edit, copy or move.",
@@ -325,7 +325,7 @@ internal fun EspansoCompatibilityAnimation() {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
                 ) {
-                    Icon(Icons.Default.PhoneAndroid, null, modifier = Modifier.size(34.dp), tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Outlined.PhoneAndroid, null, modifier = Modifier.size(34.dp), tint = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.height(10.dp))
                     Text("Expanda", fontWeight = FontWeight.SemiBold)
                     AnimatedVisibility(visible = imported, enter = fadeIn() + scaleIn()) {
@@ -389,7 +389,7 @@ internal fun SourceEditingAnimation() {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         FeatureHeading(
-            Icons.Default.Code,
+            Icons.Outlined.Code,
             tr("Edit the real Espanso source", "Edita la fuente real de Espanso"),
             tr(
                 "Open, copy or edit the same .yml file—then validate and save.",
@@ -418,7 +418,7 @@ internal fun SourceEditingAnimation() {
                                 Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Icon(Icons.Default.AutoAwesome, null, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Outlined.AutoAwesome, null, modifier = Modifier.size(16.dp))
                                 Spacer(Modifier.width(5.dp))
                                 Text(tr("AI prompt", "Instrucción para IA"), style = MaterialTheme.typography.labelMedium)
                             }
@@ -463,7 +463,7 @@ internal fun SourceEditingAnimation() {
                         Box(contentAlignment = Alignment.Center) {
                             Row(Modifier.padding(horizontal = 12.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
                                 if (saved) {
-                                    Icon(Icons.Default.Check, null, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Outlined.Check, null, modifier = Modifier.size(16.dp))
                                     Spacer(Modifier.width(5.dp))
                                 }
                                 Text(if (saved) tr("Saved", "Guardado") else tr("Save"), style = MaterialTheme.typography.labelMedium)
@@ -516,7 +516,7 @@ internal fun OpenSourceProjectAnimation() {
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         FeatureHeading(
-            Icons.Default.Code,
+            Icons.Outlined.Code,
             tr("Open source, local first", "Código abierto y local primero"),
             tr(
                 "Use Expanda, inspect it and help improve it.",
@@ -547,10 +547,10 @@ internal fun OpenSourceProjectAnimation() {
                     )
                 }
                 AnimatedVisibility(visible = showLocal, enter = fadeIn(tween(420)) + slideInVertically { it / 4 }) {
-                    ProjectValue(Icons.Default.Lock, "No Internet permission, ads or analytics")
+                    ProjectValue(Icons.Outlined.Lock, "No Internet permission, ads or analytics")
                 }
                 AnimatedVisibility(visible = showSource, enter = fadeIn(tween(420)) + slideInVertically { it / 4 }) {
-                    ProjectValue(Icons.Default.Code, "GPLv3 source code you can inspect and change")
+                    ProjectValue(Icons.Outlined.Code, "GPLv3 source code you can inspect and change")
                 }
                 AnimatedVisibility(visible = showNote, enter = fadeIn(tween(420))) {
                     Text(
@@ -562,7 +562,7 @@ internal fun OpenSourceProjectAnimation() {
             }
         }
         OutlinedButton(onClick = { uriHandler.openUri(ProjectLinks.REPOSITORY) }) {
-            Icon(Icons.AutoMirrored.Filled.OpenInNew, null)
+            Icon(Icons.AutoMirrored.Outlined.OpenInNew, null)
             Spacer(Modifier.width(8.dp))
             Text(tr("Open GitHub repository", "Abrir repositorio de GitHub"))
         }
@@ -594,7 +594,7 @@ private fun FilePreview(name: String) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Icon(Icons.Default.Description, null, modifier = Modifier.size(30.dp), tint = MaterialTheme.colorScheme.secondary)
+            Icon(Icons.Outlined.Description, null, modifier = Modifier.size(30.dp), tint = MaterialTheme.colorScheme.secondary)
             Spacer(Modifier.height(8.dp))
             Text(name, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.labelSmall)
             Spacer(Modifier.height(5.dp))
