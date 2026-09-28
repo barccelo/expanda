@@ -6842,7 +6842,11 @@ class ExpansionAccessibilityService : AccessibilityService() {
             val cursor = insertionCursor.coerceIn(0, originalText.length)
             val finalText = originalText.replaceRange(cursor, cursor, field.value)
             val finalCursor = cursor + field.value.length
-            val success = if (isNativeEditText(node)) {
+            val passwordField = node.isPassword || isPasswordInput(node.inputType)
+            val success = if (passwordField) {
+                if (field.sensitive) clipboardMonitor.suppressHistoryOnce(field.value)
+                pasteReplacement(node, cursor, cursor, field.value, finalCursor)
+            } else if (isNativeEditText(node)) {
                 writeViaSetText(node, finalText, finalCursor, finalCursor)
             } else {
                 if (field.sensitive) clipboardMonitor.suppressHistoryOnce(field.value)
@@ -7730,7 +7734,17 @@ class ExpansionAccessibilityService : AccessibilityService() {
         val replacement = target.field.value
         val finalText = originalText.replaceRange(start, end, replacement)
         val finalCursor = start + replacement.length
-        if (!setFieldText(
+        val passwordField = node.isPassword || isPasswordInput(node.inputType)
+        val applied = if (passwordField) {
+            pasteReplacement(
+                node = node,
+                start = start,
+                end = end,
+                replacement = replacement,
+                cursor = finalCursor,
+            )
+        } else {
+            setFieldText(
                 node = node,
                 originalText = originalText,
                 newText = finalText,
@@ -7738,21 +7752,24 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 selectionEnd = finalCursor,
                 settings = settings,
             )
-        ) {
-            return false
         }
+        if (!applied) return false
 
-        reversibleExpansion = ReversibleExpansion(
-            anchor = anchor,
-            appliedText = finalText,
-            appliedCursor = finalCursor,
-            restoredText = originalText,
-            restoredCursor = end,
-            matchId = VAULT_FIELD_UNDO_MATCH_ID_BASE xor target.field.id.hashCode().toLong(),
-            matchedText = originalText.substring(start, end),
-        )
+        if (!passwordField) {
+            reversibleExpansion = ReversibleExpansion(
+                anchor = anchor,
+                appliedText = finalText,
+                appliedCursor = finalCursor,
+                restoredText = originalText,
+                restoredCursor = end,
+                matchId = VAULT_FIELD_UNDO_MATCH_ID_BASE xor target.field.id.hashCode().toLong(),
+                matchedText = originalText.substring(start, end),
+            )
+            lastAppliedText = finalText
+        } else {
+            reversibleExpansion = null
+        }
         suppressedExpansion = null
-        lastAppliedText = finalText
         lastAppliedAt = SystemClock.elapsedRealtime()
         if (settings.hapticFeedback) vibrate()
         hideSuggestions()
@@ -7797,6 +7814,23 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     settings = currentSettings,
                     anchor = anchor,
                 )
+                return
+            }
+            if (range.start == range.end) {
+                hideSuggestions()
+                when (target) {
+                    is VaultTriggerTarget.Entry -> showVaultOverlay(
+                        entryId = target.entry.id,
+                        anchor = anchor,
+                        insertionCursor = range.start,
+                    )
+                    is VaultTriggerTarget.Category -> showVaultOverlay(
+                        categoryName = target.category.name,
+                        anchor = anchor,
+                        insertionCursor = range.start,
+                    )
+                    is VaultTriggerTarget.Field -> Unit
+                }
                 return
             }
             val withoutTypedPrefix = text.removeRange(range.start, range.end)
