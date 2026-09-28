@@ -168,6 +168,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private var suggestionValidation: Runnable? = null
     private var suggestionAnchor: SuggestionAnchor? = null
+    private var suggestionVaultOnly = false
     private var formOverlay: View? = null
     private var vaultOverlayActive = false
     private var vaultOverlayOriginPackage: String? = null
@@ -358,7 +359,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
             ?: rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
             ?: return
         try {
-            if (!node.isEditable || node.isPassword || isPasswordInput(node.inputType)) return
+            if (!node.isEditable) return
+            val passwordField = node.isPassword || isPasswordInput(node.inputType)
             val packageName = event.packageName?.toString()?.takeIf { it.isNotEmpty() }
                 ?: node.packageName?.toString().orEmpty()
             if (packageName.isEmpty()) return
@@ -385,6 +387,35 @@ class ExpansionAccessibilityService : AccessibilityService() {
             )
             val selectionStart = node.textSelectionStart.takeIf { it in 0..text.length } ?: cursor
             val activeAnchor = createSuggestionAnchor(node, packageName)
+
+            if (passwordField) {
+                // Password fields are deliberately limited to Vault behavior:
+                // never run snippets, Actions or selection tools against them.
+                if (handleVaultTrigger(
+                        node = node,
+                        text = text,
+                        cursor = cursor,
+                        settings = settings,
+                        anchor = activeAnchor,
+                    )
+                ) {
+                    return
+                }
+                if (settings.suggestionEnabled && settings.suggestionShowVault) {
+                    showSuggestions(
+                        anchorNode = node,
+                        text = text,
+                        cursor = cursor,
+                        packageName = packageName,
+                        settings = settings,
+                        vaultOnly = true,
+                    )
+                } else {
+                    hideSuggestions()
+                }
+                return
+            }
+
             if (applyPendingSmartCursorCase(
                     node = node,
                     activeAnchor = activeAnchor,
@@ -433,49 +464,14 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 if (ExpansionUndoPolicy.isRestoredText(suppressed, activeAnchor, text)) return
             }
             if (text == lastAppliedText && SystemClock.elapsedRealtime() - lastAppliedAt < REENTRANCY_WINDOW_MS) return
-            findVaultTrigger(text, cursor)?.let { (target, trigger) ->
-                val triggerStart = cursor - trigger.length
-                suppressedExpansion = null
-                hideSuggestions()
-                if (target is VaultTriggerTarget.Field) {
-                    applyVaultFieldValue(
-                        node = node,
-                        originalText = text,
-                        replaceStart = triggerStart,
-                        replaceEnd = cursor,
-                        target = target,
-                        settings = settings,
-                        anchor = activeAnchor,
-                    )
-                    return
-                }
-
-                val withoutTrigger = text.removeRange(triggerStart, cursor)
-                if (setFieldText(
-                        node = node,
-                        originalText = text,
-                        newText = withoutTrigger,
-                        selectionStart = triggerStart,
-                        selectionEnd = triggerStart,
-                        settings = settings,
-                    )
-                ) {
-                    lastAppliedText = withoutTrigger
-                    lastAppliedAt = SystemClock.elapsedRealtime()
-                    when (target) {
-                        is VaultTriggerTarget.Entry -> showVaultOverlay(
-                            entryId = target.entry.id,
-                            anchor = activeAnchor,
-                            insertionCursor = triggerStart,
-                        )
-                        is VaultTriggerTarget.Category -> showVaultOverlay(
-                            categoryName = target.category.name,
-                            anchor = activeAnchor,
-                            insertionCursor = triggerStart,
-                        )
-                        is VaultTriggerTarget.Field -> Unit
-                    }
-                }
+            if (handleVaultTrigger(
+                    node = node,
+                    text = text,
+                    cursor = cursor,
+                    settings = settings,
+                    anchor = activeAnchor,
+                )
+            ) {
                 return
             }
 
@@ -581,6 +577,60 @@ class ExpansionAccessibilityService : AccessibilityService() {
         } finally {
             node.recycle()
         }
+    }
+
+    private fun handleVaultTrigger(
+        node: AccessibilityNodeInfo,
+        text: String,
+        cursor: Int,
+        settings: AppSettings,
+        anchor: SuggestionAnchor,
+    ): Boolean {
+        val (target, trigger) = findVaultTrigger(text, cursor) ?: return false
+        val triggerStart = cursor - trigger.length
+        suppressedExpansion = null
+        hideSuggestions()
+
+        if (target is VaultTriggerTarget.Field) {
+            applyVaultFieldValue(
+                node = node,
+                originalText = text,
+                replaceStart = triggerStart,
+                replaceEnd = cursor,
+                target = target,
+                settings = settings,
+                anchor = anchor,
+            )
+            return true
+        }
+
+        val withoutTrigger = text.removeRange(triggerStart, cursor)
+        if (setFieldText(
+                node = node,
+                originalText = text,
+                newText = withoutTrigger,
+                selectionStart = triggerStart,
+                selectionEnd = triggerStart,
+                settings = settings,
+            )
+        ) {
+            lastAppliedText = withoutTrigger
+            lastAppliedAt = SystemClock.elapsedRealtime()
+            when (target) {
+                is VaultTriggerTarget.Entry -> showVaultOverlay(
+                    entryId = target.entry.id,
+                    anchor = anchor,
+                    insertionCursor = triggerStart,
+                )
+                is VaultTriggerTarget.Category -> showVaultOverlay(
+                    categoryName = target.category.name,
+                    anchor = anchor,
+                    insertionCursor = triggerStart,
+                )
+                is VaultTriggerTarget.Field -> Unit
+            }
+        }
+        return true
     }
 
     private fun applyPendingSmartCursorCase(
