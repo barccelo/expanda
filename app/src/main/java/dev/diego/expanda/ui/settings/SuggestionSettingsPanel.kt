@@ -7,12 +7,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ViewList
-import androidx.compose.material.icons.filled.AspectRatio
-import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.FormatSize
-import androidx.compose.material.icons.filled.Lightbulb
-import androidx.compose.material.icons.filled.SwapHoriz
-import androidx.compose.material.icons.filled.SwapVert
+import androidx.compose.material.icons.outlined.AspectRatio
+import androidx.compose.material.icons.outlined.Bolt
+import androidx.compose.material.icons.outlined.FormatSize
+import androidx.compose.material.icons.outlined.Lightbulb
+import androidx.compose.material.icons.outlined.SwapHoriz
+import androidx.compose.material.icons.outlined.SwapVert
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
@@ -62,7 +62,7 @@ fun SuggestionSettingsPanel(
     Column(modifier) {
         ListItem(
             headlineContent = { Text(tr("Suggestion overlay")) },
-            leadingContent = { Icon(Icons.Default.Lightbulb, null) },
+            leadingContent = { Icon(Icons.Outlined.Lightbulb, null) },
             supportingContent = if (compactPresentation) null else {
                 { Text(tr("Show matching snippets while you type")) }
             },
@@ -72,7 +72,7 @@ fun SuggestionSettingsPanel(
             if (showAdditionalOptions) {
                 ListItem(
                     headlineContent = { Text(tr("Show actions in suggestions")) },
-                    leadingContent = { Icon(Icons.Default.Bolt, null) },
+                    leadingContent = { Icon(Icons.Outlined.Bolt, null) },
                     supportingContent = { Text(tr("Include enabled actions alongside text snippets")) },
                     trailingContent = { Switch(settings.suggestionShowActions, onShowActionsChanged) },
                 )
@@ -83,7 +83,7 @@ fun SuggestionSettingsPanel(
                 ) {
                     ListItem(
                         headlineContent = { Text(tr("Action suggestions", "Sugerencias de Actions")) },
-                        leadingContent = { Icon(Icons.Default.Bolt, null) },
+                        leadingContent = { Icon(Icons.Outlined.Bolt, null) },
                         supportingContent = {
                             Text(tr(
                                 "$actionSuggestionCount of $actionCount actions",
@@ -99,7 +99,7 @@ fun SuggestionSettingsPanel(
                 }
                 ListItem(
                     headlineContent = { Text(tr("Vault in suggestions", "Bóveda en sugerencias")) },
-                    leadingContent = { Icon(Icons.Default.Lightbulb, null) },
+                    leadingContent = { Icon(Icons.Outlined.Lightbulb, null) },
                     supportingContent = {
                         Text(tr(
                             "Include matching vault categories and entries",
@@ -115,7 +115,7 @@ fun SuggestionSettingsPanel(
                 ) {
                     ListItem(
                         headlineContent = { Text(tr("Snippet suggestions", "Sugerencias de snippets")) },
-                        leadingContent = { Icon(Icons.Default.Lightbulb, null) },
+                        leadingContent = { Icon(Icons.Outlined.Lightbulb, null) },
                         supportingContent = {
                             Text(tr(
                                 "$snippetSuggestionCount of $snippetCount snippets",
@@ -140,7 +140,7 @@ fun SuggestionSettingsPanel(
             )
             ListItem(
                 headlineContent = { Text(if (compactPresentation) tr("Minimum characters") else tr("Minimum matching characters")) },
-                leadingContent = { Icon(Icons.Default.FormatSize, null) },
+                leadingContent = { Icon(Icons.Outlined.FormatSize, null) },
                 supportingContent = if (compactPresentation) null else {
                     { Text(tr("Suggestions start after ${settings.suggestionMinChars} characters", "Las sugerencias aparecen después de ${settings.suggestionMinChars} caracteres")) }
                 },
@@ -164,7 +164,7 @@ fun SuggestionSettingsPanel(
             )
             ListItem(
                 headlineContent = { Text(if (compactPresentation) tr("Resize button") else tr("Show popup resize button")) },
-                leadingContent = { Icon(Icons.Default.AspectRatio, null) },
+                leadingContent = { Icon(Icons.Outlined.AspectRatio, null) },
                 supportingContent = if (compactPresentation) null else {
                     { Text(tr("Drag the bottom-left control diagonally to resize width and height")) }
                 },
@@ -206,7 +206,7 @@ private fun PopupSizeSettings(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             PopupDimensionSlider(
-                icon = Icons.Default.SwapHoriz,
+                icon = Icons.Outlined.SwapHoriz,
                 label = tr("Width"),
                 valueLabel = "${(widthDraft * 100).roundToInt()}%",
                 value = widthDraft,
@@ -220,7 +220,7 @@ private fun PopupSizeSettings(
                 modifier = Modifier.weight(1f),
             )
             PopupDimensionSlider(
-                icon = Icons.Default.SwapVert,
+                icon = Icons.Outlined.SwapVert,
                 label = tr("Height"),
                 valueLabel = "${heightDraft.roundToInt()} dp",
                 value = heightDraft,
