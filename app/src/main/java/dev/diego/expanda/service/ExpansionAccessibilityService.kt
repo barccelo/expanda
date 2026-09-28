@@ -22,6 +22,7 @@ import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Path
 import android.graphics.Rect
+import android.graphics.RectF
 import android.graphics.drawable.GradientDrawable
 import android.text.InputType
 import android.text.SpannableString
@@ -4973,6 +4974,62 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 (getSystemService(WINDOW_SERVICE) as WindowManager).removeView(view)
             }
         }
+    }
+
+    private fun visualLineTargetFromAccessibilityGeometry(
+        node: AccessibilityNodeInfo,
+        text: String,
+        cursor: Int,
+        forward: Boolean,
+    ): Int? {
+        if (text.isEmpty() || cursor !in 0..text.length) return null
+
+        val rangeStart = (cursor - SELECTION_GESTURE_CHARACTER_LOCATION_RADIUS)
+            .coerceAtLeast(0)
+        val rangeEnd = (cursor + SELECTION_GESTURE_CHARACTER_LOCATION_RADIUS)
+            .coerceAtMost(text.length)
+        val rangeLength = rangeEnd - rangeStart
+        if (rangeLength <= 0) return null
+
+        val arguments = Bundle().apply {
+            putInt(
+                AccessibilityNodeInfo.EXTRA_DATA_TEXT_CHARACTER_LOCATION_ARG_START_INDEX,
+                rangeStart,
+            )
+            putInt(
+                AccessibilityNodeInfo.EXTRA_DATA_TEXT_CHARACTER_LOCATION_ARG_LENGTH,
+                rangeLength,
+            )
+        }
+        val refreshed = runCatching {
+            node.refreshWithExtraData(
+                AccessibilityNodeInfo.EXTRA_DATA_TEXT_CHARACTER_LOCATION_KEY,
+                arguments,
+            )
+        }.getOrDefault(false)
+        if (!refreshed) return null
+
+        @Suppress("DEPRECATION")
+        val locations = node.extras.getParcelableArray(
+            AccessibilityNodeInfo.EXTRA_DATA_TEXT_CHARACTER_LOCATION_KEY,
+        ) ?: return null
+        val boxes = locations.mapIndexedNotNull { offset, parcelable ->
+            val rect = parcelable as? RectF ?: return@mapIndexedNotNull null
+            if (rect.isEmpty) return@mapIndexedNotNull null
+            SelectionVisualLineResolver.Box(
+                index = rangeStart + offset,
+                left = rect.left,
+                top = rect.top,
+                right = rect.right,
+                bottom = rect.bottom,
+            )
+        }
+        return SelectionVisualLineResolver.target(
+            boxes = boxes,
+            textLength = text.length,
+            cursor = cursor,
+            forward = forward,
+        )
     }
 
     private fun setSelection(node: AccessibilityNodeInfo, start: Int, end: Int): Boolean =
