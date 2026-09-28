@@ -196,7 +196,15 @@ object BackupCodec {
                 put("actionLabels", JSONObject().apply {
                     config.actionLabels.forEach { (actionId, label) -> put(actionId, label) }
                 })
-                config.preferredActionId?.let { put("preferredActionId", it) }
+                put("customWraps", JSONObject().apply {
+                    config.customWraps.forEach { (actionId, wrapper) ->
+                        put(actionId, JSONObject().apply {
+                            put("prefix", wrapper.prefix)
+                            put("suffix", wrapper.suffix)
+                        })
+                    }
+                })
+                put("preferredActionId", config.preferredActionId ?: JSONObject.NULL)
             })
         }
     }
@@ -209,6 +217,19 @@ object BackupCodec {
             val orderArray = groupJson.optJSONArray("actionOrder")
             val enabledArray = groupJson.optJSONArray("enabledActionIds")
             val labelsJson = groupJson.optJSONObject("actionLabels")
+            val customWrapsJson = groupJson.optJSONObject("customWraps")
+            val customWraps = buildMap {
+                customWrapsJson?.keys()?.forEach { actionId ->
+                    val item = customWrapsJson.optJSONObject(actionId) ?: return@forEach
+                    put(
+                        actionId,
+                        SelectionCustomWrapper(
+                            prefix = item.optString("prefix"),
+                            suffix = item.optString("suffix"),
+                        ),
+                    )
+                }
+            }
             val order = if (orderArray == null) defaults.actionOrder else buildList {
                 for (index in 0 until orderArray.length()) {
                     orderArray.optString(index).takeIf(String::isNotBlank)?.let(::add)
@@ -233,6 +254,7 @@ object BackupCodec {
                     actionOrder = order,
                     enabledActionIds = enabled,
                     actionLabels = labels,
+                    customWraps = customWraps,
                     preferredActionId = if (groupJson.has("preferredActionId")) {
                         if (groupJson.isNull("preferredActionId")) null
                         else groupJson.optString("preferredActionId").takeIf(String::isNotBlank)
