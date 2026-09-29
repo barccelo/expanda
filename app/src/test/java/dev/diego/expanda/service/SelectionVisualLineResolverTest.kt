@@ -1,6 +1,7 @@
 package dev.diego.expanda.service
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class SelectionVisualLineResolverTest {
@@ -21,10 +22,10 @@ class SelectionVisualLineResolverTest {
         }
 
     @Test
-    fun `moves to same visual column on previous line`() {
+    fun `up moves to visual line boundary instead of preserving an approximate column`() {
         val boxes = line(0, 4, 0f) + line(5, 4, 20f)
         assertEquals(
-            2,
+            5,
             SelectionVisualLineResolver.target(
                 boxes = boxes,
                 textLength = 9,
@@ -35,10 +36,10 @@ class SelectionVisualLineResolverTest {
     }
 
     @Test
-    fun `moves to same visual column on next line`() {
+    fun `down moves to visual line boundary instead of preserving an approximate column`() {
         val boxes = line(0, 4, 0f) + line(5, 4, 20f)
         assertEquals(
-            7,
+            5,
             SelectionVisualLineResolver.target(
                 boxes = boxes,
                 textLength = 9,
@@ -49,39 +50,56 @@ class SelectionVisualLineResolverTest {
     }
 
     @Test
-    fun `single visual line moves to text boundary`() {
-        val boxes = line(0, 4, 0f)
+    fun `repeated movement advances one complete wrapped line without skipping`() {
+        val boxes = line(0, 4, 0f) + line(4, 4, 20f) + line(8, 4, 40f)
         assertEquals(
-            0,
-            SelectionVisualLineResolver.target(
-                boxes = boxes,
-                textLength = 4,
-                cursor = 2,
-                forward = false,
-            ),
+            4,
+            SelectionVisualLineResolver.target(boxes, 12, 2, forward = true),
+        )
+        assertEquals(
+            8,
+            SelectionVisualLineResolver.target(boxes, 12, 4, forward = true),
         )
         assertEquals(
             4,
-            SelectionVisualLineResolver.target(
-                boxes = boxes,
-                textLength = 4,
-                cursor = 2,
-                forward = true,
-            ),
+            SelectionVisualLineResolver.target(boxes, 12, 8, forward = false),
+        )
+        assertEquals(
+            0,
+            SelectionVisualLineResolver.target(boxes, 12, 4, forward = false),
         )
     }
 
     @Test
-    fun `short adjacent line clamps to nearest available caret`() {
-        val boxes = line(0, 5, 0f) + line(6, 2, 20f)
+    fun `vertical movement saturates at absolute text boundaries`() {
+        val boxes = line(0, 4, 0f) + line(4, 4, 20f)
+        assertNull(
+            SelectionVisualLineResolver.target(boxes, 8, 0, forward = false),
+        )
+        assertNull(
+            SelectionVisualLineResolver.target(boxes, 8, 8, forward = true),
+        )
+    }
+
+    @Test
+    fun `logical fallback uses line boundaries without editor probing`() {
         assertEquals(
-            8,
-            SelectionVisualLineResolver.target(
-                boxes = boxes,
-                textLength = 8,
-                cursor = 4,
-                forward = true,
-            ),
+            5,
+            SelectionVisualLineResolver.logicalTarget("Hola\nMundo", 2, forward = true),
+        )
+        assertEquals(
+            5,
+            SelectionVisualLineResolver.logicalTarget("Hola\nMundo", 8, forward = false),
+        )
+        assertEquals(
+            0,
+            SelectionVisualLineResolver.logicalTarget("Hola\nMundo", 5, forward = false),
+        )
+        assertNull(
+            SelectionVisualLineResolver.logicalTarget("Hola", 0, forward = false),
+        )
+        assertNull(
+            SelectionVisualLineResolver.logicalTarget("Hola", 4, forward = true),
         )
     }
 }

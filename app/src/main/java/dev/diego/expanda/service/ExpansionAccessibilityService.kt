@@ -4704,59 +4704,24 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     .takeIf { it != active }
                     ?: return false
             } else {
+                // Vertical movement must never collapse the live selection just to
+                // discover the next line. Resolve a visual-line boundary from text
+                // geometry and apply the anchored range only once. At the absolute
+                // text boundaries this saturates exactly like horizontal movement.
+                if ((!forward && active == 0) || (forward && active == text.length)) {
+                    return false
+                }
+
                 visualLineTargetFromAccessibilityGeometry(
                     node = node,
                     text = text,
                     cursor = active,
                     forward = forward,
-                ) ?: run {
-                    // Compatibility fallback for editors that do not expose
-                    // per-character geometry. This preserves the old visual-line
-                    // behavior, but it is no longer the primary path.
-                    fun probeFrom(probeCursor: Int): Int? {
-                        if (!setSelection(node, probeCursor, probeCursor)) return null
-                        val action = if (forward) {
-                            AccessibilityNodeInfo.ACTION_NEXT_AT_MOVEMENT_GRANULARITY
-                        } else {
-                            AccessibilityNodeInfo.ACTION_PREVIOUS_AT_MOVEMENT_GRANULARITY
-                        }
-                        val args = Bundle().apply {
-                            putInt(
-                                AccessibilityNodeInfo.ACTION_ARGUMENT_MOVEMENT_GRANULARITY_INT,
-                                AccessibilityNodeInfo.MOVEMENT_GRANULARITY_LINE,
-                            )
-                            putBoolean(
-                                AccessibilityNodeInfo.ACTION_ARGUMENT_EXTEND_SELECTION_BOOLEAN,
-                                false,
-                            )
-                        }
-                        if (!node.performAction(action, args)) return null
-                        runCatching { node.refresh() }
-                        return node.textSelectionEnd
-                            .takeIf { it in 0..editableText(node).length }
-                            ?.takeIf {
-                                if (forward) it > active else it < active
-                            }
-                    }
-
-                    var probed = probeFrom(active)
-                    if (probed == null && active == anchor) {
-                        // Some editors refuse the first vertical move from a
-                        // collapsed caret. Seed that probe internally by one
-                        // character so the user never has to do it manually.
-                        val seed = (active + if (forward) 1 else -1)
-                            .coerceIn(0, text.length)
-                        if (seed != active) {
-                            probed = probeFrom(seed)
-                        }
-                    }
-                    probed ?: run {
-                        val boundary = if (forward) text.length else 0
-                        boundary.takeIf {
-                            if (forward) it > active else it < active
-                        } ?: return false
-                    }
-                }
+                ) ?: SelectionVisualLineResolver.logicalTarget(
+                    text = text,
+                    cursor = active,
+                    forward = forward,
+                ) ?: return false
             }
 
             val start = minOf(anchor, target)

@@ -4,9 +4,8 @@ import kotlin.math.abs
 import kotlin.math.max
 
 /**
- * Resolves the caret position on the visual line immediately above/below without
- * changing the editor selection. Character bounds come from AccessibilityNodeInfo
- * extra text-location data.
+ * Resolves whole visual-line boundaries without changing the editor selection.
+ * Character bounds come from AccessibilityNodeInfo extra text-location data.
  */
 internal object SelectionVisualLineResolver {
     data class Box(
@@ -33,16 +32,12 @@ internal object SelectionVisualLineResolver {
         forward: Boolean,
     ): Int? {
         if (cursor !in 0..textLength) return null
+        if ((!forward && cursor == 0) || (forward && cursor == textLength)) return null
+
         val usable = boxes
             .filter { it.index in 0 until textLength && it.bottom > it.top }
             .sortedWith(compareBy<Box> { it.centerY }.thenBy { it.left })
         if (usable.isEmpty()) return null
-
-        val exact = usable.firstOrNull { it.index == cursor }
-        val previous = usable.firstOrNull { it.index == cursor - 1 }
-        val caretBox = exact ?: previous ?: usable.minByOrNull { abs(it.index - cursor) } ?: return null
-        val caretX = if (exact != null) exact.left else caretBox.right
-        val caretY = caretBox.centerY
 
         val lines = mutableListOf<Line>()
         usable.forEach { box ->
@@ -66,29 +61,92 @@ internal object SelectionVisualLineResolver {
                 current.boxes += box
             }
         }
+        if (lines.isEmpty()) return null
 
-        val currentLineIndex = lines.indices.minByOrNull { abs(lines[it].centerY - caretY) }
-            ?: return null
-        val targetLineIndex = currentLineIndex + if (forward) 1 else -1
-        if (targetLineIndex !in lines.indices) {
-            val boundary = if (forward) textLength else 0
-            return boundary.takeIf { it != cursor }
-        }
-
-        val candidates = buildList {
-            lines[targetLineIndex].boxes.forEach { box ->
-                add(box.index to box.left)
-                add((box.index + 1).coerceAtMost(textLength) to box.right)
+        val starts = lines.map { line -> line.boxes.minOf { it.index } }
+        val ends = lines.indices.map { index ->
+            if (index < lines.lastIndex) {
+                // The next visual line's first character is also the trailing
+                // caret for this line. This naturally includes hard line breaks.
+                starts[index + 1]
+            } else {
+                textLength
             }
         }
-            .filter { (index, _) ->
-                if (forward) index > cursor else index < cursor
-            }
-            .distinctBy { it.first }
 
-        return candidates.minWithOrNull(
-            compareBy<Pair<Int, Float>> { (_, x) -> abs(x - caretX) }
-                .thenBy { (index, _) -> abs(index - cursor) },
-        )?.first
+        return if (forward) {
+            var lineIndex = lines.indices.firstOrNull { index ->
+                cursor >= starts[index] && cursor <= ends[index]
+            } ?: lines.indices.minByOrNull { index ->
+                minOf(
+                    kotlin.math.abs(cursor - starts[index]),
+                    kotlin.math.abs(cursor - ends[index]),
+                )
+            } ?: return null
+
+            var target = ends[lineIndex]
+            if (target <= cursor) {
+                lineIndex += 1
+                if (lineIndex !in lines.indices) {
+                    return textLength.takeIf { it > cursor }
+                }
+                target = ends[lineIndex]
+            }
+            target.takeIf { it > cursor }
+        } else {
+            var lineIndex = lines.indices.lastOrNull { index ->
+                cursor >= starts[index] && cursor <= ends[index]
+            } ?: lines.indices.minByOrNull { index ->
+                minOf(
+                    kotlin.math.abs(cursor - starts[index]),
+                    kotlin.math.abs(cursor - ends[index]),
+                )
+            } ?: return null
+
+            var target = starts[lineIndex]
+            if (target >= cursor) {
+                lineIndex -= 1
+                if (lineIndex !in lines.indices) {
+                    return 0.takeIf { it < cursor }
+                }
+                target = starts[lineIndex]
+            }
+            target.takeIf { it < cursor }
+        }
+    }
+
+    /**
+     * Safe fallback for editors that do not expose character geometry.
+     * It uses logical line boundaries and never mutates the live selection.
+     */
+    fun logicalTarget(
+        text: String,
+        cursor: Int,
+        forward: Boolean,
+    ): Int? {
+        if (cursor !in 0..text.length) return null
+        if ((!forward && cursor == 0) || (forward && cursor == text.length)) return null
+
+        return if (forward) {
+            val newline = text.indexOf('\n', cursor)
+            val target = if (newline >= 0) newline + 1 else text.length
+            target.takeIf { it > cursor }
+        } else {
+            val currentStart = text.lastIndexOf(
+                '\n',
+                (cursor - 1).coerceAtLeast(0),
+            ).let { if (it < 0) 0 else it + 1 }
+
+            if (currentStart < cursor) {
+                currentStart
+            } else {
+                if (currentStart == 0) return null
+                text.lastIndexOf(
+                    '\n',
+                    (currentStart - 2).coerceAtLeast(0),
+                ).let { if (it < 0) 0 else it + 1 }
+                    .takeIf { it < cursor }
+            }
+        }
     }
 }
