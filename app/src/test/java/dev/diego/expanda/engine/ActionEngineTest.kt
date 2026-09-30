@@ -146,6 +146,42 @@ class ActionEngineTest {
         assertEquals(" upw", result?.matchedTrigger)
     }
 
+    @Test fun `previous word case actions can preserve their leading trigger space`() {
+        val upper = engine.execute(
+            ActionContext("uno dos my", "uno dos my".length),
+            enabledActionIds = setOf("uppercase_previous_word"),
+            preservePreviousWordActionSpace = true,
+        )
+        assertEquals("uno DOS ", upper?.text)
+        assertEquals(8, upper?.selectionEnd)
+
+        val lower = engine.execute(
+            ActionContext("UNO DOS mn", "UNO DOS mn".length),
+            enabledActionIds = setOf("lowercase_previous_word"),
+            preservePreviousWordActionSpace = true,
+        )
+        assertEquals("UNO dos ", lower?.text)
+        assertEquals(8, lower?.selectionEnd)
+
+        val capitalized = engine.execute(
+            ActionContext("hOLA nc", "hOLA nc".length),
+            enabledActionIds = setOf("capitalize_previous_word"),
+            preservePreviousWordActionSpace = true,
+        )
+        assertEquals("Hola ", capitalized?.text)
+        assertEquals(5, capitalized?.selectionEnd)
+    }
+
+    @Test fun `preserve space only keeps whitespace that belongs to the trigger`() {
+        val result = engine.execute(
+            ActionContext("uno dosupw", "uno dosupw".length),
+            enabledActionIds = setOf("uppercase_previous_word"),
+            triggerOverrides = mapOf("uppercase_previous_word" to listOf("upw")),
+            preservePreviousWordActionSpace = true,
+        )
+        assertEquals("uno DOS", result?.text)
+    }
+
     @Test fun `regular case actions still transform the whole field`() {
         assertEquals(
             "UNO DOS",
