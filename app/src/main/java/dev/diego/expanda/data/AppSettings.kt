@@ -61,6 +61,8 @@ data class AppSettings(
     val pasteFallbackEnabled: Boolean = false,
     /** One-shot lowercase correction after snippets that place $|$ inside surrounding punctuation. */
     val smartCursorCaseEnabled: Boolean = true,
+    /** Keep the leading whitespace used by previous-word case action triggers such as " mn". */
+    val preservePreviousWordActionSpace: Boolean = false,
     val suggestionEnabled: Boolean = true,
     /** Show Expanda's compact toolbar when editable text is selected in another app. */
     val selectionToolbarEnabled: Boolean = true,
@@ -183,6 +185,7 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
             hapticFeedback = values[Keys.HAPTIC] ?: false,
             pasteFallbackEnabled = values[Keys.PASTE_FALLBACK] ?: false,
             smartCursorCaseEnabled = values[Keys.SMART_CURSOR_CASE] ?: true,
+            preservePreviousWordActionSpace = values[Keys.PREVIOUS_WORD_ACTION_SPACE] ?: false,
             suggestionEnabled = values[Keys.SUGGESTIONS] ?: true,
             selectionToolbarEnabled = values[Keys.SELECTION_TOOLBAR] ?: true,
             selectionToolbarPositionX = values[Keys.SELECTION_TOOLBAR_POSITION_X] ?: -1,
@@ -270,6 +273,8 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
     suspend fun setHapticFeedback(enabled: Boolean) = store.edit { it[Keys.HAPTIC] = enabled }
     suspend fun setPasteFallbackEnabled(enabled: Boolean) = store.edit { it[Keys.PASTE_FALLBACK] = enabled }
     suspend fun setSmartCursorCaseEnabled(enabled: Boolean) = store.edit { it[Keys.SMART_CURSOR_CASE] = enabled }
+    suspend fun setPreservePreviousWordActionSpace(enabled: Boolean) =
+        store.edit { it[Keys.PREVIOUS_WORD_ACTION_SPACE] = enabled }
     suspend fun setSuggestionEnabled(enabled: Boolean) = store.edit { it[Keys.SUGGESTIONS] = enabled }
     suspend fun setSelectionToolbarEnabled(enabled: Boolean) = store.edit { it[Keys.SELECTION_TOOLBAR] = enabled }
     suspend fun setSelectionToolbarPosition(x: Int, y: Int) = store.edit {
@@ -405,6 +410,7 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         val HAPTIC = booleanPreferencesKey("haptic_feedback")
         val PASTE_FALLBACK = booleanPreferencesKey("paste_fallback")
         val SMART_CURSOR_CASE = booleanPreferencesKey("smart_cursor_case")
+        val PREVIOUS_WORD_ACTION_SPACE = booleanPreferencesKey("previous_word_action_space")
         val SUGGESTIONS = booleanPreferencesKey("suggestions")
         val SELECTION_TOOLBAR = booleanPreferencesKey("selection_toolbar")
         val SELECTION_TOOLBAR_POSITION_X = intPreferencesKey("selection_toolbar_position_x")
@@ -453,6 +459,7 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         values[Keys.HAPTIC] = snapshot.hapticFeedback
         values[Keys.PASTE_FALLBACK] = snapshot.pasteFallbackEnabled
         values[Keys.SMART_CURSOR_CASE] = snapshot.smartCursorCaseEnabled
+        values[Keys.PREVIOUS_WORD_ACTION_SPACE] = snapshot.preservePreviousWordActionSpace
         values[Keys.SUGGESTIONS] = snapshot.suggestionEnabled
         values[Keys.SELECTION_TOOLBAR] = snapshot.selectionToolbarEnabled
         values[Keys.SELECTION_TOOLBAR_WIDTH] = snapshot.selectionToolbarWidthFraction
