@@ -1201,6 +1201,28 @@ private fun SettingsScreen(
         }
         item {
             ListItem(
+                headlineContent = {
+                    Text(tr("Keep space after mn / my / nc", "Conservar espacio tras mn / my / nc"))
+                },
+                leadingContent = { Icon(Icons.Outlined.TextFields, null) },
+                supportingContent = {
+                    Text(
+                        tr(
+                            "Keep the trigger's leading space after changing the previous word and after Backspace undo.",
+                            "Conserva el espacio inicial del trigger al cambiar la palabra anterior y también al deshacer con Backspace.",
+                        ),
+                    )
+                },
+                trailingContent = {
+                    Switch(
+                        state.settings.preservePreviousWordActionSpace,
+                        viewModel::setPreservePreviousWordActionSpace,
+                    )
+                },
+            )
+        }
+        item {
+            ListItem(
                 headlineContent = { Text(tr("Suggestions", "Sugerencias")) },
                 leadingContent = { Icon(Icons.Outlined.Lightbulb, null) },
                 supportingContent = {
