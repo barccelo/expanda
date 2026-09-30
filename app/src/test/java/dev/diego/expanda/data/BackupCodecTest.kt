@@ -45,6 +45,7 @@ class BackupCodecTest {
             suggestionMaxHeightDp = 440,
             suggestionWidthFraction = 0.68f,
             suggestionResizeHandleEnabled = false,
+            preservePreviousWordActionSpace = true,
         )
         val actions = BackupCodec.ActionSnapshot(
             enabledIds = setOf("uppercase"),
@@ -72,6 +73,7 @@ class BackupCodecTest {
         assertEquals(440, decoded.settings?.suggestionMaxHeightDp)
         assertEquals(0.68f, decoded.settings?.suggestionWidthFraction)
         assertEquals(false, decoded.settings?.suggestionResizeHandleEnabled)
+        assertEquals(true, decoded.settings?.preservePreviousWordActionSpace)
         assertEquals(emptyList<String>(), decoded.settings?.selectionToolbarQuickActionIds)
         assertEquals(
             customCaseConfig,
