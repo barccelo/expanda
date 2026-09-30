@@ -195,6 +195,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private var selectionGestureCalibrationMode = false
     private var selectionGestureTrackpad: View? = null
     private var selectionGestureEditor: AccessibilityNodeInfo? = null
+    private var selectionGestureEditorAnchor: SuggestionAnchor? = null
     private var selectionGestureAnchorCursor = 0
     private var selectionGestureInitialStart = 0
     private var selectionGestureInitialEnd = 0
@@ -496,6 +497,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 enabledActionIds = actionSettingsStore.enabledIds.value,
                 shortcutOverrides = actionSettingsStore.shortcutOverrides.value,
                 triggerOverrides = actionSettingsStore.triggerOverrides.value,
+                preservePreviousWordActionSpace = settings.preservePreviousWordActionSpace,
             )
             if (action != null) {
                 suppressedExpansion = null
@@ -525,12 +527,19 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     handleActionRequest(action.request, action.text)
                     val actionCommandStart =
                         (cursor - action.matchedTrigger.length).coerceAtLeast(0)
+                    val (restoredText, restoredCursor) = previousWordCaseUndoBaseline(
+                        originalText = text,
+                        commandStart = actionCommandStart,
+                        commandEnd = cursor,
+                        outcome = action,
+                        settings = settings,
+                    )
                     armPreviousWordCaseActionUndo(
                         node = node,
                         packageName = packageName,
                         outcome = action,
-                        restoredText = text.removeRange(actionCommandStart, cursor),
-                        restoredCursor = actionCommandStart,
+                        restoredText = restoredText,
+                        restoredCursor = restoredCursor,
                     )
                     performActionHaptic(action.definition.id, settings)
                     if (selectionAction) {
@@ -2728,6 +2737,28 @@ class ExpansionAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun previousWordCaseUndoBaseline(
+        originalText: String,
+        commandStart: Int,
+        commandEnd: Int,
+        outcome: ActionOutcome,
+        settings: AppSettings,
+    ): Pair<String, Int> {
+        val safeStart = commandStart.coerceIn(0, originalText.length)
+        val safeEnd = commandEnd.coerceIn(safeStart, originalText.length)
+        val preservedPrefix = if (
+            settings.preservePreviousWordActionSpace &&
+            outcome.definition.id in PREVIOUS_WORD_CASE_ACTION_IDS
+        ) {
+            outcome.matchedTrigger.takeWhile(Char::isWhitespace)
+        } else {
+            ""
+        }
+        val restoredText = originalText.replaceRange(safeStart, safeEnd, preservedPrefix)
+        val restoredCursor = (safeStart + preservedPrefix.length).coerceIn(0, restoredText.length)
+        return restoredText to restoredCursor
+    }
+
     private fun armPreviousWordCaseActionUndo(
         node: AccessibilityNodeInfo,
         packageName: String,
@@ -4204,6 +4235,66 @@ class ExpansionAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun rememberSelectionGestureEditorAnchor() {
+        clearAccessibilityCache()
+        val node = findFocusedEditableForSelectionGesture() ?: return
+        try {
+            val packageName = node.packageName?.toString().orEmpty()
+            if (packageName.isNotBlank()) {
+                selectionGestureEditorAnchor = createSuggestionAnchor(node, packageName)
+            }
+        } finally {
+            @Suppress("DEPRECATION")
+            node.recycle()
+        }
+    }
+
+    private fun findSelectionGestureEditorByAnchor(
+        anchor: SuggestionAnchor,
+    ): AccessibilityNodeInfo? {
+        val window = runCatching { windows }
+            .getOrDefault(emptyList())
+            .firstOrNull { it.id == anchor.windowId }
+            ?: return null
+        val root = window.root ?: return null
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        for (index in 0 until root.childCount) {
+            root.getChild(index)?.let(queue::addLast)
+        }
+
+        try {
+            while (queue.isNotEmpty()) {
+                val node = queue.removeFirst()
+                if (isSelectionGestureEditor(node)) {
+                    val packageName = node.packageName?.toString().orEmpty()
+                    if (
+                        packageName.isNotBlank() &&
+                        SuggestionAnchorPolicy.shouldKeep(
+                            anchor,
+                            createSuggestionAnchor(node, packageName),
+                        )
+                    ) {
+                        while (queue.isNotEmpty()) {
+                            @Suppress("DEPRECATION")
+                            queue.removeFirst().recycle()
+                        }
+                        return node
+                    }
+                }
+
+                for (index in 0 until node.childCount) {
+                    node.getChild(index)?.let(queue::addLast)
+                }
+                @Suppress("DEPRECATION")
+                node.recycle()
+            }
+        } finally {
+            @Suppress("DEPRECATION")
+            root.recycle()
+        }
+        return null
+    }
+
     /**
      * Returns true when the hotspot is in a settled state. False means the
      * selector is enabled but the IME/window surface is still transitioning and
@@ -4488,7 +4579,11 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 Unit
             } else {
                 longPressAttempted = true
+                // Shift/Caps changes can leave Accessibility's focus cache pointing
+                // at the IME although the same editor still owns the input session.
+                clearAccessibilityCache()
                 val node = findFocusedEditableForSelectionGesture()
+                    ?: selectionGestureEditorAnchor?.let(::findSelectionGestureEditorByAnchor)
                 if (node == null) {
                     scheduleArmRetry { armSelector() }
                 } else {
@@ -4503,6 +4598,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     } else {
                         hideSelectionGestureTrackpad()
                         selectionGestureEditor = node
+                        node.packageName?.toString()?.takeIf(String::isNotBlank)?.let { packageName ->
+                            selectionGestureEditorAnchor = createSuggestionAnchor(node, packageName)
+                        }
                         val hasExistingSelection =
                             rawStart in 0..text.length &&
                                 rawEnd in 0..text.length &&
@@ -4543,6 +4641,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     disarmSelector(showToolbar = false)
+                    rememberSelectionGestureEditorAnchor()
                     pointerDown = true
                     longPressAttempted = false
                     armRetryCount = 0
@@ -4913,6 +5012,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
             if (selectionGestureHotspot !== hotspot) return
             params.flags = originalFlags
             runCatching { windowManager.updateViewLayout(hotspot, params) }
+            clearAccessibilityCache()
         }
 
         val callback = object : GestureResultCallback() {
@@ -4934,6 +5034,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         selectionGestureHotspotRefresh?.let(mainHandler::removeCallbacks)
         selectionGestureHotspotRefresh = null
         selectionGestureHotspotRefreshAt = 0L
+        selectionGestureEditorAnchor = null
         val view = selectionGestureHotspot
         selectionGestureHotspot = null
         selectionGestureHotspotParams = null
@@ -8050,6 +8151,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 enabledActionIds = setOf(definition.id),
                 shortcutOverrides = mapOf(definition.id to definition.shortcut),
                 triggerOverrides = mapOf(definition.id to listOf(definition.shortcut)),
+                preservePreviousWordActionSpace =
+                    currentSettings.preservePreviousWordActionSpace,
             ) ?: return
             val selectionAction = definition.category == ActionCategory.SELECTION &&
                 outcome.selectionStart != outcome.selectionEnd
@@ -8062,12 +8165,19 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 lastAppliedText = outcome.text
                 lastAppliedAt = SystemClock.elapsedRealtime()
                 handleActionRequest(outcome.request, outcome.text)
+                val (restoredText, restoredCursor) = previousWordCaseUndoBaseline(
+                    originalText = originalText,
+                    commandStart = commandStart,
+                    commandEnd = commandEnd,
+                    outcome = outcome,
+                    settings = currentSettings,
+                )
                 armPreviousWordCaseActionUndo(
                     node = node,
                     packageName = node.packageName?.toString().orEmpty(),
                     outcome = outcome,
-                    restoredText = originalText.removeRange(commandStart, commandEnd),
-                    restoredCursor = commandStart,
+                    restoredText = restoredText,
+                    restoredCursor = restoredCursor,
                 )
                 performActionHaptic(definition.id, currentSettings)
                 if (selectionAction) {
