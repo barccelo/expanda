@@ -5029,17 +5029,6 @@ class ExpansionAccessibilityService : AccessibilityService() {
         selectionGestureRelayFailsafe = failsafe
         mainHandler.postDelayed(failsafe, SELECTION_GESTURE_RELAY_FAILSAFE_MS)
 
-        val path = Path().apply { moveTo(centerX, centerY) }
-        val gesture = GestureDescription.Builder()
-            .addStroke(
-                GestureDescription.StrokeDescription(
-                    path,
-                    0L,
-                    SELECTION_GESTURE_RELAY_TAP_MS,
-                ),
-            )
-            .build()
-
         fun finishRelay() {
             if (selectionGestureHotspot !== hotspot) return
             selectionGestureRelayDepth = (selectionGestureRelayDepth - 1).coerceAtLeast(0)
@@ -5057,18 +5046,43 @@ class ExpansionAccessibilityService : AccessibilityService() {
             forceTouchable()
         }
 
-        val callback = object : GestureResultCallback() {
-            override fun onCompleted(gestureDescription: GestureDescription?) {
-                finishRelay()
-            }
+        // updateViewLayout() is asynchronous. Dispatching in the same frame can
+        // race the NOT_TOUCHABLE flag and make the synthetic Shift tap land on
+        // our own overlay instead of Gboard. Give WindowManager one frame to
+        // commit the pass-through state before injecting the tap.
+        mainHandler.postDelayed(
+            relay@{
+                if (selectionGestureHotspot !== hotspot) {
+                    finishRelay()
+                    return@relay
+                }
 
-            override fun onCancelled(gestureDescription: GestureDescription?) {
-                finishRelay()
-            }
-        }
-        if (!dispatchGesture(gesture, callback, mainHandler)) {
-            finishRelay()
-        }
+                val path = Path().apply { moveTo(centerX, centerY) }
+                val gesture = GestureDescription.Builder()
+                    .addStroke(
+                        GestureDescription.StrokeDescription(
+                            path,
+                            0L,
+                            SELECTION_GESTURE_RELAY_TAP_MS,
+                        ),
+                    )
+                    .build()
+
+                val callback = object : GestureResultCallback() {
+                    override fun onCompleted(gestureDescription: GestureDescription?) {
+                        finishRelay()
+                    }
+
+                    override fun onCancelled(gestureDescription: GestureDescription?) {
+                        finishRelay()
+                    }
+                }
+                if (!dispatchGesture(gesture, callback, mainHandler)) {
+                    finishRelay()
+                }
+            },
+            SELECTION_GESTURE_RELAY_ARM_MS,
+        )
     }
 
     private fun hideSelectionGestureHotspot() {
@@ -8765,8 +8779,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
 
     companion object {
         private const val SELECTION_GESTURE_LONG_PRESS_MS = 330L
-        private const val SELECTION_GESTURE_RELAY_TAP_MS = 42L
-        private const val SELECTION_GESTURE_RELAY_FAILSAFE_MS = 500L
+        private const val SELECTION_GESTURE_RELAY_TAP_MS = 32L
+        private const val SELECTION_GESTURE_RELAY_ARM_MS = 20L
+        private const val SELECTION_GESTURE_RELAY_FAILSAFE_MS = 160L
         private const val SELECTION_GESTURE_HOTSPOT_REFRESH_DELAY_MS = 16L
         private const val SELECTION_GESTURE_HOTSPOT_RETRY_MS = 60L
         private const val SELECTION_GESTURE_HOTSPOT_REFRESH_RETRIES = 8
