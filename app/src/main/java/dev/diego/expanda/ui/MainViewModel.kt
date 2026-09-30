@@ -266,6 +266,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setSmartCursorCaseEnabled(enabled: Boolean) = viewModelScope.launch {
         settingsRepository.setSmartCursorCaseEnabled(enabled)
     }
+    fun setPreservePreviousWordActionSpace(enabled: Boolean) = viewModelScope.launch {
+        settingsRepository.setPreservePreviousWordActionSpace(enabled)
+    }
     fun setSuggestionEnabled(enabled: Boolean) = viewModelScope.launch { settingsRepository.setSuggestionEnabled(enabled) }
     fun setSelectionToolbarEnabled(enabled: Boolean) = viewModelScope.launch {
         settingsRepository.setSelectionToolbarEnabled(enabled)
