@@ -127,6 +127,7 @@ class ActionEngine {
         enabledActionIds: Set<String> = definitions.mapTo(linkedSetOf()) { it.id },
         shortcutOverrides: Map<String, String> = emptyMap(),
         triggerOverrides: Map<String, List<String>> = emptyMap(),
+        preservePreviousWordActionSpace: Boolean = false,
     ): ActionOutcome? {
         if (context.cursor !in 0..context.text.length) return null
 
@@ -167,8 +168,19 @@ class ActionEngine {
             aliases = emptyList(),
         )
         val commandStart = context.cursor - matchedTrigger.length
-        val withoutCommand = context.text.removeRange(commandStart, context.cursor)
-        val baseCursor = commandStart
+        val preservedTriggerPrefix = if (
+            preservePreviousWordActionSpace && definition.scope == ActionScope.PREVIOUS_WORD
+        ) {
+            matchedTrigger.takeWhile(Char::isWhitespace)
+        } else {
+            ""
+        }
+        val withoutCommand = context.text.replaceRange(
+            commandStart,
+            context.cursor,
+            preservedTriggerPrefix,
+        )
+        val baseCursor = commandStart + preservedTriggerPrefix.length
 
         fun outcome(
             text: String = withoutCommand,
@@ -194,7 +206,10 @@ class ActionEngine {
         }
 
         fun replacePreviousWord(transform: (String) -> String): ActionOutcome {
-            val beforeCursor = withoutCommand.substring(0, baseCursor)
+            // If the trigger's leading whitespace is preserved, it remains after
+            // the transformed word but must not become part of the word lookup.
+            val wordBoundaryCursor = commandStart.coerceIn(0, withoutCommand.length)
+            val beforeCursor = withoutCommand.substring(0, wordBoundaryCursor)
             val match = PREVIOUS_WORD.find(beforeCursor) ?: return outcome()
             val replacement = transform(match.value)
             val transformed = withoutCommand.replaceRange(match.range, replacement)
