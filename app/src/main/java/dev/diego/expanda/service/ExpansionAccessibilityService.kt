@@ -190,6 +190,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private var programmaticSelectionUntil = 0L
     private var selectionGestureHotspot: View? = null
     private var selectionGestureHotspotParams: WindowManager.LayoutParams? = null
+    private var selectionGestureRelayDepth = 0
+    private var selectionGestureRelayFailsafe: Runnable? = null
     private var selectionGestureHotspotRefresh: Runnable? = null
     private var selectionGestureHotspotRefreshAt = 0L
     private var selectionGestureCalibrationMode = false
@@ -4345,6 +4347,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
         // service still holds the Java View reference. Treat a detached view as
         // absent so the next refresh recreates a live touch target.
         if (current != null && params != null && !current.isAttachedToWindow) {
+            selectionGestureRelayFailsafe?.let(mainHandler::removeCallbacks)
+            selectionGestureRelayFailsafe = null
+            selectionGestureRelayDepth = 0
             selectionGestureHotspot = null
             selectionGestureHotspotParams = null
             current = null
@@ -4432,6 +4437,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
 
         return runCatching {
             windowManager.addView(hotspot, newParams)
+            selectionGestureRelayFailsafe?.let(mainHandler::removeCallbacks)
+            selectionGestureRelayFailsafe = null
+            selectionGestureRelayDepth = 0
             selectionGestureHotspot = hotspot
             selectionGestureHotspotParams = newParams
             true
@@ -4993,9 +5001,33 @@ class ExpansionAccessibilityService : AccessibilityService() {
     ) {
         val centerX = params.x + params.width / 2f
         val centerY = params.y + params.height / 2f
-        val originalFlags = params.flags
-        params.flags = originalFlags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+
+        // Never treat a transient NOT_TOUCHABLE state as the baseline. Two rapid
+        // Shift taps can overlap before WindowManager has committed the first
+        // restore; capturing params.flags verbatim here used to make the second
+        // callback restore NOT_TOUCHABLE permanently.
+        val touchableFlags =
+            params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+        selectionGestureRelayDepth++
+        params.flags = touchableFlags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
         runCatching { windowManager.updateViewLayout(hotspot, params) }
+
+        fun forceTouchable() {
+            if (selectionGestureHotspot !== hotspot) return
+            selectionGestureRelayDepth = 0
+            params.flags =
+                params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+            runCatching { windowManager.updateViewLayout(hotspot, params) }
+            clearAccessibilityCache()
+        }
+
+        selectionGestureRelayFailsafe?.let(mainHandler::removeCallbacks)
+        val failsafe = Runnable {
+            selectionGestureRelayFailsafe = null
+            forceTouchable()
+        }
+        selectionGestureRelayFailsafe = failsafe
+        mainHandler.postDelayed(failsafe, SELECTION_GESTURE_RELAY_FAILSAFE_MS)
 
         val path = Path().apply { moveTo(centerX, centerY) }
         val gesture = GestureDescription.Builder()
@@ -5008,29 +5040,42 @@ class ExpansionAccessibilityService : AccessibilityService() {
             )
             .build()
 
-        fun restoreTouchability() {
+        fun finishRelay() {
             if (selectionGestureHotspot !== hotspot) return
-            params.flags = originalFlags
-            runCatching { windowManager.updateViewLayout(hotspot, params) }
-            clearAccessibilityCache()
+            selectionGestureRelayDepth = (selectionGestureRelayDepth - 1).coerceAtLeast(0)
+            if (selectionGestureRelayDepth > 0) {
+                // Another Shift relay is still in flight. Keep the overlay out of
+                // the way until the last synthetic tap completes.
+                params.flags =
+                    touchableFlags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                runCatching { windowManager.updateViewLayout(hotspot, params) }
+                return
+            }
+
+            selectionGestureRelayFailsafe?.let(mainHandler::removeCallbacks)
+            selectionGestureRelayFailsafe = null
+            forceTouchable()
         }
 
         val callback = object : GestureResultCallback() {
             override fun onCompleted(gestureDescription: GestureDescription?) {
-                restoreTouchability()
+                finishRelay()
             }
 
             override fun onCancelled(gestureDescription: GestureDescription?) {
-                restoreTouchability()
+                finishRelay()
             }
         }
         if (!dispatchGesture(gesture, callback, mainHandler)) {
-            restoreTouchability()
+            finishRelay()
         }
     }
 
     private fun hideSelectionGestureHotspot() {
         hideSelectionGestureTrackpad()
+        selectionGestureRelayFailsafe?.let(mainHandler::removeCallbacks)
+        selectionGestureRelayFailsafe = null
+        selectionGestureRelayDepth = 0
         selectionGestureHotspotRefresh?.let(mainHandler::removeCallbacks)
         selectionGestureHotspotRefresh = null
         selectionGestureHotspotRefreshAt = 0L
@@ -8721,6 +8766,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
     companion object {
         private const val SELECTION_GESTURE_LONG_PRESS_MS = 330L
         private const val SELECTION_GESTURE_RELAY_TAP_MS = 42L
+        private const val SELECTION_GESTURE_RELAY_FAILSAFE_MS = 500L
         private const val SELECTION_GESTURE_HOTSPOT_REFRESH_DELAY_MS = 16L
         private const val SELECTION_GESTURE_HOTSPOT_RETRY_MS = 60L
         private const val SELECTION_GESTURE_HOTSPOT_REFRESH_RETRIES = 8
