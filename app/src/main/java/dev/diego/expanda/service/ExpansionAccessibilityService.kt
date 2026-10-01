@@ -972,10 +972,31 @@ class ExpansionAccessibilityService : AccessibilityService() {
         }
 
         var handleSettingsMode = false
+        val handleSettingsIcon = getDrawable(R.drawable.ic_settings_fine).mutate().apply {
+            setTint(ui.theme.onSurfaceVariant)
+        }
         val dragHandle = object : TextView(this) {
             override fun performClick(): Boolean {
                 super.performClick()
                 return true
+            }
+
+            override fun onDraw(canvas: android.graphics.Canvas) {
+                if (!handleSettingsMode) {
+                    super.onDraw(canvas)
+                    return
+                }
+                val iconWidth = handleSettingsIcon.intrinsicWidth.coerceAtLeast(1)
+                val iconHeight = handleSettingsIcon.intrinsicHeight.coerceAtLeast(1)
+                val left = (width - iconWidth) / 2
+                val top = (height - iconHeight) / 2
+                handleSettingsIcon.setBounds(
+                    left,
+                    top,
+                    left + iconWidth,
+                    top + iconHeight,
+                )
+                handleSettingsIcon.draw(canvas)
             }
         }.apply {
             text = "⠿"
@@ -997,14 +1018,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 } else {
                     handleSettingsMode = true
                     text = ""
-                    setCompoundDrawablesWithIntrinsicBounds(
-                        R.drawable.ic_settings_fine,
-                        0,
-                        0,
-                        0,
-                    )
-                    compoundDrawableTintList =
-                        android.content.res.ColorStateList.valueOf(ui.theme.onSurfaceVariant)
+                    setCompoundDrawablesWithIntrinsicBounds(0, 0, 0, 0)
+                    invalidate()
                     contentDescription = localizedSelectionUi(
                         settings,
                         "Open editing toolbar settings",
@@ -1243,19 +1258,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 bounds = screen,
                 restoreHandleIcon = {
                     dragHandle.setCompoundDrawablesWithIntrinsicBounds(0, 0, 0, 0)
-                    if (handleSettingsMode) {
-                        dragHandle.text = ""
-                        dragHandle.setCompoundDrawablesWithIntrinsicBounds(
-                            R.drawable.ic_settings_fine,
-                            0,
-                            0,
-                            0,
-                        )
-                        dragHandle.compoundDrawableTintList =
-                            android.content.res.ColorStateList.valueOf(ui.theme.onSurfaceVariant)
-                    } else {
-                        dragHandle.text = "⠿"
-                    }
+                    dragHandle.text = if (handleSettingsMode) "" else "⠿"
+                    dragHandle.invalidate()
                 },
             ),
         )
