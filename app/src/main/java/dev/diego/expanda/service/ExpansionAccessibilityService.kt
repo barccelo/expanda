@@ -972,7 +972,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
         }
 
         var handleSettingsMode = false
-        val handleSettingsIcon = getDrawable(R.drawable.ic_settings_fine).mutate().apply {
+        val handleSettingsIcon = requireNotNull(
+            getDrawable(R.drawable.ic_settings_fine),
+        ).mutate().apply {
             setTint(ui.theme.onSurfaceVariant)
         }
         val dragHandle = object : TextView(this) {
