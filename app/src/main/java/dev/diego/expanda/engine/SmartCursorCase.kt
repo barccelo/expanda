@@ -79,5 +79,24 @@ object SmartCursorCase {
         )
     }
 
+    fun isCursorInsideInsertionSlot(
+        baselineText: String,
+        baselineCursor: Int,
+        currentText: String,
+        selectionStart: Int,
+        selectionEnd: Int,
+    ): Boolean {
+        if (baselineCursor !in 0..baselineText.length) return false
+        if (selectionStart != selectionEnd || selectionStart !in 0..currentText.length) return false
+        if (currentText.length < baselineText.length) return false
+
+        val prefix = baselineText.substring(0, baselineCursor)
+        val suffix = baselineText.substring(baselineCursor)
+        if (!currentText.startsWith(prefix) || !currentText.endsWith(suffix)) return false
+
+        val insertionEnd = currentText.length - suffix.length
+        return selectionStart in baselineCursor..insertionEnd
+    }
+
     private val CLOSING_PUNCTUATION = setOf('»', '”', '’', '"', '\'', ')', ']', '}')
 }
