@@ -185,6 +185,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private var selectionToolbarValidation: Runnable? = null
     private var pendingSelectionToolbar: PendingSelectionToolbar? = null
     private var selectionToolbarShowTask: Runnable? = null
+    private var selectionToolbarSuspendedForFormOverlay = false
     private var selectionGroupOverlay: View? = null
     private var suppressSelectionToolbarUntil = 0L
     private var programmaticSelectionUntil = 0L
@@ -328,6 +329,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 }
                 AccessibilityEvent.TYPE_VIEW_FOCUSED -> {
                     scheduleSelectionToolbarValidation()
+                    resumeSelectionToolbarAfterFormOverlay()
                     scheduleSuggestionValidation()
                 }
                 AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
@@ -659,7 +661,13 @@ class ExpansionAccessibilityService : AccessibilityService() {
             pendingSmartCursorCase = null
             return false
         }
-        if (text == pending.baselineText) return false
+        val now = SystemClock.elapsedRealtime()
+        if (text == pending.baselineText) {
+            // The user may have erased the corrected letter and returned to the
+            // original cursor slot. Keep the guard armed for the next attempt.
+            pendingSmartCursorCase = pending.copy(createdAt = now)
+            return false
+        }
 
         val prefix = pending.baselineText.substring(0, pending.cursor)
         val suffix = pending.baselineText.substring(pending.cursor)
@@ -671,15 +679,17 @@ class ExpansionAccessibilityService : AccessibilityService() {
             return false
         }
 
+        // Stay armed while edits remain inside the same internal cursor slot.
+        // This lets Backspace + retype receive the same smart-case correction
+        // instead of making the feature one-shot.
+        pendingSmartCursorCase = pending.copy(createdAt = now)
+
         val correction = SmartCursorCase.lowercaseFirstInsertedLetter(
             baselineText = pending.baselineText,
             cursor = pending.cursor,
             currentText = text,
         )
-        if (correction == null) return false
-
-        pendingSmartCursorCase = null
-        if (correction.text == text) return false
+        if (correction == null || correction.text == text) return false
 
         reversibleExpansion = null
         suppressedExpansion = null
@@ -694,7 +704,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
             )
         ) {
             lastAppliedText = correction.text
-            lastAppliedAt = SystemClock.elapsedRealtime()
+            lastAppliedAt = now
+            if (settings.hapticFeedback) vibrateTick()
             return true
         }
         return false
@@ -2128,7 +2139,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private fun showFindReplaceOverlay() {
         val state = selectionToolbarState ?: return
         val settings = settingsRepository.settings.value
-        hideFormOverlay()
+        hideFormOverlay(restoreSelectionToolbar = false)
+        suspendSelectionToolbarForFormOverlay()
         val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         val ui = OverlayViews(this, resolveNativeTheme(this, settings))
         val findInput = ui.input(selectionUiText(settings, "find"), "").apply {
@@ -2191,7 +2203,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private fun showPrefixSuffixOverlay() {
         val state = selectionToolbarState ?: return
         val settings = settingsRepository.settings.value
-        hideFormOverlay()
+        hideFormOverlay(restoreSelectionToolbar = false)
+        suspendSelectionToolbarForFormOverlay()
         val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         val ui = OverlayViews(this, resolveNativeTheme(this, settings))
         val prefix = ui.input(selectionUiText(settings, "prefix"), "").apply { setSingleLine(true) }
@@ -2231,7 +2244,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private fun showRepeatTextOverlay() {
         val state = selectionToolbarState ?: return
         val settings = settingsRepository.settings.value
-        hideFormOverlay()
+        hideFormOverlay(restoreSelectionToolbar = false)
+        suspendSelectionToolbarForFormOverlay()
         val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         val ui = OverlayViews(this, resolveNativeTheme(this, settings))
         val count = ui.input(selectionUiText(settings, "repeat_count"), "2").apply {
@@ -2278,7 +2292,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private fun showTextCounterOverlay() {
         val state = selectionToolbarState ?: return
         val settings = settingsRepository.settings.value
-        hideFormOverlay()
+        hideFormOverlay(restoreSelectionToolbar = false)
+        suspendSelectionToolbarForFormOverlay()
         val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         val ui = OverlayViews(this, resolveNativeTheme(this, settings))
         val text = state.selectedText
@@ -2654,10 +2669,59 @@ class ExpansionAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun suspendSelectionToolbarForFormOverlay() {
+        if (selectionToolbarState == null) return
+        hideSelectionGroupOverlay()
+        cancelPendingSelectionToolbar()
+        cancelSelectionToolbarValidation()
+        val overlay = selectionToolbar
+        selectionToolbar = null
+        selectionToolbarWindowParams = null
+        selectionToolbarSuspendedForFormOverlay = true
+        if (overlay != null) {
+            runCatching {
+                (getSystemService(WINDOW_SERVICE) as WindowManager).removeView(overlay)
+            }
+        }
+    }
+
+    private fun resumeSelectionToolbarAfterFormOverlay() {
+        if (!selectionToolbarSuspendedForFormOverlay || formOverlay != null) return
+        // Do not put the toolbar back at an absolute screen Y while the IME is
+        // absent. Keep it suspended until a windows-changed event reports the
+        // keyboard again.
+        if (inputMethodBounds() == null) return
+
+        val state = selectionToolbarState ?: run {
+            selectionToolbarSuspendedForFormOverlay = false
+            return
+        }
+        selectionToolbarSuspendedForFormOverlay = false
+        cancelPendingSelectionToolbar()
+
+        val pending = PendingSelectionToolbar(
+            anchor = state.anchor,
+            packageName = state.anchor.packageName,
+            start = state.start,
+            end = state.end,
+            selectedText = state.selectedText,
+        )
+        pendingSelectionToolbar = pending
+        val task = Runnable {
+            selectionToolbarShowTask = null
+            if (pendingSelectionToolbar !== pending) return@Runnable
+            pendingSelectionToolbar = null
+            showPendingSelectionToolbar(pending)
+        }
+        selectionToolbarShowTask = task
+        mainHandler.postDelayed(task, SELECTION_TOOLBAR_STABILITY_DELAY_MS)
+    }
+
     private fun hideSelectionToolbar() {
         hideSelectionGroupOverlay()
         cancelPendingSelectionToolbar()
         cancelSelectionToolbarValidation()
+        selectionToolbarSuspendedForFormOverlay = false
         val overlay = selectionToolbar
         selectionToolbar = null
         selectionToolbarWindowParams = null
@@ -4084,7 +4148,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
         mainHandler.postDelayed(task, delayMillis)
     }
 
-    private fun hideFormOverlay() {
+    private fun hideFormOverlay(
+        restoreSelectionToolbar: Boolean = true,
+    ) {
         pendingFormApply?.let(mainHandler::removeCallbacks)
         pendingFormApply = null
         activeFieldDialog?.dismiss()
@@ -4100,6 +4166,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
             it.recycle()
         }
         pendingFormNode = null
+        if (restoreSelectionToolbar) {
+            resumeSelectionToolbarAfterFormOverlay()
+        }
     }
 
     private fun vibrate(durationMs: Long = HAPTIC_CONFIRM_MS) {
