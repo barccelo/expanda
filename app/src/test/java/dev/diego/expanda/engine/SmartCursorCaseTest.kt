@@ -119,4 +119,62 @@ class SmartCursorCaseTest {
             ),
         )
     }
+
+    @Test
+    fun `cursor remains armed only inside the inserted slot`() {
+        assertEquals(
+            true,
+            SmartCursorCase.isCursorInsideInsertionSlot(
+                baselineText = "¡!",
+                baselineCursor = 1,
+                currentText = "¡maria!",
+                selectionStart = 6,
+                selectionEnd = 6,
+            ),
+        )
+        assertEquals(
+            true,
+            SmartCursorCase.isCursorInsideInsertionSlot(
+                baselineText = "¡!",
+                baselineCursor = 1,
+                currentText = "¡!",
+                selectionStart = 1,
+                selectionEnd = 1,
+            ),
+        )
+        assertEquals(
+            false,
+            SmartCursorCase.isCursorInsideInsertionSlot(
+                baselineText = "¡!",
+                baselineCursor = 1,
+                currentText = "¡maria!",
+                selectionStart = 0,
+                selectionEnd = 0,
+            ),
+        )
+        assertEquals(
+            false,
+            SmartCursorCase.isCursorInsideInsertionSlot(
+                baselineText = "¡!",
+                baselineCursor = 1,
+                currentText = "¡maria!",
+                selectionStart = 7,
+                selectionEnd = 7,
+            ),
+        )
+    }
+
+    @Test
+    fun `selection inside slot disarms smart case`() {
+        assertEquals(
+            false,
+            SmartCursorCase.isCursorInsideInsertionSlot(
+                baselineText = "Hola, «»",
+                baselineCursor = 7,
+                currentText = "Hola, «m»",
+                selectionStart = 7,
+                selectionEnd = 8,
+            ),
+        )
+    }
 }
