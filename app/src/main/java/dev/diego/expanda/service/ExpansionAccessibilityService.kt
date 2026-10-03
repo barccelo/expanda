@@ -341,6 +341,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     // selection toolbar we just created; validate its anchored
                     // editor and selection after Android's window state settles.
                     scheduleSelectionToolbarValidation()
+                    resumeSelectionToolbarAfterFormOverlay()
                     scheduleSuggestionValidation()
                 }
             }
