@@ -78,11 +78,14 @@ data class AppSettings(
     val selectionToolbarMoreButtonCloseMode: Boolean = false,
     /** Long-press hotspot over the IME for horizontal text selection. */
     val selectionGestureHotspotEnabled: Boolean = true,
-    /** Hotspot geometry as fractions of the current input-method window. */
+    /** Horizontal geometry remains relative to the IME. Vertical geometry is migrated to a bottom anchor. */
     val selectionGestureHotspotXFraction: Float = SettingsRepository.DEFAULT_SELECTION_GESTURE_X,
     val selectionGestureHotspotYFraction: Float = SettingsRepository.DEFAULT_SELECTION_GESTURE_Y,
     val selectionGestureHotspotWidthFraction: Float = SettingsRepository.DEFAULT_SELECTION_GESTURE_WIDTH,
     val selectionGestureHotspotHeightFraction: Float = SettingsRepository.DEFAULT_SELECTION_GESTURE_HEIGHT,
+    /** Absolute vertical geometry keeps the hotspot fixed when IME panels expand upward. -1 means legacy. */
+    val selectionGestureHotspotBottomOffsetDp: Int = -1,
+    val selectionGestureHotspotHeightDp: Int = -1,
     /** Configurable action groups used by compact toolbar buttons such as Case. */
     val selectionActionGroupConfigs: Map<String, SelectionActionGroupConfig> =
         SettingsRepository.DEFAULT_SELECTION_ACTION_GROUP_CONFIGS,
@@ -215,6 +218,12 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
             selectionGestureHotspotHeightFraction = (
                 values[Keys.SELECTION_GESTURE_HOTSPOT_HEIGHT] ?: DEFAULT_SELECTION_GESTURE_HEIGHT
             ).coerceIn(MIN_SELECTION_GESTURE_SIZE, MAX_SELECTION_GESTURE_SIZE),
+            selectionGestureHotspotBottomOffsetDp = (
+                values[Keys.SELECTION_GESTURE_HOTSPOT_BOTTOM_OFFSET_DP] ?: -1
+            ).coerceIn(-1, MAX_SELECTION_GESTURE_ABSOLUTE_DP),
+            selectionGestureHotspotHeightDp = (
+                values[Keys.SELECTION_GESTURE_HOTSPOT_HEIGHT_DP] ?: -1
+            ).coerceIn(-1, MAX_SELECTION_GESTURE_ABSOLUTE_DP),
             selectionActionGroupConfigs = decodeSelectionActionGroupConfigs(
                 values[Keys.SELECTION_ACTION_GROUP_CONFIGS],
             ),
@@ -323,6 +332,30 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
             widthFraction.coerceIn(MIN_SELECTION_GESTURE_SIZE, MAX_SELECTION_GESTURE_SIZE)
         it[Keys.SELECTION_GESTURE_HOTSPOT_HEIGHT] =
             heightFraction.coerceIn(MIN_SELECTION_GESTURE_SIZE, MAX_SELECTION_GESTURE_SIZE)
+        // A manual reset/size change is expressed in legacy fractions. Re-anchor
+        // it the next time a normal keyboard geometry is visible.
+        it[Keys.SELECTION_GESTURE_HOTSPOT_BOTTOM_OFFSET_DP] = -1
+        it[Keys.SELECTION_GESTURE_HOTSPOT_HEIGHT_DP] = -1
+    }
+
+    suspend fun setSelectionGestureHotspotAnchoredLayout(
+        xFraction: Float,
+        yFraction: Float,
+        widthFraction: Float,
+        heightFraction: Float,
+        bottomOffsetDp: Int,
+        heightDp: Int,
+    ) = store.edit {
+        it[Keys.SELECTION_GESTURE_HOTSPOT_X] = xFraction.coerceIn(0f, 1f)
+        it[Keys.SELECTION_GESTURE_HOTSPOT_Y] = yFraction.coerceIn(0f, 1f)
+        it[Keys.SELECTION_GESTURE_HOTSPOT_WIDTH] =
+            widthFraction.coerceIn(MIN_SELECTION_GESTURE_SIZE, MAX_SELECTION_GESTURE_SIZE)
+        it[Keys.SELECTION_GESTURE_HOTSPOT_HEIGHT] =
+            heightFraction.coerceIn(MIN_SELECTION_GESTURE_SIZE, MAX_SELECTION_GESTURE_SIZE)
+        it[Keys.SELECTION_GESTURE_HOTSPOT_BOTTOM_OFFSET_DP] =
+            bottomOffsetDp.coerceIn(0, MAX_SELECTION_GESTURE_ABSOLUTE_DP)
+        it[Keys.SELECTION_GESTURE_HOTSPOT_HEIGHT_DP] =
+            heightDp.coerceIn(1, MAX_SELECTION_GESTURE_ABSOLUTE_DP)
     }
     suspend fun setSelectionActionGroupConfig(
         groupId: String,
@@ -425,6 +458,10 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         val SELECTION_GESTURE_HOTSPOT_Y = floatPreferencesKey("selection_gesture_hotspot_y")
         val SELECTION_GESTURE_HOTSPOT_WIDTH = floatPreferencesKey("selection_gesture_hotspot_width")
         val SELECTION_GESTURE_HOTSPOT_HEIGHT = floatPreferencesKey("selection_gesture_hotspot_height")
+        val SELECTION_GESTURE_HOTSPOT_BOTTOM_OFFSET_DP =
+            intPreferencesKey("selection_gesture_hotspot_bottom_offset_dp")
+        val SELECTION_GESTURE_HOTSPOT_HEIGHT_DP =
+            intPreferencesKey("selection_gesture_hotspot_height_dp")
         val SELECTION_ACTION_GROUP_CONFIGS = stringPreferencesKey("selection_action_group_configs")
         val SELECTION_WRAP_GROUP_MIGRATED = booleanPreferencesKey("selection_wrap_group_migrated")
         val SELECTION_CLIPBOARD_GROUP_MIGRATED =
@@ -510,6 +547,7 @@ class SettingsRepository(context: Context, scope: CoroutineScope) {
         const val DEFAULT_SELECTION_GESTURE_HEIGHT = 0.19f
         const val MIN_SELECTION_GESTURE_SIZE = 0.08f
         const val MAX_SELECTION_GESTURE_SIZE = 0.30f
+        const val MAX_SELECTION_GESTURE_ABSOLUTE_DP = 600
         const val MAX_SELECTION_GROUP_LABEL_LENGTH = 12
         const val MAX_CUSTOM_WRAP_AFFIX_LENGTH = 24
         const val CUSTOM_SELECTION_WRAP_PREFIX = "custom_wrap_"

@@ -4499,20 +4499,68 @@ class ExpansionAccessibilityService : AccessibilityService() {
         val width = (imeBounds.width() * settings.selectionGestureHotspotWidthFraction)
             .roundToInt()
             .coerceAtLeast(dp(44))
-        val height = (imeBounds.height() * settings.selectionGestureHotspotHeightFraction)
-            .roundToInt()
+        val density = resources.displayMetrics.density.coerceAtLeast(0.1f)
+
+        val anchoredGeometry = if (
+            settings.selectionGestureHotspotBottomOffsetDp >= 0 &&
+            settings.selectionGestureHotspotHeightDp > 0
+        ) {
+            SelectionGestureHotspotGeometry.Anchored(
+                bottomOffsetPx = dp(settings.selectionGestureHotspotBottomOffsetDp),
+                heightPx = dp(settings.selectionGestureHotspotHeightDp),
+            )
+        } else {
+            // Legacy Y/height were fractions of the whole IME. Only migrate while
+            // the IME still looks like a normal keyboard. Sticker/GIF/search
+            // panels can make the same IME window much taller; migrating there
+            // would permanently bake in the wrong geometry.
+            if (!SelectionGestureHotspotGeometry.canMigrateLegacy(
+                    imeWidthPx = imeBounds.width(),
+                    imeHeightPx = imeBounds.height(),
+                    maxAspectRatio = SELECTION_GESTURE_LEGACY_MIGRATION_MAX_IME_ASPECT,
+                )
+            ) {
+                hideSelectionGestureHotspot()
+                return false
+            }
+
+            SelectionGestureHotspotGeometry.migrateLegacy(
+                imeHeightPx = imeBounds.height(),
+                yFraction = settings.selectionGestureHotspotYFraction,
+                heightFraction = settings.selectionGestureHotspotHeightFraction,
+                minimumHeightPx = dp(44),
+            ).also { migrated ->
+                val legacyYFraction = settings.selectionGestureHotspotYFraction
+                scope.launch {
+                    settingsRepository.setSelectionGestureHotspotAnchoredLayout(
+                        xFraction = settings.selectionGestureHotspotXFraction,
+                        yFraction = legacyYFraction,
+                        widthFraction = settings.selectionGestureHotspotWidthFraction,
+                        heightFraction = settings.selectionGestureHotspotHeightFraction,
+                        bottomOffsetDp = (migrated.bottomOffsetPx / density).roundToInt(),
+                        heightDp = (migrated.heightPx / density).roundToInt().coerceAtLeast(1),
+                    )
+                }
+            }
+        }
+
+        val height = anchoredGeometry.heightPx
             .coerceAtLeast(dp(44))
+            .coerceAtMost(imeBounds.height())
+        val bottomOffset = anchoredGeometry.bottomOffsetPx
+            .coerceAtLeast(0)
+            .coerceAtMost((imeBounds.height() - height).coerceAtLeast(0))
         val x = (
             imeBounds.left + imeBounds.width() * settings.selectionGestureHotspotXFraction
         ).roundToInt().coerceIn(
             imeBounds.left,
             (imeBounds.right - width).coerceAtLeast(imeBounds.left),
         )
-        val y = (
-            imeBounds.top + imeBounds.height() * settings.selectionGestureHotspotYFraction
-        ).roundToInt().coerceIn(
-            imeBounds.top,
-            (imeBounds.bottom - height).coerceAtLeast(imeBounds.top),
+        val y = SelectionGestureHotspotGeometry.topFromBottom(
+            imeTopPx = imeBounds.top,
+            imeBottomPx = imeBounds.bottom,
+            heightPx = height,
+            bottomOffsetPx = bottomOffset,
         )
 
         val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
@@ -4673,13 +4721,19 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     val ime = inputMethodBounds() ?: return@OnTouchListener true
                     val xFraction = (params.x - ime.left).toFloat() / ime.width().coerceAtLeast(1)
                     val yFraction = (params.y - ime.top).toFloat() / ime.height().coerceAtLeast(1)
+                    val density = resources.displayMetrics.density.coerceAtLeast(0.1f)
+                    val bottomOffsetPx = (
+                        ime.bottom - (params.y + params.height)
+                    ).coerceAtLeast(0)
                     val settings = settingsRepository.settings.value
                     scope.launch {
-                        settingsRepository.setSelectionGestureHotspotLayout(
+                        settingsRepository.setSelectionGestureHotspotAnchoredLayout(
                             xFraction = xFraction,
                             yFraction = yFraction,
                             widthFraction = settings.selectionGestureHotspotWidthFraction,
                             heightFraction = settings.selectionGestureHotspotHeightFraction,
+                            bottomOffsetDp = (bottomOffsetPx / density).roundToInt(),
+                            heightDp = (params.height / density).roundToInt().coerceAtLeast(1),
                         )
                     }
                     if (settings.hapticFeedback) vibrateTick()
@@ -8958,6 +9012,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         private const val SELECTION_GESTURE_RELAY_TAP_MS = 32L
         private const val SELECTION_GESTURE_RELAY_ARM_MS = 20L
         private const val SELECTION_GESTURE_RELAY_FAILSAFE_MS = 160L
+        private const val SELECTION_GESTURE_LEGACY_MIGRATION_MAX_IME_ASPECT = 0.98f
         private const val SELECTION_GESTURE_HOTSPOT_REFRESH_DELAY_MS = 16L
         private const val SELECTION_GESTURE_HOTSPOT_RETRY_MS = 60L
         private const val SELECTION_GESTURE_HOTSPOT_REFRESH_RETRIES = 8
