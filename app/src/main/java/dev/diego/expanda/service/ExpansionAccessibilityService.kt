@@ -186,6 +186,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
     private var pendingSelectionToolbar: PendingSelectionToolbar? = null
     private var selectionToolbarShowTask: Runnable? = null
     private var selectionToolbarSuspendedForFormOverlay = false
+    private var selectionToolbarResumeTask: Runnable? = null
     private var selectionGroupOverlay: View? = null
     private var suppressSelectionToolbarUntil = 0L
     private var programmaticSelectionUntil = 0L
@@ -330,7 +331,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 }
                 AccessibilityEvent.TYPE_VIEW_FOCUSED -> {
                     scheduleSelectionToolbarValidation()
-                    resumeSelectionToolbarAfterFormOverlay()
+                    scheduleSelectionToolbarResumeAfterFormOverlay()
                     scheduleSuggestionValidation()
                 }
                 AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
@@ -342,7 +343,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
                     // selection toolbar we just created; validate its anchored
                     // editor and selection after Android's window state settles.
                     scheduleSelectionToolbarValidation()
-                    resumeSelectionToolbarAfterFormOverlay()
+                    scheduleSelectionToolbarResumeAfterFormOverlay()
                     scheduleSuggestionValidation()
                 }
             }
@@ -2711,6 +2712,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
 
     private fun suspendSelectionToolbarForFormOverlay() {
         if (selectionToolbarState == null) return
+        selectionToolbarResumeTask?.let(mainHandler::removeCallbacks)
+        selectionToolbarResumeTask = null
         hideSelectionGroupOverlay()
         cancelPendingSelectionToolbar()
         cancelSelectionToolbarValidation()
@@ -2725,18 +2728,41 @@ class ExpansionAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun scheduleSelectionToolbarResumeAfterFormOverlay(
+        delayMs: Long = SELECTION_TOOLBAR_RESUME_DELAY_MS,
+        retries: Int = SELECTION_TOOLBAR_RESUME_RETRIES,
+    ) {
+        if (!selectionToolbarSuspendedForFormOverlay || formOverlay != null) return
+
+        selectionToolbarResumeTask?.let(mainHandler::removeCallbacks)
+        val task = Runnable {
+            selectionToolbarResumeTask = null
+            if (!selectionToolbarSuspendedForFormOverlay || formOverlay != null) return@Runnable
+
+            if (visibleInputMethodBoundsForToolbar() != null) {
+                resumeSelectionToolbarAfterFormOverlay()
+            } else if (retries > 0) {
+                scheduleSelectionToolbarResumeAfterFormOverlay(
+                    delayMs = SELECTION_TOOLBAR_RESUME_RETRY_MS,
+                    retries = retries - 1,
+                )
+            }
+        }
+        selectionToolbarResumeTask = task
+        mainHandler.postDelayed(task, delayMs)
+    }
+
     private fun resumeSelectionToolbarAfterFormOverlay() {
         if (!selectionToolbarSuspendedForFormOverlay || formOverlay != null) return
-        // Do not put the toolbar back at an absolute screen Y while the IME is
-        // absent. Keep it suspended until a windows-changed event reports the
-        // keyboard again.
-        if (inputMethodBounds() == null) return
+        if (visibleInputMethodBoundsForToolbar() == null) return
 
         val state = selectionToolbarState ?: run {
             selectionToolbarSuspendedForFormOverlay = false
             return
         }
         selectionToolbarSuspendedForFormOverlay = false
+        selectionToolbarResumeTask?.let(mainHandler::removeCallbacks)
+        selectionToolbarResumeTask = null
         cancelPendingSelectionToolbar()
 
         val pending = PendingSelectionToolbar(
@@ -2761,6 +2787,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
         hideSelectionGroupOverlay()
         cancelPendingSelectionToolbar()
         cancelSelectionToolbarValidation()
+        selectionToolbarResumeTask?.let(mainHandler::removeCallbacks)
+        selectionToolbarResumeTask = null
         selectionToolbarSuspendedForFormOverlay = false
         val overlay = selectionToolbar
         selectionToolbar = null
@@ -4207,7 +4235,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         }
         pendingFormNode = null
         if (restoreSelectionToolbar) {
-            resumeSelectionToolbarAfterFormOverlay()
+            scheduleSelectionToolbarResumeAfterFormOverlay()
         }
     }
 
@@ -4273,6 +4301,39 @@ class ExpansionAccessibilityService : AccessibilityService() {
 
         return Rect().also(imeWindow::getBoundsInScreen)
             .takeIf { it.width() > 0 && it.height() > 0 }
+    }
+
+    private fun visibleInputMethodBoundsForToolbar(): Rect? {
+        val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        val screen = displayBounds(windowManager)
+        val minimumHeight = dp(120)
+        val bottomTolerance = dp(72)
+
+        return runCatching { windows }
+            .getOrDefault(emptyList())
+            .asSequence()
+            .filter { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD }
+            .filter { it.isFocused || it.isActive }
+            .sortedByDescending { window ->
+                (if (window.isFocused) 2 else 0) + (if (window.isActive) 1 else 0)
+            }
+            .mapNotNull { window ->
+                val root = window.root
+                val visible = root?.isVisibleToUser == true
+                if (root != null) {
+                    @Suppress("DEPRECATION")
+                    root.recycle()
+                }
+                if (!visible) return@mapNotNull null
+
+                Rect().also(window::getBoundsInScreen).takeIf { bounds ->
+                    bounds.width() > 0 &&
+                        bounds.height() >= minimumHeight &&
+                        bounds.bottom >= screen.bottom - bottomTolerance &&
+                        bounds.top < screen.bottom - minimumHeight
+                }
+            }
+            .firstOrNull()
     }
 
     private fun isSelectionGestureEditor(node: AccessibilityNodeInfo): Boolean =
@@ -8951,6 +9012,9 @@ class ExpansionAccessibilityService : AccessibilityService() {
         private const val PROGRAMMATIC_SELECTION_GRACE_MS = 900L
         private const val SMART_CURSOR_CASE_TIMEOUT_MS = 15_000L
         private const val SMART_CURSOR_CASE_MAX_CORRECTIONS = 2
+        private const val SELECTION_TOOLBAR_RESUME_DELAY_MS = 180L
+        private const val SELECTION_TOOLBAR_RESUME_RETRY_MS = 90L
+        private const val SELECTION_TOOLBAR_RESUME_RETRIES = 8
         private const val CLIPBOARD_RESTORE_DELAY_MS = 250L
         private const val VAULT_GBOARD_COPY_INTERVAL_MS = 650L
         private const val VAULT_CLIPBOARD_CLEAR_MS = 60_000L
