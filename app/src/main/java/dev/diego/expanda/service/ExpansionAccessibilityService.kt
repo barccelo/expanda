@@ -211,6 +211,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         val baselineText: String,
         val cursor: Int,
         val createdAt: Long,
+        val correctionsApplied: Int = 0,
     )
 
     private data class SelectionToolbarState(
@@ -664,9 +665,8 @@ class ExpansionAccessibilityService : AccessibilityService() {
         }
         val now = SystemClock.elapsedRealtime()
         if (text == pending.baselineText) {
-            // The user may have erased the corrected letter and returned to the
-            // original cursor slot. Keep the guard armed for the next attempt.
-            pendingSmartCursorCase = pending.copy(createdAt = now)
+            // Returning to the original slot after Backspace is still the same
+            // attempt. Do not renew the lifetime: createdAt remains fixed.
             return false
         }
 
@@ -679,11 +679,6 @@ class ExpansionAccessibilityService : AccessibilityService() {
             pendingSmartCursorCase = null
             return false
         }
-
-        // Stay armed while edits remain inside the same internal cursor slot.
-        // This lets Backspace + retype receive the same smart-case correction
-        // instead of making the feature one-shot.
-        pendingSmartCursorCase = pending.copy(createdAt = now)
 
         val correction = SmartCursorCase.lowercaseFirstInsertedLetter(
             baselineText = pending.baselineText,
@@ -704,6 +699,14 @@ class ExpansionAccessibilityService : AccessibilityService() {
                 settings = settings,
             )
         ) {
+            val correctionCount = pending.correctionsApplied + 1
+            pendingSmartCursorCase = if (
+                correctionCount >= SMART_CURSOR_CASE_MAX_CORRECTIONS
+            ) {
+                null
+            } else {
+                pending.copy(correctionsApplied = correctionCount)
+            }
             lastAppliedText = correction.text
             lastAppliedAt = now
             if (settings.hapticFeedback) vibrateTick()
@@ -762,6 +765,11 @@ class ExpansionAccessibilityService : AccessibilityService() {
             }
 
             val settings = settingsRepository.settings.value
+            updatePendingSmartCursorCaseForSelection(
+                node = node,
+                activeAnchor = createSuggestionAnchor(node, packageName),
+                settings = settings,
+            )
             if (!settings.expansionEnabled ||
                 !settings.selectionToolbarEnabled ||
                 settings.isPaused ||
@@ -791,6 +799,37 @@ class ExpansionAccessibilityService : AccessibilityService() {
         } finally {
             @Suppress("DEPRECATION")
             node.recycle()
+        }
+    }
+
+    private fun updatePendingSmartCursorCaseForSelection(
+        node: AccessibilityNodeInfo,
+        activeAnchor: SuggestionAnchor,
+        settings: AppSettings,
+    ) {
+        val pending = pendingSmartCursorCase ?: return
+        if (
+            !settings.smartCursorCaseEnabled ||
+            SystemClock.elapsedRealtime() - pending.createdAt > SMART_CURSOR_CASE_TIMEOUT_MS ||
+            !SuggestionAnchorPolicy.shouldKeep(pending.anchor, activeAnchor)
+        ) {
+            pendingSmartCursorCase = null
+            return
+        }
+
+        val text = editableText(node)
+        val start = node.textSelectionStart
+        val end = node.textSelectionEnd
+        if (
+            !SmartCursorCase.isCursorInsideInsertionSlot(
+                baselineText = pending.baselineText,
+                baselineCursor = pending.cursor,
+                currentText = text,
+                selectionStart = start,
+                selectionEnd = end,
+            )
+        ) {
+            pendingSmartCursorCase = null
         }
     }
 
@@ -8911,6 +8950,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         private const val SELECTION_TOOLBAR_DELETE_SUPPRESSION_MS = 420L
         private const val PROGRAMMATIC_SELECTION_GRACE_MS = 900L
         private const val SMART_CURSOR_CASE_TIMEOUT_MS = 15_000L
+        private const val SMART_CURSOR_CASE_MAX_CORRECTIONS = 2
         private const val CLIPBOARD_RESTORE_DELAY_MS = 250L
         private const val VAULT_GBOARD_COPY_INTERVAL_MS = 650L
         private const val VAULT_CLIPBOARD_CLEAR_MS = 60_000L
