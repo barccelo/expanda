@@ -9066,7 +9066,7 @@ class ExpansionAccessibilityService : AccessibilityService() {
         private const val SELECTION_TOOLBAR_DELETE_SUPPRESSION_MS = 420L
         private const val PROGRAMMATIC_SELECTION_GRACE_MS = 900L
         private const val SMART_CURSOR_CASE_TIMEOUT_MS = 15_000L
-        private const val SMART_CURSOR_CASE_MAX_CORRECTIONS = 2
+        private const val SMART_CURSOR_CASE_MAX_CORRECTIONS = 1
         private const val SELECTION_TOOLBAR_RESUME_DELAY_MS = 180L
         private const val SELECTION_TOOLBAR_RESUME_RETRY_MS = 90L
         private const val SELECTION_TOOLBAR_RESUME_RETRIES = 8
