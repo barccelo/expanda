@@ -18,8 +18,8 @@ android {
         applicationId = "dev.barccelo.expanda"
         minSdk = 26
         targetSdk = 36
-        versionCode = 17
-        versionName = "0.3.2-personal.11"
+        versionCode = System.getenv("EXPANDA_CI_VERSION_CODE")?.toIntOrNull() ?: 17
+        versionName = System.getenv("EXPANDA_CI_VERSION_NAME") ?: "0.3.2-personal.11"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true

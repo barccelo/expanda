@@ -7,7 +7,11 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+
+env:
+  EXPANDA_CI_VERSION_CODE: ${{ github.run_number }}
+  EXPANDA_CI_VERSION_NAME: 0.3.2-personal.${{ github.run_number }}
 
 jobs:
   build:
@@ -77,12 +81,19 @@ jobs:
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$APK"
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk Expanda-Personal-debug.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk Expanda-Personal.apk
 
       - name: Upload Expanda Personal APK
         uses: actions/upload-artifact@v4
         with:
-          name: Expanda-Personal-debug
-          path: Expanda-Personal-debug.apk
+          name: Expanda-Personal-${{ env.EXPANDA_CI_VERSION_NAME }}
+          path: Expanda-Personal.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v${EXPANDA_CI_VERSION_NAME}"
+          gh release create "$TAG"             "Expanda-Personal.apk#Expanda Personal APK"             --repo "${GITHUB_REPOSITORY}"             --target "${GITHUB_SHA}"             --title "Expanda Personal ${EXPANDA_CI_VERSION_NAME}"             --notes "Signed personal build from custom-development. Version code: ${EXPANDA_CI_VERSION_CODE}. Commit: ${GITHUB_SHA}."
